@@ -20,8 +20,8 @@ builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(Dat
 builder.Services.Configure<FeatureOptions>(builder.Configuration.GetSection(FeatureOptions.Section));
 builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
 
-// Missing configuration does not stop the process: affected requests answer 503 "Setup required"
-// and /api/v1/capabilities lists the gaps, so a deploy goes green before every secret is entered.
+// Missing configuration does not stop the process. Without a connection string data is kept in memory;
+// without a Supabase URL visitors continue as random guests. /api/v1/capabilities reports both (demo mode).
 var setup = new SetupState();
 builder.Services.AddSingleton(setup);
 builder.Services.AddApplication();
@@ -86,7 +86,7 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup") && setup.Datab
 }
 
 foreach (var gap in setup.Missing)
-    app.Logger.LogWarning("Setup required: {Gap} Affected requests answer 503 until it is set.", gap);
+    app.Logger.LogWarning("Demo mode: {Gap}", gap);
 
 if (allowedOrigins.Length == 0)
     app.Logger.LogWarning("Cors:AllowedOrigins is empty; browsers on other origins cannot call this API.");

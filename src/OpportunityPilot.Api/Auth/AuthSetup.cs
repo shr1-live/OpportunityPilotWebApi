@@ -24,24 +24,31 @@ public static class AuthSetup
         if (supabaseConfigured && !baseUrl!.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             supabaseConfigured = false;
-            setup.AuthMissing("Auth__SupabaseUrl must be an https URL.");
+            if (!devBypass) setup.AuthMissing("Auth__SupabaseUrl must be an https URL, so sign-in is guest-only.");
         }
         else if (!supabaseConfigured && !devBypass)
         {
-            setup.AuthMissing("Auth__SupabaseUrl is not set.");
+            setup.AuthMissing("Auth__SupabaseUrl is not set, so sign-in is guest-only.");
         }
+
+        // Demo mode: with no real sign-in provider (and outside local dev bypass), guests get random server-signed identities.
+        var guests = new GuestTokens(enabled: !supabaseConfigured && !devBypass, auth.GuestSigningKey);
+        builder.Services.AddSingleton(guests);
 
         var schemes = new List<string>();
         var authBuilder = builder.Services.AddAuthentication(
             supabaseConfigured ? JwtBearerDefaults.AuthenticationScheme
             : devBypass ? DevBypassAuthenticationHandler.SchemeName
-            : SetupRequiredAuthenticationHandler.SchemeName);
+            : GuestTokens.SchemeName);
 
-        if (!supabaseConfigured && !devBypass)
+        if (guests.Enabled)
         {
-            // Fail closed: start so health and capabilities can explain the gap, but authenticate no one.
-            authBuilder.AddScheme<AuthenticationSchemeOptions, SetupRequiredAuthenticationHandler>(SetupRequiredAuthenticationHandler.SchemeName, null);
-            schemes.Add(SetupRequiredAuthenticationHandler.SchemeName);
+            authBuilder.AddJwtBearer(GuestTokens.SchemeName, o =>
+            {
+                o.MapInboundClaims = false;
+                o.TokenValidationParameters = guests.ValidationParameters();
+            });
+            schemes.Add(GuestTokens.SchemeName);
         }
 
         if (supabaseConfigured)

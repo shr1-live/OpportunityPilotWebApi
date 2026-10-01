@@ -1,13 +1,17 @@
 # Setup
 
-When the database connection string or the Supabase URL is missing, the API
-still starts (so a deploy goes green) but runs in a locked-down **setup required**
-mode: `/health/live` is 200, `/health/ready` is 503, every data endpoint answers
-503 "Setup required" naming the missing setting, nobody is authenticated, and
-`/api/v1/capabilities` lists the gaps under `setupRequired` (the web app shows
-them as a banner). Startup logs a `Setup required:` warning per gap. Enabling
-`Auth:DevBypass` outside Development still stops the process — that is a
-security guard, not a setup gap.
+**Demo mode.** The API never refuses to start over missing setup:
+
+| Missing | What happens instead |
+|---|---|
+| `ConnectionStrings__Main` | data is kept **in memory** (EF Core InMemory); everything works but resets on every restart; migrations are skipped |
+| `Auth__SupabaseUrl` | **guest sign-in**: `POST /api/v1/auth/guest` returns a server-signed token for a random identity (30 days, HS256). Guests are isolated like real users. The signing key is random per process unless `Auth__GuestSigningKey` (≥32 chars) is set, so guest sessions end on restart |
+
+`/api/v1/capabilities` reports `guestSignIn`, `temporaryStorage` and a
+`setupRequired` list; the web app shows a "Demo mode" banner. Startup logs one
+`Demo mode:` warning per gap. Setting the real value switches each fallback off
+automatically (guest endpoint then returns 404). Enabling `Auth:DevBypass`
+outside Development still stops the process — that is a security guard.
 
 ## 1. Local development
 
@@ -48,12 +52,13 @@ Environment variables use `__` for nesting (`ConnectionStrings__Main`).
 
 | Key | Required | Notes |
 |---|---|---|
-| `ConnectionStrings__Main` | yes | Without it: setup required mode (data endpoints 503) |
+| `ConnectionStrings__Main` | for real use | Without it: demo mode, in-memory data |
 | `Database__Provider` | yes | `SqlServer` or `Postgres` (production default `Postgres`) |
-| `Auth__SupabaseUrl` | yes outside dev | `https://<ref>.supabase.co`, https only. Without it: setup required mode, nobody can sign in. Tokens are validated against `{url}/auth/v1/.well-known/jwks.json` |
+| `Auth__SupabaseUrl` | yes outside dev | `https://<ref>.supabase.co`, https only. Without it: demo mode, guest sign-in only. Tokens are validated against `{url}/auth/v1/.well-known/jwks.json` |
 | `Auth__Audience` | no | default `authenticated` |
 | `Auth__LegacyJwtSecret` | no | only for old Supabase projects still signing with HS256 |
 | `Auth__DevBypass` | no | Development only |
+| `Auth__GuestSigningKey` | no | demo mode only: keeps guest sessions valid across restarts (pointless while data is in memory) |
 | `Cors__AllowedOrigins__0` | yes for a browser | the web app's origin, e.g. `https://app.example.com`; add `__1`, `__2`… for more |
 | `Features__GeminiEnabled` | no | `false`. Capability shows *Configured · unverified* when true and a key is present; live calls arrive in M4 |
 | `Ai__GeminiApiKey` | no | server-side secret; never returned to the browser |

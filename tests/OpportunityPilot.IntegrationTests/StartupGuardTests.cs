@@ -1,10 +1,13 @@
 using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace OpportunityPilot.IntegrationTests;
 
-/// <summary>No Docker needed: these never reach a database.</summary>
+/// <summary>Production-environment startup behaviour. No Docker needed: none of these reach a real database.</summary>
 public class StartupGuardTests
 {
     private sealed class ProductionFactory(Dictionary<string, string> settings) : WebApplicationFactory<Program>
@@ -14,6 +17,18 @@ public class StartupGuardTests
             builder.UseEnvironment("Production");
             foreach (var (key, value) in settings) builder.UseSetting(key, value);
         }
+    }
+
+    private record GuestSession(string Token, DateTime ExpiresAt);
+
+    private static ProductionFactory DemoMode() => new(new() { ["ConnectionStrings:Main"] = "", ["Auth:SupabaseUrl"] = "" });
+
+    private static async Task<HttpClient> GuestClient(ProductionFactory factory)
+    {
+        var client = factory.CreateClient();
+        var session = await (await client.PostAsync("/api/v1/auth/guest", null)).Content.ReadFromJsonAsync<GuestSession>();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", session!.Token);
+        return client;
     }
 
     [Fact]
@@ -30,33 +45,47 @@ public class StartupGuardTests
     }
 
     [Fact]
-    public async Task Without_supabase_auth_the_api_starts_but_refuses_data_requests_with_setup_required()
+    public async Task With_no_configuration_the_app_works_in_demo_mode()
     {
-        using var factory = new ProductionFactory(new()
-        {
-            ["ConnectionStrings:Main"] = "Host=unused;Database=unused",
-            ["Auth:SupabaseUrl"] = ""
-        });
-        var client = factory.CreateClient();
+        using var factory = DemoMode();
+        var anonymous = factory.CreateClient();
 
-        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health/live")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await anonymous.GetAsync("/health/ready")).StatusCode);
 
-        var profiles = await client.GetAsync("/api/v1/profiles");
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, profiles.StatusCode);
-        Assert.Contains("Auth__SupabaseUrl", await profiles.Content.ReadAsStringAsync());
+        var caps = JsonDocument.Parse(await anonymous.GetStringAsync("/api/v1/capabilities")).RootElement;
+        Assert.True(caps.GetProperty("guestSignIn").GetBoolean());
+        Assert.True(caps.GetProperty("temporaryStorage").GetBoolean());
+        Assert.Equal(2, caps.GetProperty("setupRequired").GetArrayLength());
 
-        // Even a token-shaped header gets nowhere.
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/overview");
-        request.Headers.Add("Authorization", "Bearer abc.def.ghi");
-        request.Headers.Add("X-Dev-User", "intruder");
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await client.SendAsync(request)).StatusCode);
-
-        var caps = await client.GetStringAsync("/api/v1/capabilities");
-        Assert.Contains("Auth__SupabaseUrl is not set.", caps);
+        var guest = await GuestClient(factory);
+        var created = await guest.PostAsJsonAsync("/api/v1/profiles",
+            new { type = "Candidate", name = "Demo profile", data = new { offer = "x" }, confirmed = false });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Assert.Contains("\"profiles\":1", await guest.GetStringAsync("/api/v1/overview"));
     }
 
     [Fact]
-    public async Task Without_a_connection_string_the_api_starts_and_reports_the_gap()
+    public async Task Guests_are_isolated_and_unsigned_or_forged_credentials_are_rejected()
+    {
+        using var factory = DemoMode();
+        var alice = await GuestClient(factory);
+        var bob = await GuestClient(factory);
+
+        await alice.PostAsJsonAsync("/api/v1/profiles", new { type = "Services", name = "Alice", data = new { }, confirmed = false });
+        Assert.Contains("\"profiles\":0", await bob.GetStringAsync("/api/v1/overview"));
+
+        var anonymous = factory.CreateClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/v1/profiles")).StatusCode);
+
+        var forged = new HttpRequestMessage(HttpMethod.Get, "/api/v1/profiles");
+        var token = alice.DefaultRequestHeaders.Authorization!.Parameter!;
+        forged.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token[..^4] + "AAAA");
+        forged.Headers.Add("X-Dev-User", "alice");
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.SendAsync(forged)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Guest_sign_in_is_off_once_supabase_is_configured()
     {
         using var factory = new ProductionFactory(new()
         {
@@ -65,13 +94,9 @@ public class StartupGuardTests
         });
         var client = factory.CreateClient();
 
-        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health/live")).StatusCode);
-
-        var ready = await client.GetAsync("/health/ready");
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, ready.StatusCode);
-
-        var caps = await client.GetStringAsync("/api/v1/capabilities");
-        Assert.Contains("ConnectionStrings__Main is not set.", caps);
-        Assert.Contains("\"NotConfigured\"", caps);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsync("/api/v1/auth/guest", null)).StatusCode);
+        var caps = JsonDocument.Parse(await client.GetStringAsync("/api/v1/capabilities")).RootElement;
+        Assert.False(caps.GetProperty("guestSignIn").GetBoolean());
+        Assert.True(caps.GetProperty("temporaryStorage").GetBoolean());
     }
 }

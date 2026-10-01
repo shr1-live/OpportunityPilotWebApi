@@ -24,6 +24,12 @@ public sealed class PostgresAppDbContext(DbContextOptions<PostgresAppDbContext> 
     }
 }
 
+/// <summary>
+/// Demo mode: used when no connection string is configured. Nothing survives a restart, which on a free
+/// host happens whenever the instance sleeps. Reported through capabilities so it is never mistaken for storage.
+/// </summary>
+public sealed class InMemoryAppDbContext(DbContextOptions<InMemoryAppDbContext> options) : AppDbContext(options);
+
 internal sealed class UtcDateTimeConverter()
     : Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime, DateTime>(
         v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));

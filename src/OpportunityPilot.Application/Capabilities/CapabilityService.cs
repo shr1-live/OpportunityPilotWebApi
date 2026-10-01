@@ -20,7 +20,12 @@ public enum CapabilityStatus
 public sealed record CapabilityDto(string Key, string Name, string Category, CapabilityStatus Status, string Detail, string[] Can, string[] Cannot);
 
 /// <param name="SetupRequired">Plain-language list of missing configuration; empty when the deployment is complete.</param>
-public sealed record CapabilitiesDto(string Environment, string DatabaseProvider, string AiMode, IReadOnlyList<string> SetupRequired, IReadOnlyList<CapabilityDto> Items);
+/// <param name="GuestSignIn">Demo mode: no sign-in provider, so visitors continue as random guests.</param>
+/// <param name="TemporaryStorage">Demo mode: no database, so data is kept in memory until the server restarts.</param>
+public sealed record CapabilitiesDto(
+    string Environment, string DatabaseProvider, string AiMode,
+    IReadOnlyList<string> SetupRequired, bool GuestSignIn, bool TemporaryStorage,
+    IReadOnlyList<CapabilityDto> Items);
 
 public sealed class CapabilityService(
     IOptions<FeatureOptions> features,
@@ -41,15 +46,15 @@ public sealed class CapabilityService(
                     $"{database.Value.Provider} is the active relational store.",
                     ["Store profiles owned by your account"], [])
                 : new("database", "Database", "Core", CapabilityStatus.NotConfigured,
-                    "Setup required: the server has no database connection string (ConnectionStrings__Main).",
-                    [], ["Store profiles owned by your account"]),
+                    "Demo mode: no database connection string (ConnectionStrings__Main), so data is kept in memory and resets when the server restarts.",
+                    ["Store profiles until the server restarts"], ["Keep data across restarts"]),
 
             setup.AuthConfigured
                 ? new("auth", "Sign-in", "Core", CapabilityStatus.Ready,
                     "Requests are accepted only with a valid signed token.", ["Keep each account's data separate"], [])
                 : new("auth", "Sign-in", "Core", CapabilityStatus.NotConfigured,
-                    "Setup required: the server has no Supabase project URL (Auth__SupabaseUrl). Every data request is refused until it is set.",
-                    [], ["Accept signed-in requests"]),
+                    "Demo mode: no Supabase project URL (Auth__SupabaseUrl), so each browser continues as a random guest. Guests cannot see each other's data.",
+                    ["Continue as a guest"], ["Create accounts", "Sign in from another device"]),
 
             new("gemini", "Gemini API", "AI",
                 geminiKeyPresent ? CapabilityStatus.Configured : CapabilityStatus.NotConfigured,
@@ -97,6 +102,10 @@ public sealed class CapabilityService(
                 [], ["Run research while the app is closed"])
         };
 
-        return new CapabilitiesDto(environment, database.Value.Provider, geminiKeyPresent ? "Gemini (key present)" : "Rules", setup.Missing, items);
+        return new CapabilitiesDto(
+            environment,
+            setup.DatabaseConfigured ? database.Value.Provider : "In-memory (temporary)",
+            geminiKeyPresent ? "Gemini (key present)" : "Rules",
+            setup.Missing, !setup.AuthConfigured, !setup.DatabaseConfigured, items);
     }
 }

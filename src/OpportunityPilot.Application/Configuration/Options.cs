@@ -40,6 +40,12 @@ public sealed class AuthOptions
     /// <summary>Only for legacy Supabase projects still signing with the shared HS256 secret. Prefer JWKS.</summary>
     public string? LegacyJwtSecret { get; set; }
 
+    /// <summary>
+    /// Demo mode only (no SupabaseUrl): signs guest tokens. At least 32 characters. When unset a random key is
+    /// generated per process, so guest sessions end whenever the server restarts.
+    /// </summary>
+    public string? GuestSigningKey { get; set; }
+
     /// <summary>Local development only. Startup fails if this is true outside the Development environment.</summary>
     public bool DevBypass { get; set; }
 }
