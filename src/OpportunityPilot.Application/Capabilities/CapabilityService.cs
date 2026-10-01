@@ -19,12 +19,14 @@ public enum CapabilityStatus
 
 public sealed record CapabilityDto(string Key, string Name, string Category, CapabilityStatus Status, string Detail, string[] Can, string[] Cannot);
 
-public sealed record CapabilitiesDto(string Environment, string DatabaseProvider, string AiMode, IReadOnlyList<CapabilityDto> Items);
+/// <param name="SetupRequired">Plain-language list of missing configuration; empty when the deployment is complete.</param>
+public sealed record CapabilitiesDto(string Environment, string DatabaseProvider, string AiMode, IReadOnlyList<string> SetupRequired, IReadOnlyList<CapabilityDto> Items);
 
 public sealed class CapabilityService(
     IOptions<FeatureOptions> features,
     IOptions<AiOptions> ai,
-    IOptions<DatabaseOptions> database)
+    IOptions<DatabaseOptions> database,
+    SetupState setup)
 {
     public CapabilitiesDto Get(string environment)
     {
@@ -34,9 +36,20 @@ public sealed class CapabilityService(
 
         var items = new List<CapabilityDto>
         {
-            new("database", "Database", "Core", CapabilityStatus.Ready,
-                $"{database.Value.Provider} is the active relational store.",
-                ["Store profiles owned by your account"], []),
+            setup.DatabaseConfigured
+                ? new("database", "Database", "Core", CapabilityStatus.Ready,
+                    $"{database.Value.Provider} is the active relational store.",
+                    ["Store profiles owned by your account"], [])
+                : new("database", "Database", "Core", CapabilityStatus.NotConfigured,
+                    "Setup required: the server has no database connection string (ConnectionStrings__Main).",
+                    [], ["Store profiles owned by your account"]),
+
+            setup.AuthConfigured
+                ? new("auth", "Sign-in", "Core", CapabilityStatus.Ready,
+                    "Requests are accepted only with a valid signed token.", ["Keep each account's data separate"], [])
+                : new("auth", "Sign-in", "Core", CapabilityStatus.NotConfigured,
+                    "Setup required: the server has no Supabase project URL (Auth__SupabaseUrl). Every data request is refused until it is set.",
+                    [], ["Accept signed-in requests"]),
 
             new("gemini", "Gemini API", "AI",
                 geminiKeyPresent ? CapabilityStatus.Configured : CapabilityStatus.NotConfigured,
@@ -84,6 +97,6 @@ public sealed class CapabilityService(
                 [], ["Run research while the app is closed"])
         };
 
-        return new CapabilitiesDto(environment, database.Value.Provider, geminiKeyPresent ? "Gemini (key present)" : "Rules", items);
+        return new CapabilitiesDto(environment, database.Value.Provider, geminiKeyPresent ? "Gemini (key present)" : "Rules", setup.Missing, items);
     }
 }

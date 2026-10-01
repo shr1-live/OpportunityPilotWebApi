@@ -21,8 +21,8 @@ ENV ASPNETCORE_ENVIRONMENT=Production \
     DOTNET_RUNNING_IN_CONTAINER=true
 USER $APP_UID
 EXPOSE 8080
-# Migrations run as their own process before the server starts, never inside it.
-# Set MIGRATE_ON_START=true where the host has no pre-deploy hook (Render free tier).
-# If migration fails the container exits and the previous deploy keeps serving.
-ENV MIGRATE_ON_START=false
+# Migrations run as their own process before the server starts, never inside it (Render's free
+# tier has no pre-deploy hook). Skipped while no connection string is set. If a migration fails the
+# container exits and the previous deploy keeps serving. Set MIGRATE_ON_START=false to opt out.
+ENV MIGRATE_ON_START=true
 ENTRYPOINT ["/bin/sh", "-c", "if [ \"$MIGRATE_ON_START\" = \"true\" ]; then dotnet OpportunityPilot.Api.dll --migrate || exit 1; fi; exec dotnet OpportunityPilot.Api.dll"]

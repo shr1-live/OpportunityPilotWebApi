@@ -14,6 +14,7 @@ public sealed class AppExceptionHandler(IProblemDetailsService problemDetails, I
             RequestValidationException v => new ValidationProblemDetails(v.Errors) { Status = 400, Title = "Validation failed" },
             NotFoundException n => new ProblemDetails { Status = 404, Title = "Not found", Detail = n.Message },
             ConflictException c => new ProblemDetails { Status = 409, Title = "Conflict", Detail = c.Message },
+            SetupRequiredException s => new ProblemDetails { Status = 503, Title = "Setup required", Detail = s.Message },
             UnauthorizedAccessException => new ProblemDetails { Status = 401, Title = "Unauthorized" },
             BadHttpRequestException b => new ProblemDetails { Status = b.StatusCode, Title = "Bad request" },
             _ => new ProblemDetails { Status = 500, Title = "Unexpected error", Detail = "The error was logged with the correlation id below." }

@@ -12,3 +12,6 @@ public sealed class RequestValidationException(IDictionary<string, string[]> err
 {
     public IDictionary<string, string[]> Errors { get; } = errors;
 }
+
+/// <summary>Maps to 503. The deployment is missing configuration; the message names the setting, never its value.</summary>
+public sealed class SetupRequiredException(string message) : Exception(message);

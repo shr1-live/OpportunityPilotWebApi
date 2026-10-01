@@ -20,9 +20,13 @@ builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(Dat
 builder.Services.Configure<FeatureOptions>(builder.Configuration.GetSection(FeatureOptions.Section));
 builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
 
+// Missing configuration does not stop the process: affected requests answer 503 "Setup required"
+// and /api/v1/capabilities lists the gaps, so a deploy goes green before every secret is entered.
+var setup = new SetupState();
+builder.Services.AddSingleton(setup);
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
-builder.AddOpportunityPilotAuth();
+builder.Services.AddInfrastructure(builder.Configuration, setup);
+builder.AddOpportunityPilotAuth(setup);
 
 builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -62,19 +66,27 @@ var app = builder.Build();
 // Schema changes are an explicit release step: `dotnet OpportunityPilot.Api.dll --migrate` applies and exits.
 if (args.Contains("--migrate"))
 {
+    if (!setup.DatabaseConfigured)
+    {
+        Console.WriteLine("Skipping migrations: ConnectionStrings__Main is not configured.");
+        return;
+    }
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
     Console.WriteLine("Migrations applied.");
     return;
 }
 
-if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup") && setup.DatabaseConfigured)
 {
     if (!app.Environment.IsDevelopment())
         throw new InvalidOperationException("Database:MigrateOnStartup is only allowed in Development. Use --migrate as a release step.");
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
 }
+
+foreach (var gap in setup.Missing)
+    app.Logger.LogWarning("Setup required: {Gap} Affected requests answer 503 until it is set.", gap);
 
 if (allowedOrigins.Length == 0)
     app.Logger.LogWarning("Cors:AllowedOrigins is empty; browsers on other origins cannot call this API.");

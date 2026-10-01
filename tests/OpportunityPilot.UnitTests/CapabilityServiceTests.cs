@@ -7,7 +7,7 @@ namespace OpportunityPilot.UnitTests;
 public class CapabilityServiceTests
 {
     private static CapabilitiesDto Get(FeatureOptions f, AiOptions a) =>
-        new CapabilityService(Options.Create(f), Options.Create(a), Options.Create(new DatabaseOptions { Provider = "Postgres" }))
+        new CapabilityService(Options.Create(f), Options.Create(a), Options.Create(new DatabaseOptions { Provider = "Postgres" }), new SetupState())
             .Get("Test");
 
     [Fact]

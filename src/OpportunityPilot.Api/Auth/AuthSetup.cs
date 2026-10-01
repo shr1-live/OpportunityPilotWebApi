@@ -10,28 +10,42 @@ namespace OpportunityPilot.Api.Auth;
 
 public static class AuthSetup
 {
-    public static void AddOpportunityPilotAuth(this WebApplicationBuilder builder)
+    public static void AddOpportunityPilotAuth(this WebApplicationBuilder builder, SetupState setup)
     {
         var auth = builder.Configuration.GetSection(AuthOptions.Section).Get<AuthOptions>() ?? new AuthOptions();
         var devBypass = auth.DevBypass;
 
+        // A security guard, not a setup gap: this must stop the process.
         if (devBypass && !builder.Environment.IsDevelopment())
             throw new InvalidOperationException("Auth:DevBypass is only allowed in the Development environment.");
 
-        var supabaseConfigured = !string.IsNullOrWhiteSpace(auth.SupabaseUrl);
-        if (!supabaseConfigured && !devBypass)
-            throw new InvalidOperationException("Setup required: Auth:SupabaseUrl is not configured. See docs/SETUP.md.");
+        var baseUrl = auth.SupabaseUrl?.Trim().TrimEnd('/');
+        var supabaseConfigured = !string.IsNullOrEmpty(baseUrl);
+        if (supabaseConfigured && !baseUrl!.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            supabaseConfigured = false;
+            setup.AuthMissing("Auth__SupabaseUrl must be an https URL.");
+        }
+        else if (!supabaseConfigured && !devBypass)
+        {
+            setup.AuthMissing("Auth__SupabaseUrl is not set.");
+        }
 
         var schemes = new List<string>();
-        var authBuilder = builder.Services.AddAuthentication(devBypass && !supabaseConfigured
-            ? DevBypassAuthenticationHandler.SchemeName
-            : JwtBearerDefaults.AuthenticationScheme);
+        var authBuilder = builder.Services.AddAuthentication(
+            supabaseConfigured ? JwtBearerDefaults.AuthenticationScheme
+            : devBypass ? DevBypassAuthenticationHandler.SchemeName
+            : SetupRequiredAuthenticationHandler.SchemeName);
+
+        if (!supabaseConfigured && !devBypass)
+        {
+            // Fail closed: start so health and capabilities can explain the gap, but authenticate no one.
+            authBuilder.AddScheme<AuthenticationSchemeOptions, SetupRequiredAuthenticationHandler>(SetupRequiredAuthenticationHandler.SchemeName, null);
+            schemes.Add(SetupRequiredAuthenticationHandler.SchemeName);
+        }
 
         if (supabaseConfigured)
         {
-            var baseUrl = auth.SupabaseUrl!.TrimEnd('/');
-            if (!baseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Auth:SupabaseUrl must be an https URL.");
 
             builder.Services.AddSingleton(sp => new SupabaseJwks(
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(SupabaseJwks)),

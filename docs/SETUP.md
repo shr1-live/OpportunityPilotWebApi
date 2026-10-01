@@ -1,7 +1,13 @@
 # Setup
 
-The API refuses to start with a `Setup required: …` message when something below
-is missing. Each section says which message it fixes.
+When the database connection string or the Supabase URL is missing, the API
+still starts (so a deploy goes green) but runs in a locked-down **setup required**
+mode: `/health/live` is 200, `/health/ready` is 503, every data endpoint answers
+503 "Setup required" naming the missing setting, nobody is authenticated, and
+`/api/v1/capabilities` lists the gaps under `setupRequired` (the web app shows
+them as a banner). Startup logs a `Setup required:` warning per gap. Enabling
+`Auth:DevBypass` outside Development still stops the process — that is a
+security guard, not a setup gap.
 
 ## 1. Local development
 
@@ -42,9 +48,9 @@ Environment variables use `__` for nesting (`ConnectionStrings__Main`).
 
 | Key | Required | Notes |
 |---|---|---|
-| `ConnectionStrings__Main` | yes | Fixes *ConnectionStrings:Main is not configured* |
+| `ConnectionStrings__Main` | yes | Without it: setup required mode (data endpoints 503) |
 | `Database__Provider` | yes | `SqlServer` or `Postgres` (production default `Postgres`) |
-| `Auth__SupabaseUrl` | yes outside dev | `https://<ref>.supabase.co`, https only. Fixes *Auth:SupabaseUrl is not configured*. Tokens are validated against `{url}/auth/v1/.well-known/jwks.json` |
+| `Auth__SupabaseUrl` | yes outside dev | `https://<ref>.supabase.co`, https only. Without it: setup required mode, nobody can sign in. Tokens are validated against `{url}/auth/v1/.well-known/jwks.json` |
 | `Auth__Audience` | no | default `authenticated` |
 | `Auth__LegacyJwtSecret` | no | only for old Supabase projects still signing with HS256 |
 | `Auth__DevBypass` | no | Development only |
@@ -53,7 +59,7 @@ Environment variables use `__` for nesting (`ConnectionStrings__Main`).
 | `Ai__GeminiApiKey` | no | server-side secret; never returned to the browser |
 | `Ai__GeminiModel`, `Ai__MaxCallsPerRun`, `Ai__MaxOutputTokens`, `Ai__AllowPaidUsage` | no | budgets for M4 |
 | `Features__GmailEnabled`, `Features__MongoArchiveEnabled` | no | flip capability status from *Disabled* to *Not built yet* |
-| `MIGRATE_ON_START` | no | container only: `true` runs `--migrate` as a separate process before the server starts (hosts without a pre-deploy hook) |
+| `MIGRATE_ON_START` | no | container only, default `true`: runs `--migrate` as a separate process before the server starts; skipped while no connection string is set |
 | `PORT` | no | set by Render; the app binds `0.0.0.0:$PORT` unless `ASPNETCORE_URLS` is set |
 
 ## 3. Migrations
