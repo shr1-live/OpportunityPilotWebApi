@@ -9,6 +9,10 @@ export interface JobRef {
   title: string
   company: string
   location: string | null
+  /** Posting text, read by `collect` so the server's research can score it. */
+  description?: string
+  /** Set when the job came from the user's shortlist; reported back so the opportunity is marked Applied. */
+  opportunityId?: string
 }
 
 export interface Outcome {
@@ -32,5 +36,7 @@ export interface PlatformAdapter {
   searchPage(page: Page, search: SearchConfig, keyword: string, pageIndex: number): Promise<JobRef[]>
   /** Opens the job and fills in details the results list did not show. */
   openJob(page: Page, job: JobRef): Promise<JobRef>
+  /** The open job's description text (bounded). */
+  readDescription(page: Page): Promise<string>
   apply(page: Page, job: JobRef, ctx: ApplyContext): Promise<Outcome>
 }

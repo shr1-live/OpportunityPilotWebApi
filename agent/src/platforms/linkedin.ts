@@ -90,6 +90,11 @@ export function linkedIn(base = 'https://www.linkedin.com'): PlatformAdapter {
       return { ...job, title: title || job.title, company: company || job.company, location: location || job.location }
     },
 
+    async readDescription(page) {
+      // "See more" only toggles CSS; the full text is already in the DOM.
+      return (await text(page.locator('.jobs-description__content, #job-details, .jobs-box__html-content'))).slice(0, 20_000)
+    },
+
     async apply(page, job, ctx: ApplyContext): Promise<Outcome> {
       await assertUsable(page)
       if (await page.locator('.artdeco-inline-feedback--success, .jobs-s-apply__application-link').filter({ hasText: /applied/i }).first().isVisible().catch(() => false))

@@ -72,6 +72,10 @@ export function naukri(base = 'https://www.naukri.com'): PlatformAdapter {
       return { ...job, title: title || job.title, company: company || job.company, location: location || job.location }
     },
 
+    async readDescription(page) {
+      return (await text(page.locator('[class*="job-desc"], .dang-inner-html'))).slice(0, 20_000)
+    },
+
     async apply(page, job, ctx: ApplyContext): Promise<Outcome> {
       assertUsable(page)
       if (await page.locator('#already-applied').or(page.getByRole('button', { name: /^applied$/i })).first().isVisible().catch(() => false))

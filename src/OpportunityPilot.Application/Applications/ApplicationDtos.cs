@@ -3,6 +3,7 @@ using OpportunityPilot.Domain.Applications;
 namespace OpportunityPilot.Application.Applications;
 
 /// <summary>One result from the local agent. OccurredAt is when the agent acted, in UTC.</summary>
+/// <param name="OpportunityId">Set when the job came from the research shortlist; an Applied report then moves that opportunity to Applied.</param>
 public sealed record ApplicationReportItem(
     ApplicationPlatform Platform,
     string ExternalJobId,
@@ -12,7 +13,8 @@ public sealed record ApplicationReportItem(
     string? Location,
     ApplicationStatus Status,
     string? Detail,
-    DateTime OccurredAt);
+    DateTime OccurredAt,
+    Guid? OpportunityId = null);
 
 public sealed record ApplicationReportRequest(IReadOnlyList<ApplicationReportItem> Items);
 

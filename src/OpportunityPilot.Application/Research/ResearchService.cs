@@ -1,0 +1,115 @@
+using Microsoft.EntityFrameworkCore;
+using OpportunityPilot.Application.Abstractions;
+using OpportunityPilot.Application.Common;
+using OpportunityPilot.Domain.Research;
+
+namespace OpportunityPilot.Application.Research;
+
+/// <summary>User-facing research jobs: queue, list, read and cancel. The work itself happens in <see cref="ResearchRunner"/>.</summary>
+public sealed class ResearchService(IAppDbContext db, ICurrentUser user, TimeProvider clock)
+{
+    public const int MaxListedJobs = 20;
+    public const int MaxEvents = 100;
+
+    private IQueryable<ResearchJob> Owned => db.ResearchJobs.Where(j => j.OwnerId == user.OwnerId);
+
+    /// <summary>Returns the campaign's queued or running job if there is one, so repeated clicks never start a second run.</summary>
+    public async Task<QueuedResearchDto> QueueAsync(Guid campaignId, CancellationToken ct)
+    {
+        var ownerId = user.OwnerId;
+        if (!await db.Campaigns.AnyAsync(c => c.Id == campaignId && c.OwnerId == ownerId, ct))
+            throw new NotFoundException("Campaign not found.");
+        return new QueuedResearchDto(await QueueForOwnerAsync(db, ownerId, campaignId, clock.GetUtcNow().UtcDateTime, ct));
+    }
+
+    /// <summary>Shared with the agent endpoint. The caller has already checked the campaign belongs to <paramref name="ownerId"/>.</summary>
+    internal static async Task<Guid> QueueForOwnerAsync(IAppDbContext db, Guid ownerId, Guid campaignId, DateTime now, CancellationToken ct)
+    {
+        var active = await ActiveJobIdAsync(db, ownerId, campaignId, ct);
+        if (active is { } existing) return existing;
+
+        if (!await db.Sources.AnyAsync(s => s.OwnerId == ownerId && s.CampaignId == campaignId, ct))
+            throw new RequestValidationException(new Dictionary<string, string[]>
+            {
+                ["campaign"] = ["Add at least one source before running research."]
+            });
+
+        var job = new ResearchJob(ownerId, campaignId, now);
+        db.ResearchJobs.Add(job);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+            return job.Id;
+        }
+        catch (DbUpdateException)
+        {
+            // The unique "one active job per campaign" index caught a simultaneous queue request: use that job.
+            db.ResearchJobs.Entry(job).State = EntityState.Detached;
+            return await ActiveJobIdAsync(db, ownerId, campaignId, ct)
+                ?? throw new ConflictException("Research was queued at the same time elsewhere. Try again.");
+        }
+    }
+
+    public async Task<IReadOnlyList<ResearchJobDto>> ListAsync(Guid campaignId, CancellationToken ct)
+    {
+        if (!await db.Campaigns.AnyAsync(c => c.Id == campaignId && c.OwnerId == user.OwnerId, ct))
+            throw new NotFoundException("Campaign not found.");
+        var jobs = await Owned.Where(j => j.CampaignId == campaignId)
+            .OrderByDescending(j => j.CreatedAt).ThenBy(j => j.Id)
+            .Take(MaxListedJobs)
+            .ToListAsync(ct);
+        return jobs.Select(j => ToDto(j, null)).ToList();
+    }
+
+    public async Task<ResearchJobDto> GetAsync(Guid id, CancellationToken ct)
+    {
+        var job = await FindOwnedAsync(id, ct);
+        return ToDto(job, await EventsAsync(job.Id, ct));
+    }
+
+    public async Task<ResearchJobDto> CancelAsync(Guid id, CancellationToken ct)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            var job = await FindOwnedAsync(id, ct);
+            if (!job.RequestCancel(clock.GetUtcNow().UtcDateTime)) return ToDto(job, await EventsAsync(job.Id, ct));
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                return ToDto(job, await EventsAsync(job.Id, ct));
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < 2)
+            {
+                // The processor saved progress (or claimed the job) in between; re-read and apply the request again.
+                db.ChangeTracker.Clear();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                throw new ConflictException("The job is changing right now. Try cancelling again.");
+            }
+        }
+    }
+
+    private static async Task<Guid?> ActiveJobIdAsync(IAppDbContext db, Guid ownerId, Guid campaignId, CancellationToken ct) =>
+        await db.ResearchJobs
+            .Where(j => j.OwnerId == ownerId && j.CampaignId == campaignId &&
+                        (j.State == ResearchJobState.Queued || j.State == ResearchJobState.Running))
+            .OrderByDescending(j => j.CreatedAt)
+            .Select(j => (Guid?)j.Id)
+            .FirstOrDefaultAsync(ct);
+
+    private async Task<ResearchJob> FindOwnedAsync(Guid id, CancellationToken ct) =>
+        await Owned.FirstOrDefaultAsync(j => j.Id == id, ct)
+        ?? throw new NotFoundException("Research job not found.");
+
+    private async Task<List<ResearchEventDto>> EventsAsync(Guid jobId, CancellationToken ct) =>
+        await db.ResearchEvents.Where(e => e.JobId == jobId)
+            .OrderByDescending(e => e.At).ThenByDescending(e => e.Id)
+            .Take(MaxEvents)
+            .Select(e => new ResearchEventDto(e.At, e.Stage, e.Level, e.Message))
+            .ToListAsync(ct);
+
+    private static ResearchJobDto ToDto(ResearchJob j, IReadOnlyList<ResearchEventDto>? events) =>
+        new(j.Id, j.CampaignId, j.State, j.Stage, j.CreatedAt, j.StartedAt, j.FinishedAt, j.SafeError,
+            ResearchCounts.FromJson(j.CountsJson), events);
+}

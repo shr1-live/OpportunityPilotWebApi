@@ -49,13 +49,30 @@ public sealed class ApplicationService(IAppDbContext db, ICurrentUser user, Time
                     item.Location, item.Status, item.Detail, occurredAt, now));
         }
 
+        // A shortlisted job the agent applied to moves to Applied. Ids the caller does not own are ignored, not
+        // rejected: the application itself happened and must still be recorded.
+        var appliedTo = latest.Values.Where(i => i.Status == ApplicationStatus.Applied && i.OpportunityId is not null)
+            .GroupBy(i => i.OpportunityId!.Value).ToDictionary(g => g.Key, g => g.Last());
+        if (appliedTo.Count > 0)
+        {
+            var ids = appliedTo.Keys.ToList();
+            var opportunities = await db.Opportunities.Where(o => o.OwnerId == ownerId && ids.Contains(o.Id)).ToListAsync(ct);
+            foreach (var opportunity in opportunities)
+            {
+                var item = appliedTo[opportunity.Id];
+                var activity = opportunity.MarkApplied($"Applied on {item.Platform} by the desktop agent.", now);
+                if (activity is not null) db.Activities.Add(activity);
+            }
+        }
+
         try
         {
             await db.SaveChangesAsync(ct);
         }
         catch (DbUpdateException)
         {
-            // A concurrent report inserted the same job between our read and our write.
+            // A concurrent report inserted the same job between our read and our write, or research re-scored a
+            // shortlisted opportunity at the same moment (version check).
             throw new ConflictException("Another report for the same job was saved at the same time. Send the report again.");
         }
         return new ApplicationReportResult(latest.Count);

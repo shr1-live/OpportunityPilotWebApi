@@ -115,6 +115,47 @@ public class StartupGuardTests
     }
 
     [Fact]
+    public async Task Research_runs_in_demo_mode_through_the_real_background_processor()
+    {
+        using var factory = DemoMode();
+        var guest = await GuestClient(factory);
+        var profile = await guest.PostAsJsonAsync("/api/v1/profiles",
+            new { type = "Candidate", name = "Demo candidate", data = new { }, confirmed = true });
+        var profileId = JsonDocument.Parse(await profile.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
+        var campaign = await guest.PostAsJsonAsync("/api/v1/campaigns", new
+        {
+            profileId, mode = "Job", name = "Demo search", goal = "",
+            criteria = new { requiredSkills = new[] { "C#" }, locations = new[] { "Pune" } }
+        });
+        Assert.Equal(HttpStatusCode.Created, campaign.StatusCode);
+        var campaignId = JsonDocument.Parse(await campaign.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
+        var source = await guest.PostAsJsonAsync($"/api/v1/campaigns/{campaignId}/sources",
+            new { kind = "Paste", text = "Backend Engineer\nCompany: Acme\nLocation: Pune\nC# and SQL.\n---\nDesigner\nCompany: Globex\nLocation: Pune\nFigma." });
+        Assert.Equal(HttpStatusCode.Created, source.StatusCode);
+
+        var queued = await guest.PostAsync($"/api/v1/campaigns/{campaignId}/research", null);
+        Assert.Equal(HttpStatusCode.Accepted, queued.StatusCode);
+        var jobId = JsonDocument.Parse(await queued.Content.ReadAsStringAsync()).RootElement.GetProperty("jobId").GetGuid();
+
+        string? state = null;
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (DateTime.UtcNow < deadline)
+        {
+            var job = JsonDocument.Parse(await guest.GetStringAsync($"/api/v1/research-jobs/{jobId}")).RootElement;
+            state = job.GetProperty("state").GetString();
+            if (state is not ("Queued" or "Running")) break;
+            await Task.Delay(250);
+        }
+
+        Assert.Equal("Completed", state);
+        var page = JsonDocument.Parse(await guest.GetStringAsync($"/api/v1/campaigns/{campaignId}/opportunities")).RootElement;
+        Assert.Equal(2, page.GetProperty("total").GetInt32());
+        Assert.Contains(page.GetProperty("items").EnumerateArray(),
+            i => i.GetProperty("title").GetString() == "Backend Engineer" && i.GetProperty("outcome").GetString() == "Qualified");
+        Assert.Contains("\"campaigns\":1", await guest.GetStringAsync("/api/v1/overview"));
+    }
+
+    [Fact]
     public async Task Guest_sign_in_is_off_once_supabase_is_configured()
     {
         using var factory = new ProductionFactory(new()

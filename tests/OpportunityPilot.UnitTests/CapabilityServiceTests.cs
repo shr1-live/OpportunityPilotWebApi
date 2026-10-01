@@ -40,6 +40,26 @@ public class CapabilityServiceTests
     }
 
     [Theory]
+    [InlineData("csv-import", "Import with preview and row-level errors.")]
+    [InlineData("public-urls", "Safe fetch with private-address blocking; pages that need a login or JavaScript are marked for manual input.")]
+    [InlineData("feeds", "Discovers only what a permitted RSS/Atom feed contains.")]
+    [InlineData("rules", "Deterministic extraction and transparent scoring for Job and Customer campaigns.")]
+    public void Research_capabilities_built_in_m2_and_m3_are_ready(string key, string detail)
+    {
+        var item = Get(new FeatureOptions(), new AiOptions()).Items.Single(i => i.Key == key);
+        Assert.Equal(CapabilityStatus.Ready, item.Status);
+        Assert.Equal(detail, item.Detail);
+        Assert.NotEmpty(item.Can);
+    }
+
+    [Theory]
+    [InlineData("gmail", CapabilityStatus.Disabled)]
+    [InlineData("mongo-archive", CapabilityStatus.Disabled)]
+    [InlineData("scheduler", CapabilityStatus.NotConfigured)]
+    public void Capabilities_not_built_yet_are_not_reported_ready(string key, CapabilityStatus expected) =>
+        Assert.Equal(expected, Get(new FeatureOptions(), new AiOptions()).Items.Single(i => i.Key == key).Status);
+
+    [Theory]
     [InlineData("linkedin")]
     [InlineData("naukri")]
     public void Agent_platforms_warn_that_automation_is_unofficial(string key)

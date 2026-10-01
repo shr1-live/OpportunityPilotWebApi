@@ -65,18 +65,23 @@ public sealed class CapabilityService(
                     : "No server-side key. Rules/templates mode applies. The key is set in server configuration and is never returned to the browser.",
                 [], ["Parse goals", "Extract facts", "Summarise matches", "Draft outreach"]),
 
-            new("rules", "Rules and templates", "AI", CapabilityStatus.NotBuilt,
-                "Deterministic fallback for extraction, scoring and drafts. Arrives with research (M3) and outreach (M5).",
-                [], ["Score candidates", "Fill draft templates"]),
+            new("rules", "Rules and templates", "AI", CapabilityStatus.Ready,
+                "Deterministic extraction and transparent scoring for Job and Customer campaigns.",
+                ["Extract skills, experience range, location and work mode", "Score candidates with a per-criterion breakdown, coverage and gaps"],
+                ["Understand needs beyond the keywords you configure", "Score Partner, Investor or Freelance campaigns yet", "Fill draft templates (M5)"]),
 
-            new("csv-import", "CSV and pasted text", "Sources", CapabilityStatus.NotBuilt,
-                "Import with preview and row-level errors. Milestone M2.", [], ["Import companies"]),
+            new("csv-import", "CSV and pasted text", "Sources", CapabilityStatus.Ready,
+                "Import with preview and row-level errors.",
+                ["Import job postings or companies from CSV (1 MB, 1000 rows)", "Paste postings or company notes"],
+                ["Read Excel files or PDFs"]),
 
-            new("public-urls", "Public company URLs", "Sources", CapabilityStatus.NotBuilt,
-                "Safe fetch with private-address blocking. Milestone M3.", [], ["Enrich supplied candidates"]),
+            new("public-urls", "Public company URLs", "Sources", CapabilityStatus.Ready,
+                "Safe fetch with private-address blocking; pages that need a login or JavaScript are marked for manual input.",
+                ["Read public pages you supply"], ["Read pages behind a login", "Run JavaScript", "Reach private or internal addresses"]),
 
-            new("feeds", "Permitted RSS/Atom feeds", "Sources", CapabilityStatus.NotBuilt,
-                "Discovers only what a permitted feed contains. Milestone M3.", [], ["Discover candidates"]),
+            new("feeds", "Permitted RSS/Atom feeds", "Sources", CapabilityStatus.Ready,
+                "Discovers only what a permitted RSS/Atom feed contains.",
+                ["Read RSS 2.0 and Atom feeds you supply (up to 100 entries)"], ["Search the web"]),
 
             new("gmail", "Gmail", "Outreach",
                 f.GmailEnabled ? CapabilityStatus.NotBuilt : CapabilityStatus.Disabled,

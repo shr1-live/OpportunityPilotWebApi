@@ -1,15 +1,17 @@
-# OpportunityPilot apply agent
+# OpportunityPilot agent
 
-Applies to jobs on **LinkedIn (Easy Apply)** and **Naukri** from your own logged-in
-browser, using answers you saved — no AI, no API keys — and reports every result to
-the web app's **Applications** page.
+Works with the web app's **research** pipeline, from your own logged-in browser on
+**LinkedIn (Easy Apply)** and **Naukri**, using answers you saved — no AI, no API keys.
 
 ```
-You (config.json, log in once)
-   └─► agent on your computer ──► LinkedIn / Naukri in a browser window you can watch
-                    │
-                    └─► OpportunityPilot API (agent key) ──► Applications page
+Campaign (your criteria) ──► agent collect ──► postings with their text ──► research job
+                                                                     (evidence, fit score, gaps)
+   you shortlist the best matches in the web app ◄── Opportunities ◄──┘
+                     │
+                     └──► agent apply ──► only shortlisted jobs ──► opportunity marked Applied
 ```
+
+The agent never applies to anything you did not shortlist.
 
 > **Unofficial automation.** LinkedIn's and Naukri's terms prohibit automated use;
 > they can restrict the account being automated. Keep the limits low. The agent
@@ -47,21 +49,26 @@ never seen or stored by the agent.
 ## Running
 
 ```bash
-npm run agent -- run linkedin                 # DRY RUN: fills every form, sends nothing
-npm run agent -- run linkedin --submit        # real applications
-npm run agent -- run naukri --submit --limit 5
-npm run agent -- status                       # what the local log holds
-npm run agent -- sync                         # re-upload results the web app is missing
+npm run agent -- campaigns                               # your Job campaigns and their ids
+npm run agent -- collect linkedin --campaign <id>        # search with the campaign's keywords/locations,
+                                                         # send postings to it and queue research
+# → in the web app: Campaigns → the campaign → Opportunities → Shortlist the ones you want
+npm run agent -- apply linkedin                          # DRY RUN over your shortlist: fills forms, sends nothing
+npm run agent -- apply linkedin --submit --limit 2       # real applications
+npm run agent -- status                                  # what the local log holds
+npm run agent -- sync                                    # re-upload results the web app is missing
 ```
 
 `--submit` only works after you set `"iUnderstandAccountRisk": true` in config.json.
 
 **First real use — do it in this order:**
-1. `run linkedin` (dry run). Watch the window. Check the Applications page: jobs should
-   show *Dry run · not submitted*, *Needs you* or *Skipped* with a reason.
-2. For every *Needs you*, add a rule to `answers.fields` covering that question.
-3. Then `run linkedin --submit --limit 2`, check those two applications on LinkedIn.
-4. Raise the limit gradually.
+1. Create a **Job** campaign in the web app with keywords, required skills, locations and
+   your years of experience.
+2. `collect linkedin --campaign <id>`. Watch the window — it only reads postings.
+3. In the web app, open the research run and then the opportunities: each has a fit score,
+   the evidence behind it and what is unknown. Shortlist a few.
+4. `apply linkedin` (dry run). For every *Needs you*, add a rule to `answers.fields`.
+5. `apply linkedin --submit --limit 2`, check those two applications on LinkedIn, then raise the limit.
 
 Naukri sends an application the moment Apply is clicked, so its dry run stops *before*
 Apply; its recruiter questionnaire is only exercised with `--submit`.
@@ -76,8 +83,8 @@ Apply; its recruiter questionnaire is only exercised with `--submit`.
 | Skipped | Filtered out, already applied, or applies on the company website |
 | Failed | Unexpected page; a screenshot + HTML is saved in `.data/debug/` |
 
-A job is never opened twice once it is Applied, Skipped or Needs you (dry runs don't
-count). The run stops on a security check, a logged-out session, the site's daily
+A shortlisted job is never applied to twice once it is Applied, Skipped or Needs you (dry
+runs don't count). The run stops on a security check, a logged-out session, the site's daily
 limit, `limits.maxApplicationsPerDay`, or three failures in a row.
 
 ## config.json reference
@@ -87,11 +94,13 @@ limit, `limits.maxApplicationsPerDay`, or three failures in a row.
 | `api.url` / `api.key` | where results go; the key comes from the Applications page |
 | `iUnderstandAccountRisk` | must be `true` for `--submit` |
 | `limits.maxApplicationsPerRun` / `maxApplicationsPerDay` | caps (applied or dry-run jobs) |
-| `limits.pauseSeconds` | `[min, max]` pause between applications |
-| `limits.maxPages` | result pages per keyword |
-| `search.keywords` | each searched separately |
-| `search.location`, `search.remote` (`any`/`remote`/`hybrid`/`onsite`), `search.postedWithinDays` | search filters |
-| `search.titleMustIncludeAny`, `search.titleExclude`, `search.excludeCompanies` | filters applied before opening a job |
+| `limits.pauseSeconds` | `[min, max]` pause between applications (collect pauses less) |
+| `limits.maxPages` | result pages per keyword when collecting |
+| `limits.maxPostingsPerCollect` | postings opened and sent per collect run |
+| `search.postedWithinDays` | only postings this recent |
+
+Keywords, locations, work mode, skills and exclusions come from the **campaign** —
+research applies them with evidence, so the agent does not filter on its own.
 | `profile.followCompanies` | LinkedIn's "follow company" box (default off) |
 | `answers.fields` | `{ "match": ["notice period"], "value": "30" }` — first rule whose phrase appears in the question wins |
 | `answers.skills` | `"c#": 6` answers "How many years of experience with C#?" |

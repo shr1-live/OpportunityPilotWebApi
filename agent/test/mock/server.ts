@@ -73,7 +73,9 @@ function linkedInJob(id: string) {
   const j = LI_JOBS[id]
   if (!j) return null
   const top = `<nav id="global-nav">nav</nav><div class="job-details-jobs-unified-top-card__job-title"><h1>${j.title}</h1></div>
-    <div class="job-details-jobs-unified-top-card__company-name"><a>${j.company}</a></div>`
+    <div class="job-details-jobs-unified-top-card__company-name"><a>${j.company}</a></div>
+    <div class="jobs-description__content"><p>${j.company} is hiring a ${j.title}. You will build APIs in C#, .NET and SQL.
+      3-5 years of experience. Hybrid in Bengaluru.</p></div>`
   const action =
     j.kind === 'applied'
       ? `<div class="artdeco-inline-feedback--success"><span>Applied 3 days ago</span></div>`
@@ -164,7 +166,8 @@ function naukriSearch(pathname: string) {
 function naukriJob(id: string) {
   const j = NK_JOBS[id]
   if (!j) return null
-  const header = `<h1>${j.title}</h1><div class="styles_jd-header-comp-name__x"><a>Beta Ltd</a></div>`
+  const header = `<h1>${j.title}</h1><div class="styles_jd-header-comp-name__x"><a>Beta Ltd</a></div>
+    <section class="styles_job-desc-container__x">Beta Ltd needs a ${j.title}: C#, ASP.NET, Azure. Minimum 4 years. Pune, work from office.</section>`
   const action =
     j.kind === 'applied'
       ? '<button id="already-applied" disabled>Applied</button>'
@@ -262,4 +265,44 @@ export async function startMock(): Promise<{ origin: string; submissions: Submis
     submissions,
     close: () => new Promise((resolve) => server.close(() => resolve())),
   }
+}
+
+// ---------------------------------------------------------------- fake OpportunityPilot API (agent endpoints only)
+
+export interface FakeApi {
+  url: string
+  postings: { campaignId: string; body: { platform: string; queueResearch: boolean; items: { externalId: string; description: string | null }[] } }[]
+  reports: { key: string | undefined; items: { externalJobId: string; status: string; opportunityId?: string }[] }[]
+  shortlist: { opportunityId: string; campaignId: string; platform: string; externalId: string; url: string; title: string; organization: string }[]
+  close: () => Promise<void>
+}
+
+export async function startFakeApi(campaigns: unknown[]): Promise<FakeApi> {
+  const api = { postings: [], reports: [], shortlist: [] } as unknown as FakeApi
+  const server = createServer((req, res) => {
+    let body = ''
+    req.on('data', (c) => (body += c))
+    req.on('end', () => {
+      const url = new URL(req.url ?? '/', 'http://x')
+      const json = (status: number, data: unknown) => res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(data))
+      if (req.headers['x-agent-key'] !== 'opk_test') return json(401, {})
+      if (url.pathname === '/api/v1/agent/campaigns') return json(200, campaigns)
+      if (url.pathname === '/api/v1/agent/shortlist') return json(200, api.shortlist.filter((s) => s.platform === url.searchParams.get('platform')))
+      const posting = url.pathname.match(/^\/api\/v1\/agent\/campaigns\/([^/]+)\/postings$/)
+      if (posting) {
+        const parsed = JSON.parse(body)
+        api.postings.push({ campaignId: posting[1], body: parsed })
+        return json(200, { accepted: parsed.items.length, sourceId: 's1', jobId: parsed.queueResearch ? 'j1' : null })
+      }
+      if (url.pathname === '/api/v1/applications/report') {
+        api.reports.push({ key: req.headers['x-agent-key'] as string, items: JSON.parse(body).items })
+        return json(200, { accepted: 1 })
+      }
+      json(404, {})
+    })
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  api.url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  api.close = () => new Promise((resolve) => server.close(() => resolve()))
+  return api
 }

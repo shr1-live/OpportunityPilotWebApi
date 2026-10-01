@@ -14,6 +14,8 @@ export interface ApplicationRecord {
   status: Status
   detail: string | null
   occurredAt: string
+  /** The shortlisted opportunity this application belongs to, when it came from research. */
+  opportunityId: string | null
   synced: boolean
 }
 

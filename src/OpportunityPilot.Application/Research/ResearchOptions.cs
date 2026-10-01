@@ -1,0 +1,33 @@
+namespace OpportunityPilot.Application.Research;
+
+/// <summary>
+/// Research limits from configuration (Research:*). Values may be lowered but never raised above the server
+/// ceilings, so a misconfiguration cannot turn the processor into an unbounded crawler.
+/// </summary>
+public sealed class ResearchOptions
+{
+    public const string Section = "Research";
+
+    public const int CeilingCandidates = 100;
+    public const int CeilingFetches = 50;
+    public const int CeilingTimeoutSeconds = 30;
+    public const int CeilingBytes = 1024 * 1024;
+    public const int CeilingConcurrency = 4;
+
+    /// <summary>Hosted processor on/off. Tests turn it off and drive <see cref="IResearchRunner"/> directly.</summary>
+    public bool ProcessorEnabled { get; set; } = true;
+
+    public int PollSeconds { get; set; } = 2;
+    public int MaxCandidates { get; set; } = CeilingCandidates;
+    public int MaxFetches { get; set; } = CeilingFetches;
+    public int TimeoutSeconds { get; set; } = 10;
+    public int MaxBytes { get; set; } = CeilingBytes;
+    public int Concurrency { get; set; } = 2;
+
+    public int EffectiveCandidates => Math.Clamp(MaxCandidates, 1, CeilingCandidates);
+    public int EffectiveFetches => Math.Clamp(MaxFetches, 1, CeilingFetches);
+    public TimeSpan EffectiveTimeout => TimeSpan.FromSeconds(Math.Clamp(TimeoutSeconds, 1, CeilingTimeoutSeconds));
+    public int EffectiveBytes => Math.Clamp(MaxBytes, 1024, CeilingBytes);
+    public int EffectiveConcurrency => Math.Clamp(Concurrency, 1, CeilingConcurrency);
+    public TimeSpan EffectivePoll => TimeSpan.FromSeconds(Math.Clamp(PollSeconds, 1, 60));
+}

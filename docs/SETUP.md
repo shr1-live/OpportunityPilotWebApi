@@ -64,6 +64,12 @@ Environment variables use `__` for nesting (`ConnectionStrings__Main`).
 | `Ai__GeminiApiKey` | no | server-side secret; never returned to the browser |
 | `Ai__GeminiModel`, `Ai__MaxCallsPerRun`, `Ai__MaxOutputTokens`, `Ai__AllowPaidUsage` | no | budgets for M4 |
 | `Features__GmailEnabled`, `Features__MongoArchiveEnabled` | no | flip capability status from *Disabled* to *Not built yet* |
+| `Research__ProcessorEnabled` | no | `true`. The in-process research worker that runs queued jobs (polls every 2 s). Integration tests set `false` and run jobs themselves |
+| `Research__MaxCandidates` | no | `100` (ceiling 100): candidates scored per run. Each campaign's `resultLimit` separately caps the *new* opportunities saved per run |
+| `Research__MaxFetches` | no | `50` (ceiling 50): HTTP requests per run for Url/Feed sources, redirects and retries included |
+| `Research__TimeoutSeconds` | no | `10` (ceiling 30): per request, including reading the body |
+| `Research__MaxBytes` | no | `1048576` (ceiling 1 MB): per page, counted after decompression |
+| `Research__Concurrency` | no | `2` (ceiling 4): simultaneous outbound fetches in the process |
 | `MIGRATE_ON_START` | no | container only, default `true`: runs `--migrate` as a separate process before the server starts; skipped while no connection string is set |
 | `PORT` | no | set by Render; the app binds `0.0.0.0:$PORT` unless `ASPNETCORE_URLS` is set |
 
@@ -135,3 +141,10 @@ dotnet test
 Integration tests start `postgres:17-alpine` with Testcontainers, run the real
 API in Development with dev bypass, and exercise two synthetic users. They need
 a running Docker daemon; unit tests do not.
+
+The research processor is switched off in those tests (`Research:ProcessorEnabled=false`);
+each test runs queued jobs through `IResearchRunner` so results are deterministic. Url and
+Feed sources are exercised against a tiny HTTP server on loopback, which only a fetch
+policy defined inside the test project may reach — production always uses
+`StrictFetchAddressPolicy`, and no setting can relax it. The demo-mode test
+(`StartupGuardTests`) runs the real background processor against the in-memory store.

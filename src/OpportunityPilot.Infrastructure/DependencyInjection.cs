@@ -1,15 +1,38 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpportunityPilot.Application.Abstractions;
 using OpportunityPilot.Application.Configuration;
+using OpportunityPilot.Application.Research;
 using OpportunityPilot.Infrastructure.Persistence;
+using OpportunityPilot.Infrastructure.Research;
 
 namespace OpportunityPilot.Infrastructure;
 
 public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration, SetupState setup)
+    {
+        services.AddResearchInfrastructure(configuration);
+        return services.AddPersistence(configuration, setup);
+    }
+
+    /// <summary>Safe outbound fetching and content parsing for research. Works the same with or without a database.</summary>
+    public static IServiceCollection AddResearchInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<ResearchOptions>(configuration.GetSection(ResearchOptions.Section));
+        // Not configurable on purpose: no setting can let the fetcher reach private addresses.
+        services.TryAddSingleton<IFetchAddressPolicy, StrictFetchAddressPolicy>();
+        services.AddSingleton<FetchConcurrency>();
+        services.AddSingleton<IContentParser, ContentParser>();
+        services.AddHttpClient<IWebFetcher, SafeFetcher>(SafeFetcher.ClientName, c => c.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(sp => SafeFetcher.CreateHandler(sp.GetRequiredService<IFetchAddressPolicy>()))
+            .SetHandlerLifetime(TimeSpan.FromMinutes(5));
+        return services;
+    }
+
+    private static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration, SetupState setup)
     {
         var provider = configuration[$"{DatabaseOptions.Section}:{nameof(DatabaseOptions.Provider)}"] ?? "SqlServer";
         if (provider is not ("SqlServer" or "Postgres"))

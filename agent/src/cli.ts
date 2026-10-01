@@ -1,19 +1,24 @@
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
-import { report } from './api.ts'
+import { agentCampaigns, report, sendPostings, shortlist } from './api.ts'
+import { collectPostings } from './collect.ts'
 import { openBrowser } from './browser.ts'
 import { CONFIG_PATH, DATA_DIR, loadConfig, writeExampleConfig } from './config.ts'
 import { linkedIn } from './platforms/linkedin.ts'
 import { naukri } from './platforms/naukri.ts'
 import type { PlatformAdapter } from './platforms/types.ts'
-import { runAgent } from './run.ts'
+import { applyToShortlist } from './run.ts'
 import { Store } from './store.ts'
 
-const HELP = `OpportunityPilot agent — applies to jobs from your own logged-in browser.
+const HELP = `OpportunityPilot agent — research input and applications from your own logged-in browser.
 
-  npm run agent -- init                      create config.json (search, answers, agent key)
+  npm run agent -- init                      create config.json (answers, limits, agent key)
   npm run agent -- login <linkedin|naukri>   log in once in the browser window that opens
-  npm run agent -- run <linkedin|naukri>     dry run: fill forms, send nothing
+  npm run agent -- campaigns                 list your Job campaigns and their ids
+  npm run agent -- collect <linkedin|naukri> --campaign <id>
+                                             search with the campaign's criteria and send the postings
+                                             to it for research (nothing is applied to)
+  npm run agent -- apply <linkedin|naukri>   dry run over the jobs YOU shortlisted after research
         --submit      send real applications (needs "iUnderstandAccountRisk": true)
         --limit N     at most N applications this run
         --headless    no visible window (not recommended)
@@ -35,8 +40,12 @@ const store = () => new Store(join(DATA_DIR, 'applications.jsonl'))
 async function main(argv: string[]) {
   const [command, platform, ...rest] = argv
   const flag = (name: string) => rest.includes(name) || platform === name
-  const limitArg = rest.indexOf('--limit')
-  const limit = limitArg >= 0 ? Number(rest[limitArg + 1]) : undefined
+  const option = (name: string) => {
+    const i = rest.indexOf(name)
+    return i >= 0 ? rest[i + 1] : undefined
+  }
+  const limit = option('--limit') !== undefined ? Number(option('--limit')) : undefined
+  if (limit !== undefined && !(limit > 0)) throw new Error('--limit needs a number above 0')
 
   switch (command) {
     case 'init': {
@@ -63,18 +72,78 @@ async function main(argv: string[]) {
       return
     }
 
-    case 'run': {
+    case 'campaigns': {
+      const config = loadConfig()
+      const result = await agentCampaigns(config.api)
+      if (!result.ok) throw new Error(`Could not list campaigns: ${result.reason}`)
+      if (result.data.length === 0) return console.log('No Job campaigns yet. Create one in the web app (Campaigns → New campaign, mode Jobs).')
+      for (const c of result.data) console.log(`${c.id}  ${c.name}  — keywords: ${c.criteria.keywords.join(', ') || '(none)'}`)
+      return
+    }
+
+    case 'collect': {
+      const adapter = adapterFor(platform)
+      const config = loadConfig()
+      const campaignId = option('--campaign')
+      if (!campaignId) throw new Error('Which campaign? Add --campaign <id> (see: npm run agent -- campaigns)')
+      const campaigns = await agentCampaigns(config.api)
+      if (!campaigns.ok) throw new Error(`Could not read the campaign: ${campaigns.reason}`)
+      const campaign = campaigns.data.find((c) => c.id === campaignId)
+      if (!campaign) throw new Error(`No Job campaign ${campaignId}. See: npm run agent -- campaigns`)
+
+      const { context, page } = await openBrowser({ headless: flag('--headless') })
+      try {
+        if (!(await adapter.isLoggedIn(page))) throw new Error(`Not logged in to ${adapter.platform}. Run: npm run agent -- login ${platform}`)
+        const jobs = await collectPostings({
+          adapter,
+          page,
+          campaign,
+          postedWithinDays: config.search.postedWithinDays,
+          maxPages: config.limits.maxPages,
+          limit: limit ?? config.limits.maxPostingsPerCollect,
+          pauseSeconds: config.limits.pauseSeconds,
+          skip: (id) => store().isDone(adapter.platform, id),
+        })
+        if (jobs.length === 0) return console.log('No new postings found.')
+        let jobId: string | null | undefined
+        for (let i = 0; i < jobs.length; i += 100) {
+          const batch = jobs.slice(i, i + 100)
+          const sent = await sendPostings(config.api, campaign.id, adapter.platform, batch, i + 100 >= jobs.length)
+          if (!sent.ok) throw new Error(`Could not send postings: ${sent.reason}`)
+          jobId = sent.data.jobId ?? jobId
+        }
+        console.log(`Sent ${jobs.length} posting(s) to "${campaign.name}"${jobId ? ' and queued research' : ''}.`)
+        console.log(`Next: open the campaign's Opportunities in the web app, shortlist the jobs you want, then run: npm run agent -- apply ${platform}`)
+      } finally {
+        await context.close()
+      }
+      return
+    }
+
+    case 'apply': {
       const adapter = adapterFor(platform)
       const config = loadConfig()
       const submit = flag('--submit')
       if (submit && !config.iUnderstandAccountRisk) {
-        console.error(`${RISK}\n\nTo send real applications, set "iUnderstandAccountRisk": true in config.json, then run again.`)
+        console.error(`${RISK}
+
+To send real applications, set "iUnderstandAccountRisk": true in config.json, then run again.`)
         process.exitCode = 1
         return
       }
-      console.log(`${RISK}\n`)
-      if (limit !== undefined && !(limit > 0)) throw new Error('--limit needs a number above 0')
-      const summary = await runAgent({ adapter, config, store: store(), submit, limit, headless: flag('--headless') })
+      const list = await shortlist(config.api, adapter.platform)
+      if (!list.ok) throw new Error(`Could not read your shortlist: ${list.reason}`)
+      console.log(`${RISK}
+`)
+      const jobs = list.data.map((s) => ({
+        externalJobId: s.externalId,
+        url: s.url,
+        title: s.title,
+        company: s.organization,
+        location: null,
+        opportunityId: s.opportunityId,
+      }))
+      const summary = await applyToShortlist({ adapter, config, store: store(), jobs, submit, limit, headless: flag('--headless') })
       if (summary.stoppedBecause) process.exitCode = 2
       return
     }

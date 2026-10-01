@@ -7,16 +7,11 @@ export const AGENT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 export const CONFIG_PATH = join(AGENT_DIR, 'config.json')
 export const DATA_DIR = join(AGENT_DIR, '.data')
 
+/** What one platform search uses. Built from a campaign's criteria; filtering and scoring happen in research. */
 export interface SearchConfig {
-  /** Each keyword is searched separately. */
-  keywords: string[]
   location: string
   remote: 'any' | 'remote' | 'hybrid' | 'onsite'
   postedWithinDays: number
-  /** Apply only when the job title contains at least one of these (empty = any title). */
-  titleMustIncludeAny: string[]
-  titleExclude: string[]
-  excludeCompanies: string[]
 }
 
 export interface Config {
@@ -29,8 +24,10 @@ export interface Config {
     /** Pause between applications, in seconds [min, max], so the platform is not hammered. */
     pauseSeconds: [number, number]
     maxPages: number
+    /** Postings `collect` opens and sends per run. */
+    maxPostingsPerCollect: number
   }
-  search: SearchConfig
+  search: { postedWithinDays: number }
   profile: { resumePath: string; followCompanies: boolean }
   answers: Answers
 }
@@ -38,16 +35,8 @@ export interface Config {
 export const EXAMPLE_CONFIG: Config = {
   api: { url: 'https://opportunitypilotwebapi.onrender.com', key: '' },
   iUnderstandAccountRisk: false,
-  limits: { maxApplicationsPerRun: 10, maxApplicationsPerDay: 25, pauseSeconds: [8, 20], maxPages: 3 },
-  search: {
-    keywords: ['.NET developer', 'Full stack developer'],
-    location: 'India',
-    remote: 'any',
-    postedWithinDays: 7,
-    titleMustIncludeAny: ['.net', 'c#', 'full stack', 'fullstack', 'backend'],
-    titleExclude: ['intern', 'principal', 'director'],
-    excludeCompanies: [],
-  },
+  limits: { maxApplicationsPerRun: 10, maxApplicationsPerDay: 25, pauseSeconds: [8, 20], maxPages: 2, maxPostingsPerCollect: 30 },
+  search: { postedWithinDays: 7 },
   profile: { resumePath: '', followCompanies: false },
   answers: {
     fields: [
@@ -96,7 +85,7 @@ export function loadConfig(path = CONFIG_PATH): Config {
   }
 
   const problems: string[] = []
-  if (!Array.isArray(c.search.keywords) || c.search.keywords.length === 0) problems.push('search.keywords needs at least one keyword')
+  if (!(c.limits.maxPostingsPerCollect > 0)) problems.push('limits.maxPostingsPerCollect must be above 0')
   if (!(c.limits.maxApplicationsPerRun > 0)) problems.push('limits.maxApplicationsPerRun must be above 0')
   if (!(c.limits.maxApplicationsPerDay > 0)) problems.push('limits.maxApplicationsPerDay must be above 0')
   if (!Array.isArray(c.limits.pauseSeconds) || c.limits.pauseSeconds.length !== 2) problems.push('limits.pauseSeconds must be [min, max]')
