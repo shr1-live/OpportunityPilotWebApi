@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using OpportunityPilot.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using OpportunityPilot.Infrastructure.Persistence;
 namespace OpportunityPilot.Infrastructure.Persistence.Migrations.Postgres
 {
     [DbContext(typeof(PostgresAppDbContext))]
-    partial class PostgresAppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261001065506_AddApplicationsAndAgentKeys")]
+    partial class AddApplicationsAndAgentKeys
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

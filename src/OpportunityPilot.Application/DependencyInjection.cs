@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using OpportunityPilot.Application.Agents;
+using OpportunityPilot.Application.Applications;
 using OpportunityPilot.Application.Capabilities;
 using OpportunityPilot.Application.Profiles;
 
@@ -10,6 +12,8 @@ public static class DependencyInjection
     {
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<ProfileService>();
+        services.AddScoped<ApplicationService>();
+        services.AddScoped<AgentKeyService>();
         services.AddSingleton<CapabilityService>();
         return services;
     }

@@ -5,7 +5,8 @@ namespace OpportunityPilot.Application.Capabilities;
 
 /// <summary>
 /// Plain status labels. "Ready" is reserved for something this build can actually do;
-/// "NotBuilt" marks a planned capability whose milestone has not been implemented yet.
+/// "NotBuilt" marks a planned capability whose milestone has not been implemented yet;
+/// "LocalAgent" means the work happens in the user's own browser via the desktop agent, not on this server.
 /// </summary>
 public enum CapabilityStatus
 {
@@ -14,7 +15,8 @@ public enum CapabilityStatus
     NotConfigured,
     Disabled,
     ManualHandoff,
-    NotBuilt
+    NotBuilt,
+    LocalAgent
 }
 
 public sealed record CapabilityDto(string Key, string Name, string Category, CapabilityStatus Status, string Detail, string[] Can, string[] Cannot);
@@ -81,17 +83,19 @@ public sealed class CapabilityService(
                 "OAuth drafts and reviewed sending. Milestone M6. Nothing is sent from this build.",
                 [], ["Create drafts", "Send approved messages"]),
 
-            new("linkedin", "LinkedIn", "Platforms", CapabilityStatus.ManualHandoff,
-                "No approved API access for this use.",
-                ["Copy a prepared message", "Open a profile or job link"], ["Send messages", "Apply for you"]),
+            new("linkedin", "LinkedIn", "Platforms", CapabilityStatus.LocalAgent,
+                "Applies through your own logged-in browser on your computer with the OpportunityPilot agent. Unofficial automation: LinkedIn may restrict accounts that use it.",
+                ["Search jobs with your filters", "Fill and submit Easy Apply forms from your saved answers", "Record each application here"],
+                ["Answer questions your saved answers do not cover", "Get past security checks — the agent stops and asks you"]),
 
-            new("naukri", "Naukri", "Platforms", CapabilityStatus.ManualHandoff,
-                "No verified API access for this use.",
-                ["Open the real application link"], ["Submit an application for you"]),
+            new("naukri", "Naukri", "Platforms", CapabilityStatus.LocalAgent,
+                "Applies through your own logged-in browser on your computer with the OpportunityPilot agent. Unofficial automation: Naukri may restrict accounts that use it.",
+                ["Search jobs with your filters", "Apply and answer the recruiter questionnaire from your saved answers", "Record each application here"],
+                ["Apply on company websites", "Answer questions your saved answers do not cover"]),
 
             new("instahyre", "InstaHyre", "Platforms", CapabilityStatus.ManualHandoff,
-                "No verified API access for this use.",
-                ["Open the real application link"], ["Respond on your behalf"]),
+                "Not supported by the agent yet.",
+                ["Open the real application link"], ["Apply for you"]),
 
             new("mongo-archive", "MongoDB research archive", "Optional",
                 f.MongoArchiveEnabled ? CapabilityStatus.NotBuilt : CapabilityStatus.Disabled,

@@ -85,6 +85,36 @@ public class StartupGuardTests
     }
 
     [Fact]
+    public async Task Agent_keys_work_in_demo_mode_and_guest_tokens_cannot_report()
+    {
+        using var factory = DemoMode();
+        var guest = await GuestClient(factory);
+        var created = await guest.PostAsJsonAsync("/api/v1/agent-keys", new { name = "Demo laptop" });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var key = JsonDocument.Parse(await created.Content.ReadAsStringAsync()).RootElement.GetProperty("key").GetString()!;
+
+        var report = new
+        {
+            items = new[]
+            {
+                new
+                {
+                    platform = "Naukri", externalJobId = "n-1", jobUrl = "https://www.naukri.com/job-listings-n-1",
+                    title = "Engineer", company = "Acme", status = "Applied", occurredAt = DateTime.UtcNow
+                }
+            }
+        };
+        Assert.Equal(HttpStatusCode.Unauthorized, (await guest.PostAsJsonAsync("/api/v1/applications/report", report)).StatusCode);
+
+        var agent = factory.CreateClient();
+        agent.DefaultRequestHeaders.Add("X-Agent-Key", key);
+        Assert.Equal(HttpStatusCode.OK, (await agent.PostAsJsonAsync("/api/v1/applications/report", report)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await agent.GetAsync("/api/v1/profiles")).StatusCode);
+
+        Assert.Contains("\"applied\":1", await guest.GetStringAsync("/api/v1/overview"));
+    }
+
+    [Fact]
     public async Task Guest_sign_in_is_off_once_supabase_is_configured()
     {
         using var factory = new ProductionFactory(new()

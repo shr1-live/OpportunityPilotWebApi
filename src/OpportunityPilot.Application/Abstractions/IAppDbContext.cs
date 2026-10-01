@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using OpportunityPilot.Domain.Agents;
+using OpportunityPilot.Domain.Applications;
 using OpportunityPilot.Domain.Profiles;
 
 namespace OpportunityPilot.Application.Abstractions;
@@ -7,6 +9,8 @@ namespace OpportunityPilot.Application.Abstractions;
 public interface IAppDbContext
 {
     DbSet<Profile> Profiles { get; }
+    DbSet<JobApplication> JobApplications { get; }
+    DbSet<AgentKey> AgentKeys { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

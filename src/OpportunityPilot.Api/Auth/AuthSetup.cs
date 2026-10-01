@@ -91,6 +91,10 @@ public static class AuthSetup
             schemes.Add(DevBypassAuthenticationHandler.SchemeName);
         }
 
+        // Registered in every mode but deliberately left out of `schemes`: an agent key must never satisfy the
+        // fallback policy, only endpoints marked [Authorize(AuthenticationSchemes = AgentKey)].
+        authBuilder.AddScheme<AuthenticationSchemeOptions, AgentKeyAuthenticationHandler>(AgentKeyAuthenticationHandler.SchemeName, null);
+
         builder.Services.AddAuthorizationBuilder()
             .SetFallbackPolicy(new AuthorizationPolicyBuilder(schemes.ToArray()).RequireAuthenticatedUser().Build());
 

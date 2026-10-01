@@ -30,12 +30,21 @@ public class CapabilityServiceTests
     }
 
     [Theory]
-    [InlineData("linkedin")]
-    [InlineData("naukri")]
-    [InlineData("instahyre")]
-    public void Job_and_social_platforms_are_manual_handoff(string key)
+    [InlineData("linkedin", CapabilityStatus.LocalAgent)]
+    [InlineData("naukri", CapabilityStatus.LocalAgent)]
+    [InlineData("instahyre", CapabilityStatus.ManualHandoff)]
+    public void Job_platforms_report_how_applications_happen(string key, CapabilityStatus expected)
     {
         var caps = Get(new FeatureOptions(), new AiOptions());
-        Assert.Equal(CapabilityStatus.ManualHandoff, caps.Items.Single(i => i.Key == key).Status);
+        Assert.Equal(expected, caps.Items.Single(i => i.Key == key).Status);
+    }
+
+    [Theory]
+    [InlineData("linkedin")]
+    [InlineData("naukri")]
+    public void Agent_platforms_warn_that_automation_is_unofficial(string key)
+    {
+        var item = Get(new FeatureOptions(), new AiOptions()).Items.Single(i => i.Key == key);
+        Assert.Contains("Unofficial automation", item.Detail);
     }
 }

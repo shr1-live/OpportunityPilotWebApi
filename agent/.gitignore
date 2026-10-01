@@ -1,0 +1,4 @@
+node_modules/
+# Your answers, agent key and browser session never leave this machine.
+config.json
+.data/

@@ -14,6 +14,7 @@ services:
     buildFilter:
       ignoredPaths:
         - tests/**
+        - agent/**
         - docs/**
         - "**/*.md"
     envVars:
