@@ -1,0 +1,39 @@
+# Render Blueprint — OpportunityPilot API.
+# Dashboard: New > Blueprint > pick this repo. Values marked sync: false are asked for once
+# on first creation and never stored in git. See docs/SETUP.md §5.
+services:
+  - type: web
+    name: opportunitypilot-api
+    runtime: docker
+    plan: free
+    region: singapore            # immutable after creation; keep it near your Supabase region
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health/live
+    autoDeployTrigger: commit
+    buildFilter:
+      ignoredPaths:
+        - tests/**
+        - docs/**
+        - "**/*.md"
+    envVars:
+      - key: Database__Provider
+        value: Postgres
+      # Free instances have no pre-deploy hook, so the container migrates before starting.
+      - key: MIGRATE_ON_START
+        value: "true"
+      # Supabase > Connect > Session pooler (port 5432). URI or key=value both work.
+      - key: ConnectionStrings__Main
+        sync: false
+      # https://<project-ref>.supabase.co
+      - key: Auth__SupabaseUrl
+        sync: false
+      # The web app's public origin. Change if Render gave the static site a different URL.
+      - key: Cors__AllowedOrigins__0
+        value: https://opportunitypilot-web.onrender.com
+      - key: Features__GeminiEnabled
+        value: "false"
+      - key: Features__GmailEnabled
+        value: "false"
+      - key: Features__MongoArchiveEnabled
+        value: "false"

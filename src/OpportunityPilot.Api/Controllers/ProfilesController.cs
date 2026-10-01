@@ -1,0 +1,28 @@
+using Microsoft.AspNetCore.Mvc;
+using OpportunityPilot.Application.Profiles;
+
+namespace OpportunityPilot.Api.Controllers;
+
+[ApiController]
+[Route("api/v1/profiles")]
+public sealed class ProfilesController(ProfileService profiles) : ControllerBase
+{
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<ProfileSummaryDto>>> List(CancellationToken ct) =>
+        Ok(await profiles.ListAsync(ct));
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<ProfileDto>> Get(Guid id, CancellationToken ct) =>
+        await profiles.GetAsync(id, ct);
+
+    [HttpPost]
+    public async Task<ActionResult<ProfileDto>> Create(CreateProfileRequest request, CancellationToken ct)
+    {
+        var created = await profiles.CreateAsync(request, ct);
+        return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<ProfileDto>> Update(Guid id, UpdateProfileRequest request, CancellationToken ct) =>
+        await profiles.UpdateAsync(id, request, ct);
+}
