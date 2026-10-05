@@ -118,6 +118,7 @@ Hard guardrails:
 - **Demo mode must keep working**: no raw SQL or provider-only features in Application; InMemory enforces no unique index, FK or cascade, so check duplicates and delete children in services; `StartupGuardTests` must pass.
 - **Research never changes `Opportunity.Status`**; only the user (PATCH) and an Applied agent report do.
 - **Time**: inject `TimeProvider`; no `DateTime.UtcNow` in Domain or Application. Store UTC only.
+- **Git workflow**: Every feature or change goes on a **new branch** (`feature/`, `fix/`, `docs/`, `chore/` + name); never commit to `main`. Run this repo's checks, commit, then from the workspace root run `bash tools/pr.sh <repo> "<title>" <body-file>`: it pushes, raises a PR to `main` and **squash-merges** it (auto-merge authorised by the user *for now*; if withdrawn, pass `--no-merge` and wait), deletes the branch and pulls `main`. `main` deploys automatically, so a merge is a release.
 - **Enums are stored as strings**: do not rename a member of a stored enum without a data migration.
 - **Capabilities tell the truth**: never report `Ready` for something not built and verified; missing optional config degrades to demo mode or NotConfigured, never a crash. Only security guards (DevBypass outside Development) stop startup.
 - **Specs are not code**: `docs/RESEARCH_CONTRACT.md` and `docs/M4_M5_CONTRACT.md` are designs; `docs/api-contracts.md` lists what exists. M4–M9 items are not built.
