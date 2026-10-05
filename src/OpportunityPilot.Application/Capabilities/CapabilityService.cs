@@ -33,6 +33,7 @@ public sealed class CapabilityService(
     IOptions<FeatureOptions> features,
     IOptions<AiOptions> ai,
     IOptions<DatabaseOptions> database,
+    IOptions<AdzunaOptions> adzuna,
     SetupState setup)
 {
     public CapabilitiesDto Get(string environment)
@@ -82,6 +83,26 @@ public sealed class CapabilityService(
             new("feeds", "Permitted RSS/Atom feeds", "Sources", CapabilityStatus.Ready,
                 "Discovers only what a permitted RSS/Atom feed contains.",
                 ["Read RSS 2.0 and Atom feeds you supply (up to 100 entries)"], ["Search the web"]),
+
+            new("greenhouse", "Greenhouse job boards", "Sources", CapabilityStatus.Ready,
+                "Public job boards of companies that use Greenhouse; no key needed.",
+                ["Read a company's open jobs from its public Greenhouse board (board token or URL)",
+                    "Pre-filter titles by your keywords and required skills before reading descriptions"],
+                ["Search across companies", "Apply for you — open the application page yourself"]),
+
+            new("lever", "Lever job postings", "Sources", CapabilityStatus.Ready,
+                "Public job postings of companies that use Lever; no key needed.",
+                ["Read up to 100 open postings from a company's public Lever page (slug or URL)"],
+                ["Search across companies", "Apply for you — open the application page yourself"]),
+
+            adzuna.Value.Configured
+                ? new("adzuna", "Adzuna job search", "Sources", CapabilityStatus.Ready,
+                    "Searches Adzuna (India) with your campaign keywords; keys are set on the server and never shown.",
+                    ["Search up to 3 keywords in your first location, jobs from the last 14 days"],
+                    ["Read full job descriptions (Adzuna returns a snippet)", "Apply for you — open the application page yourself"])
+                : new("adzuna", "Adzuna job search", "Sources", CapabilityStatus.NotConfigured,
+                    "Server keys missing (Adzuna__AppId and Adzuna__AppKey). Adzuna sources can be added but fail until the keys are set.",
+                    [], ["Search Adzuna"]),
 
             new("gmail", "Gmail", "Outreach",
                 f.GmailEnabled ? CapabilityStatus.NotBuilt : CapabilityStatus.Disabled,

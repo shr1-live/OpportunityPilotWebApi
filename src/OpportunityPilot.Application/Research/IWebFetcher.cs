@@ -3,9 +3,12 @@ namespace OpportunityPilot.Application.Research;
 /// <param name="Content">Decoded body text (HTML, XML or plain text), at most the configured byte cap.</param>
 /// <param name="FailureReason">Safe, user-facing reason; never an exception message or stack trace.</param>
 /// <param name="Requests">HTTP requests actually sent (redirect hops and retries included), for the run's fetch budget.</param>
-public sealed record FetchResult(bool Ok, string? Content, string? ContentType, string? FinalUrl, string? FailureReason, int Requests)
+/// <param name="StatusCode">The HTTP status of a failed final answer (e.g. 404), when there was one; lets a caller word its own reason.</param>
+public sealed record FetchResult(bool Ok, string? Content, string? ContentType, string? FinalUrl, string? FailureReason, int Requests,
+    int? StatusCode = null)
 {
-    public static FetchResult Fail(string reason, int requests = 0) => new(false, null, null, null, reason, requests);
+    public static FetchResult Fail(string reason, int requests = 0, int? statusCode = null) =>
+        new(false, null, null, null, reason, requests, statusCode);
 }
 
 /// <summary>Outbound fetching with SSRF protection. Implementations never throw for network or policy failures.</summary>
@@ -17,7 +20,14 @@ public interface IWebFetcher
     /// </summary>
     string? CheckUrl(string url);
 
+    /// <summary>Reads HTML, plain text and RSS/Atom (Url and Feed sources).</summary>
     Task<FetchResult> FetchAsync(string url, CancellationToken ct);
+
+    /// <summary>
+    /// Reads <c>application/json</c> only, with the same address, size, timeout and redirect rules. Used solely for the
+    /// documented public job-board APIs (Greenhouse, Lever, Adzuna); user-supplied Url and Feed sources never get JSON.
+    /// </summary>
+    Task<FetchResult> FetchJsonAsync(string url, CancellationToken ct);
 }
 
 /// <param name="Text">Visible text with scripts, styles and page chrome removed; whitespace collapsed.</param>

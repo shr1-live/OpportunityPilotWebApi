@@ -27,6 +27,20 @@ public sealed class AiOptions
     public int MaxOutputTokens { get; set; } = 1500;
 }
 
+/// <summary>
+/// Adzuna job search (free developer keys from developer.adzuna.com). Both values are server-side secrets: they are
+/// never logged, returned, or written into research events (the request URL that carries them is never recorded).
+/// Without both, Adzuna sources fail safely and the capability reports NotConfigured.
+/// </summary>
+public sealed class AdzunaOptions
+{
+    public const string Section = "Adzuna";
+    public string? AppId { get; set; }
+    public string? AppKey { get; set; }
+
+    public bool Configured => !string.IsNullOrWhiteSpace(AppId) && !string.IsNullOrWhiteSpace(AppKey);
+}
+
 public sealed class AuthOptions
 {
     public const string Section = "Auth";

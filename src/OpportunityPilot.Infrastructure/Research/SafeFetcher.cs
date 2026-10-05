@@ -39,6 +39,17 @@ public sealed class SafeFetcher(
         "text/html", "application/xhtml+xml", "text/plain", "application/rss+xml", "application/atom+xml", "application/xml", "text/xml"
     };
 
+    /// <summary>Only for the job-board API sources (<see cref="FetchJsonAsync"/>); never for user-supplied pages or feeds.</summary>
+    public static readonly IReadOnlySet<string> JsonContentTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "application/json" };
+
+    private sealed record Reading(IReadOnlySet<string> Types, string Accept, string Rejected);
+
+    private static readonly Reading Pages = new(AllowedContentTypes,
+        "text/html,application/xhtml+xml,application/rss+xml,application/atom+xml,application/xml;q=0.9,text/plain;q=0.8",
+        "only HTML, plain text and RSS/Atom feeds are.");
+
+    private static readonly Reading Json = new(JsonContentTypes, "application/json", "only JSON is read from job-board APIs.");
+
     private const string Blocked = "The address is private, local or reserved, so it is never fetched.";
 
     private readonly ResearchOptions _limits = options.Value;
@@ -63,7 +74,11 @@ public sealed class SafeFetcher(
         return CheckShape(uri);
     }
 
-    public async Task<FetchResult> FetchAsync(string url, CancellationToken ct)
+    public Task<FetchResult> FetchAsync(string url, CancellationToken ct) => FetchAsync(url, Pages, ct);
+
+    public Task<FetchResult> FetchJsonAsync(string url, CancellationToken ct) => FetchAsync(url, Json, ct);
+
+    private async Task<FetchResult> FetchAsync(string url, Reading reading, CancellationToken ct)
     {
         if (!Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var uri)) return FetchResult.Fail("The URL is not a valid absolute URL.");
 
@@ -78,7 +93,7 @@ public sealed class SafeFetcher(
                 Attempt attempt = default!;
                 for (var retry = 0; ; retry++)
                 {
-                    attempt = await AttemptAsync(uri, ct);
+                    attempt = await AttemptAsync(uri, reading, ct);
                     requests++;
                     if (!attempt.Transient || retry >= MaxRetries) break;
                     // Exponential backoff with jitter: 0.5 s, 1 s, 2 s (+ up to 250 ms).
@@ -91,7 +106,7 @@ public sealed class SafeFetcher(
                         uri = next;
                         continue;
                     case { Failure: { } failure }:
-                        return FetchResult.Fail(failure, requests);
+                        return FetchResult.Fail(failure, requests, attempt.Status);
                     default:
                         return new FetchResult(true, attempt.Content, attempt.ContentType, uri.ToString(), null, requests);
                 }
@@ -104,9 +119,9 @@ public sealed class SafeFetcher(
         }
     }
 
-    private sealed record Attempt(string? Content, string? ContentType, Uri? Redirect, string? Failure, bool Transient);
+    private sealed record Attempt(string? Content, string? ContentType, Uri? Redirect, string? Failure, bool Transient, int? Status = null);
 
-    private async Task<Attempt> AttemptAsync(Uri uri, CancellationToken ct)
+    private async Task<Attempt> AttemptAsync(Uri uri, Reading reading, CancellationToken ct)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(_limits.EffectiveTimeout);
@@ -114,7 +129,7 @@ public sealed class SafeFetcher(
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, uri);
             request.Headers.UserAgent.ParseAdd(UserAgent);
-            request.Headers.Accept.ParseAdd("text/html,application/xhtml+xml,application/rss+xml,application/atom+xml,application/xml;q=0.9,text/plain;q=0.8");
+            request.Headers.Accept.ParseAdd(reading.Accept);
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
 
             var status = (int)response.StatusCode;
@@ -128,12 +143,12 @@ public sealed class SafeFetcher(
             {
                 var transient = status is 408 or 429 or >= 500;
                 var hint = status is 401 or 403 ? " The page may need a login." : "";
-                return new(null, null, null, $"The site answered {status}.{hint}", transient);
+                return new(null, null, null, $"The site answered {status}.{hint}", transient, status);
             }
 
             var mediaType = response.Content.Headers.ContentType?.MediaType;
-            if (mediaType is null || !AllowedContentTypes.Contains(mediaType))
-                return new(null, null, null, $"Content type {mediaType ?? "(none)"} is not read; only HTML, plain text and RSS/Atom feeds are.", false);
+            if (mediaType is null || !reading.Types.Contains(mediaType))
+                return new(null, null, null, $"Content type {mediaType ?? "(none)"} is not read; {reading.Rejected}", false);
 
             var max = _limits.EffectiveBytes;
             if (response.Content.Headers.ContentLength > max)
