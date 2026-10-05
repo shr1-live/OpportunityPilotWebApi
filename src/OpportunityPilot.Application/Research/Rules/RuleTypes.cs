@@ -6,6 +6,8 @@ namespace OpportunityPilot.Application.Research.Rules;
 /// <param name="Text">The posting or company description (bounded). Empty means the source gave no text.</param>
 /// <param name="EvidenceId">The evidence row the text was stored in; every known value cites it.</param>
 /// <param name="Links">Absolute links found on a fetched page (contact, careers, mailto).</param>
+/// <param name="WorkplaceType">A structured work-mode field from the source (Lever <c>workplaceType</c>), lower case; it wins over the text.</param>
+/// <param name="PostedAt">When the source says the posting was published (UTC); null when it does not say.</param>
 public sealed record RuleInput(
     string Title,
     string Organization,
@@ -15,7 +17,9 @@ public sealed record RuleInput(
     string? Website = null,
     string? Country = null,
     string? Industry = null,
-    IReadOnlyList<string>? Links = null);
+    IReadOnlyList<string>? Links = null,
+    string? WorkplaceType = null,
+    DateTime? PostedAt = null);
 
 public enum FilterResult
 {
@@ -27,11 +31,14 @@ public enum FilterResult
 public sealed record FilterCheck(string Filter, FilterResult Result, string Reason);
 
 /// <param name="Value">1, 0.5, 0, or null when the source does not say (unknown is not the same as 0, but scores 0).</param>
-public sealed record CriterionScore(string Criterion, string Label, double? Value, string Reason);
+/// <param name="Excerpt">The sentence or field note that justified the value (see <see cref="Excerpts"/>); dropped when the value is unknown.</param>
+public sealed record CriterionScore(string Criterion, string Label, double? Value, string Reason, string? Excerpt = null);
 
 /// <param name="Weight">Effective weight after redistributing not-applicable criteria (sums to 100 over the rows).</param>
+/// <param name="Excerpt">At most 300 characters; always present when <paramref name="Value"/> is above 0, null when it is unknown.</param>
 public sealed record BreakdownRow(
-    string Criterion, string Label, double Weight, double? Value, double Points, string Reason, IReadOnlyList<string> EvidenceIds);
+    string Criterion, string Label, double Weight, double? Value, double Points, string Reason, IReadOnlyList<string> EvidenceIds,
+    string? Excerpt = null);
 
 /// <param name="IsInference">True when the value is derived rather than stated by the source.</param>
 public sealed record FactRow(string Key, string Label, string Value, string? EvidenceId, bool IsInference);

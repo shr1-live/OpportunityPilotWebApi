@@ -291,4 +291,57 @@ public class JobRulesTests
         var r = Run(c, Posting("Unpaid role", location: null));
         Assert.Equal(FilterOutcome.Excluded, r.Outcome);
     }
+
+    [Fact]
+    public void Every_awarded_point_has_a_bounded_evidence_excerpt()
+    {
+        var c = new CampaignCriteria { RequiredSkills = ["C#", ".NET"], CandidateYears = 4, WorkModes = ["Remote"] };
+        var input = new RuleInput("Engineer", "Acme", null,
+            "Deep C# and .NET experience required, running on Azure. We ask for 4-7 years.", Ev,
+            WorkplaceType: "remote");
+
+        var r = Run(c, input);
+
+        Assert.All(r.Breakdown.Where(row => row.Value > 0), row =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(row.Excerpt));
+            Assert.True(row.Excerpt!.Length <= Excerpts.MaxLength);
+        });
+        Assert.Contains(".NET experience", Row(r, CampaignWeights.MandatorySkills).Excerpt);
+        Assert.Equal("workplaceType field = remote", Row(r, CampaignWeights.Location).Excerpt);
+    }
+
+    [Fact]
+    public void A_dotted_technology_name_does_not_truncate_the_evidence_excerpt()
+    {
+        var result = Run(new CampaignCriteria { RequiredSkills = [".NET"] },
+            Posting("Deep C# and .NET experience required, running on Azure. Another sentence."));
+        var row = Row(result, CampaignWeights.MandatorySkills);
+
+        Assert.Equal("Deep C# and .NET experience required, running on Azure.", row.Excerpt);
+    }
+
+    [Fact]
+    public void Staffing_agency_signals_exclude_but_their_absence_passes()
+    {
+        var criteria = new CampaignCriteria { ExcludeStaffingAgencies = true };
+
+        var agency = Run(criteria, Posting("Our client, a leading bank, needs a developer."));
+        var direct = Run(criteria, Posting("Join our product engineering team."));
+
+        Assert.Equal(FilterOutcome.Excluded, agency.Outcome);
+        Assert.Contains("Our client", agency.OutcomeReason);
+        Assert.Equal(FilterOutcome.Qualified, direct.Outcome);
+    }
+
+    [Fact]
+    public void Posting_age_excludes_old_jobs_but_keeps_undated_jobs()
+    {
+        var criteria = new CampaignCriteria { MaxPostingAgeDays = 120 };
+        var now = new DateTime(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc);
+        var old = Posting("C# role") with { PostedAt = now.AddDays(-121) };
+
+        Assert.Equal(FilterOutcome.Excluded, JobRules.Evaluate(criteria, Defaults, old, now).Outcome);
+        Assert.Equal(FilterOutcome.Qualified, JobRules.Evaluate(criteria, Defaults, Posting("C# role"), now).Outcome);
+    }
 }

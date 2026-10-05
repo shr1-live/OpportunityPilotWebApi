@@ -33,6 +33,19 @@ public static class TextMatch
         return Variants(term).Any(v => For(v).IsMatch(text));
     }
 
+    /// <summary>The earliest occurrence of the term or one of its aliases; null when none occurs.</summary>
+    public static (int Index, int Length)? Find(string? text, string term)
+    {
+        if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(term)) return null;
+        (int Index, int Length)? best = null;
+        foreach (var variant in Variants(term))
+        {
+            var m = For(variant).Match(text);
+            if (m.Success && (best is null || m.Index < best.Value.Index)) best = (m.Index, m.Length);
+        }
+        return best;
+    }
+
     /// <summary>The configured terms (as the user wrote them) that occur in any of the texts.</summary>
     public static List<string> Found(IEnumerable<string> terms, params string?[] texts) =>
         terms.Where(t => texts.Any(x => Contains(x, t))).ToList();

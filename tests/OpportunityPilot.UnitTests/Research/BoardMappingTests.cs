@@ -163,6 +163,7 @@ public class BoardMappingTests
         Assert.Equal("7171717", c.ExternalId);
         Assert.Equal(job.Url, c.Url);
         Assert.Equal(job.Url, c.ApplyUrl);
+        Assert.Equal(job.UpdatedAt, c.PostedAt);
         Assert.Equal("C# and .NET services.", c.Text);
         Assert.Contains("Company: Stripe", c.Excerpt);
         Assert.Equal("job:Greenhouse:7171717", Candidates.DedupeKey(Domain.Common.OpportunityMode.Job, c.Platform, c.ExternalId, c.Title, c.Organization, null));
@@ -196,6 +197,8 @@ public class BoardMappingTests
         Assert.Equal("5ac21346-8e0c-4494-8e7a-3eb92ff77902", c.ExternalId);
         Assert.Equal("https://jobs.lever.co/acme-labs/5ac21346-8e0c-4494-8e7a-3eb92ff77902", c.Url);
         Assert.Equal("https://jobs.lever.co/acme-labs/5ac21346-8e0c-4494-8e7a-3eb92ff77902/apply", c.ApplyUrl);
+        Assert.Equal("hybrid", c.WorkplaceType);
+        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1727700000000).UtcDateTime, c.PostedAt);
         Assert.StartsWith("Workplace: Hybrid\nWe need a C# developer.", c.Text);
         Assert.Contains("Requirements\n.NET 8", c.Text);
         Assert.Contains("SQL & Postgres", c.Text);

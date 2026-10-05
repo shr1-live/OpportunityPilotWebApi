@@ -26,7 +26,8 @@ public static class Scoring
             score += points;
             if (c.Value is not null) known += effective;
             IReadOnlyList<string> ids = c.Value is not null && evidenceId is not null ? [evidenceId] : [];
-            rows.Add(new BreakdownRow(c.Criterion, c.Label, Math.Round(effective, 2), c.Value, Math.Round(points, 2), c.Reason, ids));
+            rows.Add(new BreakdownRow(c.Criterion, c.Label, Math.Round(effective, 2), c.Value, Math.Round(points, 2), c.Reason, ids,
+                c.Value is null ? null : Excerpts.Bound(c.Excerpt)));
         }
         return (Clamp(score), Clamp(known), rows);
     }

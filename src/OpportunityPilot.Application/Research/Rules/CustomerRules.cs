@@ -38,7 +38,7 @@ public static partial class CustomerRules
             var found = TextMatch.Found(criteria.Industries, corpus);
             if (found.Count > 0)
             {
-                scores.Add(new(CampaignWeights.Industry, "Industry fit", 1, $"Mentions {string.Join(", ", found)}."));
+                scores.Add(new(CampaignWeights.Industry, "Industry fit", 1, $"Mentions {string.Join(", ", found)}.", TermsExcerpt(input, corpus, found)));
                 facts.Add(new FactRow("industriesMatched", "Industry terms mentioned", string.Join(", ", found), ev, false));
             }
             else if (hasText) scores.Add(new(CampaignWeights.Industry, "Industry fit", 0, "None of your industries is mentioned."));
@@ -64,15 +64,15 @@ public static partial class CustomerRules
                 var why = found.Count == 0
                     ? "None of your problem keywords is mentioned."
                     : $"Mentions {found.Count} of {criteria.Problems.Count}: {string.Join(", ", found)}.";
-                scores.Add(new(CampaignWeights.Problem, "Business problem", value, why));
+                scores.Add(new(CampaignWeights.Problem, "Business problem", value, why, TermsExcerpt(input, corpus, found)));
                 if (found.Count > 0) facts.Add(new FactRow("problemsMatched", "Problem keywords mentioned", string.Join(", ", found), ev, false));
             }
         }
 
         if (criteria.Locations.Count > 0)
         {
-            if (geoMatch is not null) scores.Add(new(CampaignWeights.Geography, "Geography", 1, $"Location matches {geoMatch}."));
-            else if (knownPlace is not null) scores.Add(new(CampaignWeights.Geography, "Geography", 0, $"Location \"{knownPlace}\" is not in your list."));
+            if (geoMatch is not null) scores.Add(new(CampaignWeights.Geography, "Geography", 1, $"Location matches {geoMatch}.", PlaceExcerpt(input, corpus, geoMatch)));
+            else if (knownPlace is not null) scores.Add(new(CampaignWeights.Geography, "Geography", 0, $"Location \"{knownPlace}\" is not in your list.", Excerpts.Field("location", knownPlace)));
             else
             {
                 scores.Add(new(CampaignWeights.Geography, "Geography", null, "The source does not state a location."));
@@ -85,7 +85,7 @@ public static partial class CustomerRules
             var found = TextMatch.Found(criteria.Signals, corpus);
             if (found.Count > 0)
             {
-                scores.Add(new(CampaignWeights.Signal, "Published signal", 1, $"Mentions {string.Join(", ", found)}."));
+                scores.Add(new(CampaignWeights.Signal, "Published signal", 1, $"Mentions {string.Join(", ", found)}.", Excerpts.ForTerms(corpus, found)));
                 facts.Add(new FactRow("signals", "Signals mentioned", string.Join(", ", found), ev, false));
             }
             else
@@ -128,6 +128,27 @@ public static partial class CustomerRules
         var url = ContactUrl().Match(input.Text ?? string.Empty);
         if (url.Success) return url.Value;
         return TextMatch.Contains(input.Text, "contact us") ? "a \"contact us\" mention" : null;
+    }
+
+    private static string? TermsExcerpt(RuleInput input, string corpus, IReadOnlyList<string> terms)
+    {
+        if (terms.Count == 0) return null;
+        var fieldMatches = new[]
+        {
+            terms.Any(t => TextMatch.Contains(input.Industry, t)) && input.Industry is not null
+                ? Excerpts.Field("industry", input.Industry)
+                : null
+        };
+        return Excerpts.Join(fieldMatches.Concat([Excerpts.ForTerms(corpus, terms)]));
+    }
+
+    private static string? PlaceExcerpt(RuleInput input, string corpus, string place)
+    {
+        if (TextMatch.Contains(input.Location, place) && input.Location is not null)
+            return Excerpts.Field("location", input.Location);
+        if (TextMatch.Contains(input.Country, place) && input.Country is not null)
+            return Excerpts.Field("country", input.Country);
+        return Excerpts.ForTerm(corpus, place);
     }
 
     [GeneratedRegex(@"mailto:|/(?:contact|careers|jobs|partners?)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
