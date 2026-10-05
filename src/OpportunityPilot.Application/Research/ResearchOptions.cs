@@ -24,6 +24,19 @@ public sealed class ResearchOptions
     public int MaxBytes { get; set; } = CeilingBytes;
     public int Concurrency { get; set; } = 2;
 
+    /// <summary>
+    /// Job-board API roots. They exist so integration tests can point research at a loopback server; that server is
+    /// reachable only because the test project swaps in its own fetch address policy. In any real deployment the
+    /// strict policy and the https-only rule of the safe fetcher still apply to whatever is configured here.
+    /// </summary>
+    public string GreenhouseApiBase { get; set; } = DefaultGreenhouseApiBase;
+    public string LeverApiBase { get; set; } = DefaultLeverApiBase;
+    public string AdzunaApiBase { get; set; } = DefaultAdzunaApiBase;
+
+    public const string DefaultGreenhouseApiBase = "https://boards-api.greenhouse.io";
+    public const string DefaultLeverApiBase = "https://api.lever.co";
+    public const string DefaultAdzunaApiBase = "https://api.adzuna.com";
+
     public int EffectiveCandidates => Math.Clamp(MaxCandidates, 1, CeilingCandidates);
     public int EffectiveFetches => Math.Clamp(MaxFetches, 1, CeilingFetches);
     public TimeSpan EffectiveTimeout => TimeSpan.FromSeconds(Math.Clamp(TimeoutSeconds, 1, CeilingTimeoutSeconds));

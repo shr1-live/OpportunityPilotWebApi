@@ -25,12 +25,15 @@ internal static class ResearchApi
     }
 
     public static async Task<JsonElement> CreateCampaignAsync(HttpClient client, string mode, object criteria, string name = "Campaign", object? weights = null,
-        int? resultLimit = null)
+        int? resultLimit = null, int? autoSuggestMinScore = null)
     {
         var profileId = await CreateProfileAsync(client, mode == "Job" ? "Candidate" : "Product");
         return await (await client.PostAsJsonAsync("/api/v1/campaigns",
-            new { profileId, mode, name, goal = "Find good matches", criteria, weights, resultLimit })).Json(HttpStatusCode.Created);
+            new { profileId, mode, name, goal = "Find good matches", criteria, weights, resultLimit, autoSuggestMinScore })).Json(HttpStatusCode.Created);
     }
+
+    public static async Task<JsonElement> AddBoardAsync(HttpClient client, Guid campaignId, string kind, string? url = null) =>
+        await (await client.PostAsJsonAsync($"/api/v1/campaigns/{campaignId}/sources", new { kind, url })).Json(HttpStatusCode.Created);
 
     public static async Task<JsonElement> AddPasteAsync(HttpClient client, Guid campaignId, string text, string? label = null) =>
         await (await client.PostAsJsonAsync($"/api/v1/campaigns/{campaignId}/sources", new { kind = "Paste", text, label }))

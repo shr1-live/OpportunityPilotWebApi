@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using OpportunityPilot.Application.Abstractions;
 using OpportunityPilot.Application.Common;
 using OpportunityPilot.Application.Research;
+using OpportunityPilot.Application.Research.Boards;
+using OpportunityPilot.Domain.Common;
 using OpportunityPilot.Domain.Research;
 
 namespace OpportunityPilot.Application.Sources;
@@ -23,7 +25,7 @@ public sealed class SourceService(IAppDbContext db, ICurrentUser user, TimeProvi
 
     public async Task<SourceDto> CreateAsync(Guid campaignId, CreateSourceRequest request, CancellationToken ct)
     {
-        await EnsureCampaignAsync(campaignId, ct);
+        var mode = await EnsureCampaignAsync(campaignId, ct);
         if (request is null) throw new RequestValidationException(new Dictionary<string, string[]> { ["body"] = ["Request body is required."] });
 
         var errors = new Dictionary<string, string[]>();
@@ -41,6 +43,27 @@ public sealed class SourceService(IAppDbContext db, ICurrentUser user, TimeProvi
                 if (string.IsNullOrEmpty(url)) errors["url"] = ["URL is required."];
                 else if (url.Length > Source.MaxUrlLength) errors["url"] = [$"URL must be at most {Source.MaxUrlLength} characters."];
                 else if (fetcher.CheckUrl(url) is { } reason) errors["url"] = [reason];
+                break;
+            case SourceKind.Greenhouse or SourceKind.Lever or SourceKind.Adzuna when mode != OpportunityMode.Job:
+                errors["kind"] = [$"{request.Kind} sources list jobs, so they can only be added to Job campaigns."];
+                break;
+            case SourceKind.Greenhouse:
+                // Only the format is checked; the board is not contacted until research runs.
+                url = BoardIdentifiers.Greenhouse(request.Url);
+                if (url is null)
+                    errors["url"] = [string.IsNullOrWhiteSpace(request.Url)
+                        ? "Enter the company's Greenhouse board token (e.g. stripe) or its board URL."
+                        : "Enter a Greenhouse board token (letters, digits and hyphens, up to 100) or a boards.greenhouse.io / job-boards.greenhouse.io URL."];
+                break;
+            case SourceKind.Lever:
+                url = BoardIdentifiers.Lever(request.Url);
+                if (url is null)
+                    errors["url"] = [string.IsNullOrWhiteSpace(request.Url)
+                        ? "Enter the company's Lever slug (e.g. leverdemo) or its jobs.lever.co URL."
+                        : "Enter a Lever company slug (letters, digits and hyphens, up to 100) or a jobs.lever.co URL."];
+                break;
+            case SourceKind.Adzuna:
+                // Searches with the campaign's keywords and first location; nothing to store.
                 break;
             case SourceKind.Csv:
                 errors["kind"] = ["CSV sources are created by committing an import preview (POST /api/v1/imports/preview)."];
@@ -90,10 +113,10 @@ public sealed class SourceService(IAppDbContext db, ICurrentUser user, TimeProvi
         s.Id, s.CampaignId, s.Kind, s.Label, s.Url, s.Platform, s.PermissionNote, s.Status, s.LastFetchedAt, s.SafeError,
         s.ItemCount, s.Text?.Length ?? 0, s.CreatedAt);
 
-    private async Task EnsureCampaignAsync(Guid campaignId, CancellationToken ct)
+    private async Task<OpportunityMode> EnsureCampaignAsync(Guid campaignId, CancellationToken ct)
     {
-        if (!await db.Campaigns.AnyAsync(c => c.Id == campaignId && c.OwnerId == user.OwnerId, ct))
-            throw new NotFoundException("Campaign not found.");
+        var modes = await db.Campaigns.Where(c => c.Id == campaignId && c.OwnerId == user.OwnerId).Select(c => c.Mode).ToListAsync(ct);
+        return modes.Count == 1 ? modes[0] : throw new NotFoundException("Campaign not found.");
     }
 
     private static string DefaultLabel(SourceKind kind, string? url)
@@ -104,6 +127,9 @@ public sealed class SourceService(IAppDbContext db, ICurrentUser user, TimeProvi
             SourceKind.Paste => "Pasted text",
             SourceKind.Url => host ?? "Web page",
             SourceKind.Feed => host is null ? "Feed" : $"{host} feed",
+            SourceKind.Greenhouse => $"Greenhouse board {url}",
+            SourceKind.Lever => $"Lever company {url}",
+            SourceKind.Adzuna => "Adzuna search",
             _ => kind.ToString()
         };
     }

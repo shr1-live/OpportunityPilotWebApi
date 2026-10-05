@@ -7,6 +7,7 @@ namespace OpportunityPilot.Application.Research;
 /// <summary>One posting or company gathered from a source, before scoring.</summary>
 /// <param name="Text">Description used by the rules, at most <see cref="Candidates.MaxTextLength"/> characters.</param>
 /// <param name="Excerpt">What is stored as evidence (bounded to 2000 characters by the entity).</param>
+/// <param name="ApplyUrl">Where the user applies, when the source gives one distinct from <paramref name="Url"/> (Lever); otherwise Url is used.</param>
 public sealed record Candidate(
     Guid SourceId,
     string SourceLabel,
@@ -22,7 +23,8 @@ public sealed record Candidate(
     string? Industry,
     string? EvidenceUrl,
     string Excerpt,
-    IReadOnlyList<string> Links);
+    IReadOnlyList<string> Links,
+    string? ApplyUrl = null);
 
 public static partial class Candidates
 {

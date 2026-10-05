@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using OpportunityPilot.Domain.Common;
 using OpportunityPilot.Domain.Research;
 
@@ -17,7 +18,8 @@ public sealed record CampaignSummaryDto(
     DateTime UpdatedAt,
     int SourceCount,
     int OpportunityCount,
-    LastJobDto? LastJob);
+    LastJobDto? LastJob,
+    int? AutoSuggestMinScore);
 
 /// <summary>CampaignSummary plus the editable criteria and the normalised weights.</summary>
 public sealed record CampaignDto(
@@ -34,9 +36,11 @@ public sealed record CampaignDto(
     int OpportunityCount,
     LastJobDto? LastJob,
     CampaignCriteria Criteria,
-    IReadOnlyDictionary<string, int> Weights);
+    IReadOnlyDictionary<string, int> Weights,
+    int? AutoSuggestMinScore);
 
 /// <param name="Weights">Optional; the mode's defaults when omitted. Normalised to sum 100.</param>
+/// <param name="AutoSuggestMinScore">Job only: 1–100 turns on the batch approval queue; null (or omitted) leaves it off.</param>
 public sealed record CreateCampaignRequest(
     Guid ProfileId,
     OpportunityMode Mode,
@@ -44,7 +48,8 @@ public sealed record CreateCampaignRequest(
     string? Goal,
     CampaignCriteria? Criteria,
     IReadOnlyDictionary<string, double>? Weights,
-    int? ResultLimit);
+    int? ResultLimit,
+    int? AutoSuggestMinScore = null);
 
 /// <summary>ExpectedVersion must match the stored version, otherwise the edit is rejected with 409.</summary>
 public sealed record UpdateCampaignRequest(
@@ -53,4 +58,24 @@ public sealed record UpdateCampaignRequest(
     CampaignCriteria? Criteria,
     IReadOnlyDictionary<string, double>? Weights,
     int? ResultLimit,
-    int ExpectedVersion);
+    int ExpectedVersion)
+{
+    private readonly int? _autoSuggestMinScore;
+
+    /// <summary>
+    /// Omitted → the stored value is kept; <c>null</c> → auto-suggest off; 1–100 → the threshold. A plain positional
+    /// parameter cannot tell "omitted" from "null", so this is a property whose setter only runs when the field is sent.
+    /// </summary>
+    public int? AutoSuggestMinScore
+    {
+        get => _autoSuggestMinScore;
+        init
+        {
+            _autoSuggestMinScore = value;
+            AutoSuggestMinScoreSent = true;
+        }
+    }
+
+    [JsonIgnore]
+    public bool AutoSuggestMinScoreSent { get; private init; }
+}

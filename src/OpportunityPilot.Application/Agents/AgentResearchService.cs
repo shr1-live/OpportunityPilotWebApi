@@ -94,12 +94,17 @@ public sealed class AgentResearchService(IAppDbContext db, ICurrentUser user, Ti
         return new AgentPostingsResult(latest.Count, source.Id, jobId);
     }
 
-    /// <summary>Job opportunities the user shortlisted that the agent has not applied to yet.</summary>
+    /// <summary>
+    /// Job opportunities the user shortlisted (or approved) that the agent has not applied to yet. Postings from the
+    /// public job-board sources (Greenhouse, Lever, Adzuna) are never offered: the user applies to those via their URL.
+    /// </summary>
     public async Task<IReadOnlyList<AgentShortlistItem>> ShortlistAsync(JobPlatform? platform, CancellationToken ct)
     {
         var ownerId = user.OwnerId;
         var query = db.Opportunities.Where(o => o.OwnerId == ownerId && o.Mode == OpportunityMode.Job &&
-                                                o.Status == OpportunityStatus.Shortlisted && o.Platform != null && o.ExternalId != null);
+                                                o.Status == OpportunityStatus.Shortlisted && o.Platform != null && o.ExternalId != null &&
+                                                o.Platform != JobPlatform.Greenhouse && o.Platform != JobPlatform.Lever &&
+                                                o.Platform != JobPlatform.Adzuna);
         if (platform is { } p) query = query.Where(o => o.Platform == p);
         var shortlisted = await query.OrderByDescending(o => o.Score).ThenBy(o => o.Id).Take(MaxShortlist).ToListAsync(ct);
 

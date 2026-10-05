@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using OpportunityPilot.Application.Applications;
+using OpportunityPilot.Application.Approvals;
 using OpportunityPilot.Application.Campaigns;
 using OpportunityPilot.Application.Opportunities;
 using OpportunityPilot.Application.Profiles;
@@ -10,15 +11,17 @@ namespace OpportunityPilot.Api.Controllers;
 [ApiController]
 [Route("api/v1/overview")]
 public sealed class OverviewController(
-    ProfileService profiles, ApplicationService applications, CampaignService campaigns, OpportunityService opportunities) : ControllerBase
+    ProfileService profiles, ApplicationService applications, CampaignService campaigns, OpportunityService opportunities,
+    ApprovalService approvals) : ControllerBase
 {
-    public sealed record OverviewDto(int Profiles, int Applied, int NeedsManual, int Campaigns, int Shortlisted);
+    /// <param name="AwaitingApproval">Suggested opportunities waiting in the approval queue.</param>
+    public sealed record OverviewDto(int Profiles, int Applied, int NeedsManual, int Campaigns, int Shortlisted, int AwaitingApproval);
 
     [HttpGet]
     public async Task<ActionResult<OverviewDto>> Get(CancellationToken ct)
     {
         var summary = await applications.SummaryAsync(ct);
         return new OverviewDto(await profiles.CountAsync(ct), summary.Applied, summary.NeedsManual,
-            await campaigns.CountAsync(ct), await opportunities.CountShortlistedAsync(ct));
+            await campaigns.CountAsync(ct), await opportunities.CountShortlistedAsync(ct), await approvals.CountAsync(ct));
     }
 }

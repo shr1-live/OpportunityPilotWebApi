@@ -1,0 +1,250 @@
+using Microsoft.Extensions.Options;
+using OpportunityPilot.Application.Campaigns;
+using OpportunityPilot.Application.Configuration;
+using OpportunityPilot.Application.Research;
+using OpportunityPilot.Application.Research.Boards;
+using OpportunityPilot.Domain.Research;
+using OpportunityPilot.Infrastructure.Research;
+
+namespace OpportunityPilot.UnitTests.Research;
+
+public class JobBoardGathererTests
+{
+    private static readonly DateTime T0 = new(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc);
+    private const string FakeKey = "fake-adzuna-key-0000";
+
+    /// <summary>Answers JSON fetches from a script and records every URL asked for. Page fetches are a test failure.</summary>
+    private sealed class ScriptedFetcher(Func<string, FetchResult> respond) : IWebFetcher
+    {
+        public List<string> Urls { get; } = [];
+        public string? CheckUrl(string url) => null;
+        public Task<FetchResult> FetchAsync(string url, CancellationToken ct) => throw new InvalidOperationException("Job boards must use FetchJsonAsync.");
+
+        public Task<FetchResult> FetchJsonAsync(string url, CancellationToken ct)
+        {
+            Urls.Add(url);
+            return Task.FromResult(respond(url));
+        }
+    }
+
+    private static FetchResult Json(string body) => new(true, body, "application/json", null, null, 1);
+
+    private static JobBoardGatherer Gatherer(IWebFetcher fetcher, AdzunaOptions? adzuna = null, ResearchOptions? research = null) =>
+        new(fetcher, new ContentParser(), Options.Create(research ?? new ResearchOptions()), Options.Create(adzuna ?? new AdzunaOptions()));
+
+    private static Source SourceOf(SourceKind kind, string? url, string label) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), kind, label, url, null, null, null, T0);
+
+    private static Task<BoardGathered> Gather(JobBoardGatherer g, Source source, CampaignCriteria criteria, int room = 100, int fetchesLeft = 50,
+        Func<CancellationToken, Task<bool>>? keepGoing = null) =>
+        g.GatherAsync(source, criteria, room, fetchesLeft, keepGoing ?? (_ => Task.FromResult(true)), CancellationToken.None);
+
+    private static string GreenhouseBoard(int jobs) =>
+        "{\"jobs\":[" + string.Join(",", Enumerable.Range(1, jobs).Select(i =>
+            $"{{\"id\":{i},\"title\":\"{(i % 2 == 0 ? ".NET Engineer" : "Sales Lead")} {i}\",\"absolute_url\":\"https://boards.example/{i}\"," +
+            $"\"location\":{{\"name\":\"Pune\"}},\"company_name\":\"Acme\",\"updated_at\":\"2026-09-{(i % 28) + 1:00}T00:00:00Z\"}}")) + "]}";
+
+    private static readonly CampaignCriteria DotNet = new() { Keywords = [".NET"], RequiredSkills = ["C#"] };
+
+    [Fact]
+    public async Task Greenhouse_lists_once_prefilters_titles_and_reads_only_matching_descriptions()
+    {
+        var fetcher = new ScriptedFetcher(url => url.EndsWith("/jobs")
+            ? Json(GreenhouseBoard(6))
+            : Json("{\"content\":\"&lt;p&gt;C# services&lt;/p&gt;\"}"));
+        var source = SourceOf(SourceKind.Greenhouse, "acme", "Greenhouse board acme");
+
+        var result = await Gather(Gatherer(fetcher), source, DotNet);
+
+        Assert.Equal(SourceStatus.Ok, result.Status);
+        Assert.Equal("https://boards-api.greenhouse.io/v1/boards/acme/jobs", fetcher.Urls[0]);
+        Assert.Equal(4, fetcher.Urls.Count);                                       // list + the 3 ".NET Engineer" jobs
+        Assert.All(fetcher.Urls.Skip(1), u => Assert.Matches(@"/v1/boards/acme/jobs/(2|4|6)$", u));
+        Assert.Equal(3, result.Items.Count);
+        Assert.Equal(4, result.Requests);
+        Assert.All(result.Items, c => Assert.Equal("C# services", c.Text));
+        Assert.Equal("Greenhouse board acme: 6 jobs listed, 3 matched your keywords, 3 read.", result.Message);
+    }
+
+    [Fact]
+    public async Task Greenhouse_stops_at_the_fetch_budget_and_says_so()
+    {
+        var fetcher = new ScriptedFetcher(url => url.EndsWith("/jobs") ? Json(GreenhouseBoard(10)) : Json("{\"content\":\"C#\"}"));
+
+        var result = await Gather(Gatherer(fetcher, research: new ResearchOptions { MaxFetches = 3 }),
+            SourceOf(SourceKind.Greenhouse, "acme", "Greenhouse board acme"), DotNet, fetchesLeft: 3);
+
+        Assert.Equal(3, fetcher.Urls.Count);                                       // list + 2 details, then the budget is spent
+        Assert.Equal(2, result.Items.Count);
+        Assert.Equal(3, result.Requests);
+        Assert.Contains("5 matched your keywords, 2 read. Stopped at the run's limit of 3 fetches.", result.Message);
+        Assert.Equal(EventLevel.Warning, result.Level);
+    }
+
+    [Fact]
+    public async Task Greenhouse_stops_at_the_candidate_room()
+    {
+        var fetcher = new ScriptedFetcher(url => url.EndsWith("/jobs") ? Json(GreenhouseBoard(10)) : Json("{\"content\":\"C#\"}"));
+
+        var result = await Gather(Gatherer(fetcher), SourceOf(SourceKind.Greenhouse, "acme", "Greenhouse board acme"), DotNet, room: 1);
+
+        Assert.Single(result.Items);
+        Assert.Equal(2, fetcher.Urls.Count);
+        Assert.Contains("Stopped at the run's limit of 100 candidates", result.Message);
+    }
+
+    [Fact]
+    public async Task Greenhouse_keeps_the_run_alive_between_description_reads_and_stops_on_cancel()
+    {
+        var fetcher = new ScriptedFetcher(url => url.EndsWith("/jobs") ? Json(GreenhouseBoard(60)) : Json("{\"content\":\"C#\"}"));
+        var pings = 0;
+
+        var result = await Gather(Gatherer(fetcher), SourceOf(SourceKind.Greenhouse, "acme", "Greenhouse board acme"), DotNet,
+            keepGoing: _ => Task.FromResult(++pings < 2));
+
+        Assert.Equal(2, pings);                                                    // after 10 reads (continue), after 20 (cancelled)
+        Assert.Equal(20, result.Items.Count);
+        Assert.Contains("Stopped at a cancel request.", result.Message);
+    }
+
+    [Fact]
+    public async Task Greenhouse_keeps_a_job_whose_description_failed_and_reports_it()
+    {
+        var fetcher = new ScriptedFetcher(url => url.EndsWith("/jobs") ? Json(GreenhouseBoard(2)) : FetchResult.Fail("The site answered 500.", 4, 500));
+
+        var result = await Gather(Gatherer(fetcher), SourceOf(SourceKind.Greenhouse, "acme", "Greenhouse board acme"), DotNet);
+
+        var only = Assert.Single(result.Items);
+        Assert.Equal("", only.Text);
+        Assert.Equal(5, result.Requests);                                          // retries count against the budget
+        Assert.Contains("1 description could not be loaded", result.Message);
+    }
+
+    [Theory]
+    [InlineData(404, "No public Greenhouse board was found for \"acme\". Check the board token.")]
+    [InlineData(503, "The site answered 503.")]
+    public async Task A_greenhouse_board_that_cannot_be_listed_fails_with_a_safe_reason(int status, string reason)
+    {
+        var fetcher = new ScriptedFetcher(_ => FetchResult.Fail($"The site answered {status}.", 1, status));
+
+        var result = await Gather(Gatherer(fetcher), SourceOf(SourceKind.Greenhouse, "acme", "Greenhouse board acme"), DotNet);
+
+        Assert.Equal(SourceStatus.Failed, result.Status);
+        Assert.Equal(reason, result.SafeError);
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public async Task A_greenhouse_body_of_the_wrong_shape_fails_and_an_empty_board_is_skipped()
+    {
+        var wrong = await Gather(Gatherer(new ScriptedFetcher(_ => Json("{\"error\":\"x\"}"))),
+            SourceOf(SourceKind.Greenhouse, "acme", "G"), DotNet);
+        var empty = await Gather(Gatherer(new ScriptedFetcher(_ => Json("{\"jobs\":[]}"))),
+            SourceOf(SourceKind.Greenhouse, "acme", "G"), DotNet);
+
+        Assert.Equal((SourceStatus.Failed, "Greenhouse sent a response that could not be read."), (wrong.Status, wrong.SafeError));
+        Assert.Equal(SourceStatus.Skipped, empty.Status);
+    }
+
+    [Fact]
+    public async Task A_board_source_with_no_fetches_left_is_skipped_without_a_request()
+    {
+        var fetcher = new ScriptedFetcher(_ => throw new InvalidOperationException("must not fetch"));
+
+        var greenhouse = await Gather(Gatherer(fetcher), SourceOf(SourceKind.Greenhouse, "acme", "G"), DotNet, fetchesLeft: 0);
+        var lever = await Gather(Gatherer(fetcher), SourceOf(SourceKind.Lever, "acme", "L"), DotNet, fetchesLeft: 0);
+
+        Assert.Equal(SourceStatus.Skipped, greenhouse.Status);
+        Assert.Equal(SourceStatus.Skipped, lever.Status);
+        Assert.Empty(fetcher.Urls);
+    }
+
+    [Fact]
+    public async Task Lever_reads_one_page_of_up_to_100_postings_within_the_room()
+    {
+        var fetcher = new ScriptedFetcher(_ => Json(BoardMappingTests.LeverPostings));
+
+        var result = await Gather(Gatherer(fetcher), SourceOf(SourceKind.Lever, "acme-labs", "Lever company acme-labs"), DotNet, room: 1);
+
+        Assert.Equal(["https://api.lever.co/v0/postings/acme-labs?mode=json&limit=100"], fetcher.Urls);
+        Assert.Single(result.Items);
+        Assert.Equal("Lever company acme-labs: 2 postings listed, 1 read. Stopped at the run's limit of 100 candidates.", result.Message);
+    }
+
+    [Fact]
+    public async Task An_unknown_lever_company_fails_with_a_safe_reason()
+    {
+        var result = await Gather(Gatherer(new ScriptedFetcher(_ => FetchResult.Fail("The site answered 404.", 1, 404))),
+            SourceOf(SourceKind.Lever, "nobody", "Lever company nobody"), DotNet);
+
+        Assert.Equal(SourceStatus.Failed, result.Status);
+        Assert.Equal("No public Lever postings were found for \"nobody\". Check the company slug.", result.SafeError);
+    }
+
+    [Fact]
+    public async Task Adzuna_without_keys_fails_safely_without_any_request()
+    {
+        var fetcher = new ScriptedFetcher(_ => throw new InvalidOperationException("must not fetch"));
+
+        var result = await Gather(Gatherer(fetcher, new AdzunaOptions { AppId = "id-only" }), SourceOf(SourceKind.Adzuna, null, "Adzuna search"), DotNet);
+
+        Assert.Equal(SourceStatus.Failed, result.Status);
+        Assert.Equal("Adzuna is not configured on the server.", result.SafeError);
+        Assert.Equal(0, result.Requests);
+        Assert.Empty(fetcher.Urls);
+    }
+
+    [Fact]
+    public async Task Adzuna_searches_at_most_three_keywords_in_the_first_non_remote_location_and_never_echoes_the_key()
+    {
+        var fetcher = new ScriptedFetcher(_ => Json(BoardMappingTests.AdzunaResults));
+        var criteria = new CampaignCriteria { Keywords = [".NET developer", "C#", "backend", "fourth"], Locations = ["Remote", "Pune"] };
+
+        var result = await Gather(Gatherer(fetcher, new AdzunaOptions { AppId = "fake-id", AppKey = FakeKey }),
+            SourceOf(SourceKind.Adzuna, null, "Adzuna search"), criteria);
+
+        Assert.Equal(3, fetcher.Urls.Count);
+        Assert.StartsWith("https://api.adzuna.com/v1/api/jobs/in/search/1?app_id=fake-id&app_key=" + FakeKey + "&what=.NET%20developer&where=Pune" +
+                          "&results_per_page=50&max_days_old=14&content-type=application/json", fetcher.Urls[0]);
+        Assert.Contains("&what=C%23&", fetcher.Urls[1]);
+        Assert.Equal(2, result.Items.Count);                                       // the same ids from every keyword count once
+        Assert.Equal("Adzuna search: searched 3 keywords in Pune, 2 jobs found, 2 read.", result.Message);
+        Assert.DoesNotContain(FakeKey, result.Message);
+    }
+
+    [Fact]
+    public async Task Adzuna_rejecting_the_keys_fails_without_echoing_them()
+    {
+        var fetcher = new ScriptedFetcher(_ => FetchResult.Fail("The site answered 401. The page may need a login.", 1, 401));
+
+        var result = await Gather(Gatherer(fetcher, new AdzunaOptions { AppId = "fake-id", AppKey = FakeKey }),
+            SourceOf(SourceKind.Adzuna, null, "Adzuna search"), DotNet);
+
+        Assert.Equal(SourceStatus.Failed, result.Status);
+        Assert.Equal("Adzuna rejected the server's keys. Check Adzuna:AppId and Adzuna:AppKey.", result.SafeError);
+        Assert.DoesNotContain(FakeKey, result.Message);
+    }
+
+    [Fact]
+    public async Task Adzuna_without_campaign_keywords_is_skipped()
+    {
+        var fetcher = new ScriptedFetcher(_ => throw new InvalidOperationException("must not fetch"));
+
+        var result = await Gather(Gatherer(fetcher, new AdzunaOptions { AppId = "fake-id", AppKey = FakeKey }),
+            SourceOf(SourceKind.Adzuna, null, "Adzuna search"), new CampaignCriteria { RequiredSkills = ["C#"] });
+
+        Assert.Equal(SourceStatus.Skipped, result.Status);
+        Assert.Empty(fetcher.Urls);
+    }
+
+    [Fact]
+    public async Task Configured_api_bases_replace_the_real_hosts()
+    {
+        var fetcher = new ScriptedFetcher(_ => Json("[]"));
+        var options = new ResearchOptions { LeverApiBase = "http://127.0.0.1:5999/" };
+
+        await Gather(Gatherer(fetcher, research: options), SourceOf(SourceKind.Lever, "acme", "L"), DotNet);
+
+        Assert.Equal(["http://127.0.0.1:5999/v0/postings/acme?mode=json&limit=100"], fetcher.Urls);
+    }
+}

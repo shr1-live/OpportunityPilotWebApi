@@ -5,7 +5,8 @@ namespace OpportunityPilot.Domain.Research;
 
 /// <summary>
 /// Where a campaign's candidates come from. Paste keeps its text here; Csv and Agent keep rows in
-/// <see cref="SourceItem"/>; Url and Feed are fetched (safely) when research runs.
+/// <see cref="SourceItem"/>; Url and Feed are fetched (safely) when research runs, and so are the public job-board
+/// APIs (Greenhouse and Lever keep the board token or company slug in <see cref="Url"/>; Adzuna needs nothing).
 /// </summary>
 public class Source : IOwned
 {
@@ -29,6 +30,8 @@ public class Source : IOwned
                 throw new ArgumentException("Pasted text is required.", nameof(text));
             case SourceKind.Url or SourceKind.Feed when string.IsNullOrWhiteSpace(url):
                 throw new ArgumentException("URL is required.", nameof(url));
+            case SourceKind.Greenhouse or SourceKind.Lever when string.IsNullOrWhiteSpace(url):
+                throw new ArgumentException("A board token or company slug is required.", nameof(url));
             case SourceKind.Agent when platform is null:
                 throw new ArgumentException("Agent sources need a platform.", nameof(platform));
         }

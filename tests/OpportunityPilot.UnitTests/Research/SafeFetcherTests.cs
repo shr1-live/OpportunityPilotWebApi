@@ -197,6 +197,61 @@ public class SafeFetcherTests
     }
 
     [Fact]
+    public async Task Json_is_never_read_as_a_page_or_feed()
+    {
+        var handler = new ScriptedHandler(_ => Html("{\"jobs\":[]}", "application/json"));
+        var result = await Fetcher(handler).FetchAsync("https://example.com/api", CancellationToken.None);
+        Assert.False(result.Ok);
+        Assert.Equal("Content type application/json is not read; only HTML, plain text and RSS/Atom feeds are.", result.FailureReason);
+    }
+
+    [Fact]
+    public async Task The_job_board_reader_asks_for_and_accepts_only_json()
+    {
+        string? accept = null;
+        var handler = new ScriptedHandler(request =>
+        {
+            accept = request.Headers.Accept.ToString();
+            return Html("{\"jobs\":[]}", "application/json");
+        });
+
+        var result = await Fetcher(handler).FetchJsonAsync("https://boards-api.greenhouse.io/v1/boards/acme/jobs", CancellationToken.None);
+
+        Assert.True(result.Ok);
+        Assert.Equal("application/json", result.ContentType);
+        Assert.Equal("{\"jobs\":[]}", result.Content);
+        Assert.Equal("application/json", accept);
+
+        var html = await Fetcher(new ScriptedHandler(_ => Html("<html></html>"))).FetchJsonAsync("https://api.lever.co/v0/postings/x", CancellationToken.None);
+        Assert.False(html.Ok);
+        Assert.Equal("Content type text/html is not read; only JSON is read from job-board APIs.", html.FailureReason);
+    }
+
+    [Theory]
+    [InlineData("https://169.254.169.254/v1/boards/acme/jobs")]
+    [InlineData("https://localhost/v0/postings/acme")]
+    [InlineData("http://boards-api.greenhouse.io/v1/boards/acme/jobs")]
+    public async Task The_job_board_reader_keeps_every_address_rule(string url)
+    {
+        var handler = new ScriptedHandler(_ => Html("{}", "application/json"));
+        var result = await Fetcher(handler).FetchJsonAsync(url, CancellationToken.None);
+        Assert.False(result.Ok);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task The_json_reader_keeps_the_size_cap_and_reports_the_status_of_a_failed_answer()
+    {
+        var big = new ScriptedHandler(_ => Html(new string('a', 4096), "application/json"));
+        var tooBig = await Fetcher(big, options: new ResearchOptions { MaxBytes = 1024 }).FetchJsonAsync("https://example.com/", CancellationToken.None);
+        Assert.Contains("larger than 1 KB", tooBig.FailureReason);
+
+        var missing = await Fetcher(new ScriptedHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)))
+            .FetchJsonAsync("https://example.com/", CancellationToken.None);
+        Assert.Equal((false, 404, "The site answered 404."), (missing.Ok, missing.StatusCode, missing.FailureReason));
+    }
+
+    [Fact]
     public async Task Bodies_over_the_cap_are_rejected_even_without_a_content_length()
     {
         var big = new string('a', 4096);

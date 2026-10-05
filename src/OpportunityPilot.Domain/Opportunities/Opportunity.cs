@@ -4,8 +4,9 @@ namespace OpportunityPilot.Domain.Opportunities;
 
 /// <summary>
 /// A scored candidate in one campaign, unique per (campaign, <see cref="DedupeKey"/>). Research may re-score it any
-/// number of times, but only the user (or a confirmed agent report) moves <see cref="Status"/>: a rerun never
-/// resets a Shortlisted or Applied opportunity.
+/// number of times; the only status move research makes is New → Suggested (<see cref="SuggestForApproval"/>).
+/// Every other move belongs to the user (or a confirmed agent report): a rerun never resets a Shortlisted or Applied
+/// opportunity.
 /// </summary>
 public class Opportunity : IOwned
 {
@@ -108,6 +109,37 @@ public class Opportunity : IOwned
         UpdatedAt = utcNow;
         Version++;
         return new Activity(OwnerId, Id, ActivityKinds.StatusChanged, utcNow, $"{from} → {status}");
+    }
+
+    /// <summary>
+    /// The research rule for the batch approval queue: a <b>New</b> Job opportunity that is Qualified and scores at
+    /// least <paramref name="minScore"/> becomes Suggested. Any other status (Shortlisted, Dismissed, Applied…) is never
+    /// touched, and null <paramref name="minScore"/> (auto-suggest off) does nothing. Call after the latest scoring.
+    /// </summary>
+    public Activity? SuggestForApproval(int? minScore, DateTime utcNow)
+    {
+        if (minScore is not { } threshold || Mode != OpportunityMode.Job || Status != OpportunityStatus.New ||
+            Outcome != FilterOutcome.Qualified || Score < threshold)
+            return null;
+        Status = OpportunityStatus.Suggested;
+        UpdatedAt = utcNow;
+        Version++;
+        return new Activity(OwnerId, Id, ActivityKinds.Suggested, utcNow, $"Suggested for approval: scored {Score} ≥ {threshold}.");
+    }
+
+    /// <summary>
+    /// The user's decision in the approval queue: approve → Shortlisted, reject → Dismissed. Only a Suggested
+    /// opportunity can be decided; anything else returns null and is left alone (it was decided or moved meanwhile).
+    /// </summary>
+    public Activity? DecideSuggestion(bool approve, DateTime utcNow)
+    {
+        if (Status != OpportunityStatus.Suggested) return null;
+        Status = approve ? OpportunityStatus.Shortlisted : OpportunityStatus.Dismissed;
+        UpdatedAt = utcNow;
+        Version++;
+        return approve
+            ? new Activity(OwnerId, Id, ActivityKinds.Approved, utcNow, "Approved: Suggested → Shortlisted.")
+            : new Activity(OwnerId, Id, ActivityKinds.Rejected, utcNow, "Rejected: Suggested → Dismissed.");
     }
 
     /// <summary>The desktop agent confirmed it submitted the application. Idempotent.</summary>

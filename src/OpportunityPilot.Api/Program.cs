@@ -19,6 +19,7 @@ if (!string.IsNullOrEmpty(port) && string.IsNullOrEmpty(Environment.GetEnvironme
 builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(DatabaseOptions.Section));
 builder.Services.Configure<FeatureOptions>(builder.Configuration.GetSection(FeatureOptions.Section));
 builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
+builder.Services.Configure<AdzunaOptions>(builder.Configuration.GetSection(AdzunaOptions.Section));
 
 // Missing configuration does not stop the process. Without a connection string data is kept in memory;
 // without a Supabase URL visitors continue as random guests. /api/v1/capabilities reports both (demo mode).

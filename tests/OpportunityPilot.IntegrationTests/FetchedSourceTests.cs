@@ -1,6 +1,3 @@
-using System.Net;
-using System.Net.Sockets;
-using System.Text;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,81 +8,10 @@ namespace OpportunityPilot.IntegrationTests;
 /// <summary>
 /// Url and Feed sources fetched over real sockets from a tiny HTTP server on loopback. Production never allows
 /// loopback; these tests swap in a fetch policy that exists only in this test project (no configuration can
-/// enable it) — or keep the strict address rules and prove the server is never contacted.
+/// enable it) — or keep the strict address rules and prove the server is never contacted. Helpers: LoopbackFetching.cs.
 /// </summary>
 public class FetchedSourceTests(PostgresApiFactory factory) : IClassFixture<PostgresApiFactory>
 {
-    /// <summary>Test-only: loopback and any port. The real policy is <see cref="StrictFetchAddressPolicy"/>.</summary>
-    private sealed class LoopbackForTestsPolicy : IFetchAddressPolicy
-    {
-        public bool IsAllowed(IPAddress address) => IPAddress.IsLoopback(address) || AddressClassifier.IsPublic(address);
-        public bool IsPortAllowed(int port) => true;
-    }
-
-    /// <summary>Production address rules, but any port, so the only thing standing between the fetcher and the server is the address check.</summary>
-    private sealed class StrictAddressesAnyPortPolicy : IFetchAddressPolicy
-    {
-        public bool IsAllowed(IPAddress address) => AddressClassifier.IsPublic(address);
-        public bool IsPortAllowed(int port) => true;
-    }
-
-    private sealed class TinyHttpServer : IAsyncDisposable
-    {
-        private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
-        private readonly CancellationTokenSource _stop = new();
-        private readonly Func<string, (string ContentType, string Body)> _respond;
-        private int _connections;
-
-        public TinyHttpServer(Func<string, (string ContentType, string Body)> respond)
-        {
-            _respond = respond;
-            _listener.Start();
-            _ = Task.Run(AcceptLoop);
-        }
-
-        public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
-        public int Connections => Volatile.Read(ref _connections);
-
-        private async Task AcceptLoop()
-        {
-            while (!_stop.IsCancellationRequested)
-            {
-                TcpClient client;
-                try { client = await _listener.AcceptTcpClientAsync(_stop.Token); }
-                catch (Exception) { return; }
-                Interlocked.Increment(ref _connections);
-                _ = Task.Run(async () =>
-                {
-                    using (client)
-                    {
-                        var stream = client.GetStream();
-                        var buffer = new byte[8192];
-                        var request = new StringBuilder();
-                        while (!request.ToString().Contains("\r\n\r\n"))
-                        {
-                            var read = await stream.ReadAsync(buffer);
-                            if (read == 0) return;
-                            request.Append(Encoding.ASCII.GetString(buffer, 0, read));
-                        }
-                        var path = request.ToString().Split(' ')[1];
-                        var (type, body) = _respond(path);
-                        var bytes = Encoding.UTF8.GetBytes(body);
-                        var head = $"HTTP/1.1 200 OK\r\nContent-Type: {type}; charset=utf-8\r\nContent-Length: {bytes.Length}\r\nConnection: close\r\n\r\n";
-                        await stream.WriteAsync(Encoding.ASCII.GetBytes(head));
-                        await stream.WriteAsync(bytes);
-                    }
-                });
-            }
-        }
-
-        public ValueTask DisposeAsync()
-        {
-            _stop.Cancel();
-            _listener.Stop();
-            return ValueTask.CompletedTask;
-        }
-    }
-
     private const string Rss = """
         <?xml version="1.0"?>
         <rss version="2.0"><channel><title>Acme Careers</title>

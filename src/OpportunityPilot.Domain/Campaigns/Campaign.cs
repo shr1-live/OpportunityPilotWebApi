@@ -13,12 +13,14 @@ public class Campaign : IOwned
     public const int MinResultLimit = 1;
     public const int MaxResultLimit = 100;
     public const int DefaultResultLimit = 25;
+    public const int MinAutoSuggestScore = 1;
+    public const int MaxAutoSuggestScore = 100;
 
     private Campaign() { }
 
     public Campaign(
         Guid ownerId, Guid profileId, OpportunityMode mode, string name, string? goal,
-        string criteriaJson, string weightsJson, int resultLimit, DateTime utcNow)
+        string criteriaJson, string weightsJson, int resultLimit, DateTime utcNow, int? autoSuggestMinScore = null)
     {
         if (ownerId == Guid.Empty) throw new ArgumentException("Owner is required.", nameof(ownerId));
         if (profileId == Guid.Empty) throw new ArgumentException("Profile is required.", nameof(profileId));
@@ -28,7 +30,7 @@ public class Campaign : IOwned
         Mode = mode;
         CreatedAt = utcNow;
         Version = 0;
-        Apply(name, goal, criteriaJson, weightsJson, resultLimit, utcNow);
+        Apply(name, goal, criteriaJson, weightsJson, resultLimit, autoSuggestMinScore, utcNow);
     }
 
     public Guid Id { get; private set; }
@@ -43,22 +45,37 @@ public class Campaign : IOwned
     public string CriteriaJson { get; private set; } = "{}";
     public string WeightsJson { get; private set; } = "{}";
     public int ResultLimit { get; private set; }
+
+    /// <summary>
+    /// Batch approval: research moves New, Qualified Job opportunities scoring at least this much to Suggested.
+    /// Null means off. Only Job campaigns may set it.
+    /// </summary>
+    public int? AutoSuggestMinScore { get; private set; }
+
     public int Version { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
 
-    public void Update(string name, string? goal, string criteriaJson, string weightsJson, int resultLimit, DateTime utcNow) =>
-        Apply(name, goal, criteriaJson, weightsJson, resultLimit, utcNow);
+    public void Update(string name, string? goal, string criteriaJson, string weightsJson, int resultLimit, int? autoSuggestMinScore,
+        DateTime utcNow) =>
+        Apply(name, goal, criteriaJson, weightsJson, resultLimit, autoSuggestMinScore, utcNow);
 
-    private void Apply(string name, string? goal, string criteriaJson, string weightsJson, int resultLimit, DateTime utcNow)
+    private void Apply(string name, string? goal, string criteriaJson, string weightsJson, int resultLimit, int? autoSuggestMinScore,
+        DateTime utcNow)
     {
         if (resultLimit is < MinResultLimit or > MaxResultLimit)
             throw new ArgumentOutOfRangeException(nameof(resultLimit), $"Result limit must be {MinResultLimit}–{MaxResultLimit}.");
+        if (autoSuggestMinScore is < MinAutoSuggestScore or > MaxAutoSuggestScore)
+            throw new ArgumentOutOfRangeException(nameof(autoSuggestMinScore),
+                $"Auto-suggest score must be {MinAutoSuggestScore}–{MaxAutoSuggestScore}.");
+        if (autoSuggestMinScore is not null && Mode != OpportunityMode.Job)
+            throw new ArgumentException("Only Job campaigns can auto-suggest.", nameof(autoSuggestMinScore));
         Name = Guard.Required(name, MaxNameLength, nameof(name));
         Goal = Guard.Optional(goal, MaxGoalLength, nameof(goal)) ?? string.Empty;
         CriteriaJson = string.IsNullOrWhiteSpace(criteriaJson) ? "{}" : criteriaJson;
         WeightsJson = string.IsNullOrWhiteSpace(weightsJson) ? "{}" : weightsJson;
         ResultLimit = resultLimit;
+        AutoSuggestMinScore = autoSuggestMinScore;
         UpdatedAt = utcNow;
         Version++;
     }

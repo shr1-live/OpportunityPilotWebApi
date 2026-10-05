@@ -7,6 +7,15 @@ public static class ActivityKinds
     public const string StatusChanged = "StatusChanged";
     public const string Applied = "Applied";
     public const string Researched = "Researched";
+
+    /// <summary>Research moved it New → Suggested (campaign auto-suggest threshold).</summary>
+    public const string Suggested = "Suggested";
+
+    /// <summary>The user approved it in the approval queue (Suggested → Shortlisted).</summary>
+    public const string Approved = "Approved";
+
+    /// <summary>The user rejected it in the approval queue (Suggested → Dismissed).</summary>
+    public const string Rejected = "Rejected";
 }
 
 /// <summary>History line on an opportunity. Detail is a short safe summary.</summary>

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using OpportunityPilot.Application.Abstractions;
 using OpportunityPilot.Application.Campaigns;
 using OpportunityPilot.Application.Imports;
+using OpportunityPilot.Application.Research.Boards;
 using OpportunityPilot.Application.Research.Rules;
 using OpportunityPilot.Application.Sources;
 using OpportunityPilot.Domain.Campaigns;
@@ -17,11 +18,13 @@ namespace OpportunityPilot.Application.Research;
 /// <summary>
 /// Runs one durable research job: Prepare → Gather (per source) → Extract → Filter → Score → Complete.
 /// Not owner-scoped through <see cref="ICurrentUser"/> (there is no request); every query filters by the job's owner.
+/// The only opportunity status it ever changes is New → Suggested (campaign auto-suggest), after scoring.
 /// </summary>
 public sealed class ResearchRunner(
     IAppDbContext db,
     IWebFetcher fetcher,
     IContentParser parser,
+    JobBoardGatherer boards,
     IOptions<ResearchOptions> options,
     TimeProvider clock,
     ILogger<ResearchRunner> logger) : IResearchRunner
@@ -31,6 +34,9 @@ public sealed class ResearchRunner(
 
     private readonly ResearchOptions _limits = options.Value;
     private DateTime _lastEventAt = DateTime.MinValue;
+
+    /// <summary>Suggestions made in this run but not yet saved, so a concurrent user status change can withdraw them.</summary>
+    private readonly Dictionary<Guid, Activity> _pendingSuggestions = [];
 
     private sealed class LeaseLostException : Exception;
 
@@ -147,7 +153,7 @@ public sealed class ResearchRunner(
             var gathered = room <= 0
                 ? new Gathered(SourceStatus.Skipped, $"Skipped: this run already reached its limit of {maxCandidates} candidates.", [], 0,
                     $"{source.Label}: skipped, candidate limit ({maxCandidates}) reached.", EventLevel.Warning)
-                : await GatherAsync(source, campaign.Mode, room, fetchesLeft, ct);
+                : await GatherAsync(source, campaign.Mode, criteria, room, fetchesLeft, KeepAlive, ct);
             fetchesLeft -= gathered.Requests;
 
             var items = gathered.Items.Take(Math.Max(0, room)).ToList();
@@ -169,6 +175,14 @@ public sealed class ResearchRunner(
             AddEvent(job, ResearchStage.Gather, gathered.Level, gathered.Message);
             job.Progress(ResearchStage.Gather, counts.ToJson(), Now(), Lease);
             await SaveAsync(job, ct);
+        }
+
+        // A job-board source can make dozens of requests; between them the lease is renewed and a cancel is noticed.
+        async Task<bool> KeepAlive(CancellationToken token)
+        {
+            job.Progress(ResearchStage.Gather, counts.ToJson(), Now(), Lease);
+            await SaveAsync(job, token);
+            return !await CancelRequestedAsync(job, token);
         }
         if (!cancelled && await CancelRequestedAsync(job, ct)) cancelled = true;
 
@@ -204,10 +218,11 @@ public sealed class ResearchRunner(
             $"Hard filters: {counts.Qualified} qualified, {counts.NeedsVerification} need verification, {counts.Excluded} excluded.");
 
         job.Progress(ResearchStage.Score, counts.ToJson(), Now(), Lease);
-        var (created, updated, overLimit) = await UpsertAsync(job, campaign, scored, ct);
+        var (created, updated, overLimit, suggested) = await UpsertAsync(job, campaign, scored, ct);
         AddEvent(job, ResearchStage.Score, EventLevel.Info,
             $"Saved {created} new and updated {updated} existing opportunit{(created + updated == 1 ? "y" : "ies")}." +
-            (overLimit > 0 ? $" {overLimit} more new one{Plural(overLimit)} beyond the campaign's result limit ({campaign.ResultLimit}) were not saved." : ""));
+            (overLimit > 0 ? $" {overLimit} more new one{Plural(overLimit)} beyond the campaign's result limit ({campaign.ResultLimit}) were not saved." : "") +
+            (suggested > 0 ? $" {suggested} suggested for your approval (score ≥ {campaign.AutoSuggestMinScore})." : ""));
         job.Progress(ResearchStage.Score, counts.ToJson(), Now(), Lease);
         await SaveAsync(job, ct);
 
@@ -226,7 +241,8 @@ public sealed class ResearchRunner(
         await SaveAsync(job, ct);
     }
 
-    private async Task<Gathered> GatherAsync(Source source, OpportunityMode mode, int room, int fetchesLeft, CancellationToken ct)
+    private async Task<Gathered> GatherAsync(Source source, OpportunityMode mode, CampaignCriteria criteria, int room, int fetchesLeft,
+        Func<CancellationToken, Task<bool>> keepAlive, CancellationToken ct)
     {
         switch (source.Kind)
         {
@@ -258,6 +274,14 @@ public sealed class ResearchRunner(
                     return new(SourceStatus.Failed, result.FailureReason, [], result.Requests,
                         $"{source.Label}: could not be read safely — {result.FailureReason}", EventLevel.Warning);
                 return source.Kind == SourceKind.Url ? FromPage(source, mode, result) : FromFeed(source, mode, result);
+            }
+            case SourceKind.Greenhouse or SourceKind.Lever or SourceKind.Adzuna:
+            {
+                if (mode != OpportunityMode.Job)
+                    return new(SourceStatus.Skipped, "Job-board sources are read for Job campaigns only.", [], 0,
+                        $"{source.Label}: skipped, job boards apply to Job campaigns only.", EventLevel.Warning);
+                var board = await boards.GatherAsync(source, criteria, room, fetchesLeft, keepAlive, ct);
+                return new(board.Status, board.SafeError, board.Items.ToList(), board.Requests, board.Message, board.Level);
             }
             default:
                 return new(SourceStatus.Skipped, "Unsupported source kind.", [], 0, $"{source.Label}: unsupported source kind.", EventLevel.Warning);
@@ -373,7 +397,7 @@ public sealed class ResearchRunner(
         return result;
     }
 
-    private async Task<(int Created, int Updated, int OverLimit)> UpsertAsync(
+    private async Task<(int Created, int Updated, int OverLimit, int Suggested)> UpsertAsync(
         ResearchJob job, Campaign campaign, List<Scored> scored, CancellationToken ct)
     {
         var now = Now();
@@ -397,6 +421,7 @@ public sealed class ResearchRunner(
                 db.OpportunityEvidence.Add(new OpportunityEvidence(o.Id, s.Evidence.Id));
             if (previous != o.Score)
                 db.Activities.Add(new Activity(o.OwnerId, o.Id, ActivityKinds.Researched, now, $"Re-scored {previous} → {o.Score} by research."));
+            Suggest(o, campaign, now);
             updated++;
         }
 
@@ -414,8 +439,17 @@ public sealed class ResearchRunner(
             db.OpportunityEvidence.Add(new OpportunityEvidence(o.Id, s.Evidence.Id));
             db.Activities.Add(new Activity(o.OwnerId, o.Id, ActivityKinds.Researched, now,
                 $"Found in \"{s.Candidate.SourceLabel}\" and scored {o.Score} ({o.Outcome})."));
+            Suggest(o, campaign, now);
         }
-        return (kept.Count, updated, fresh.Count - kept.Count);
+        return (kept.Count, updated, fresh.Count - kept.Count, _pendingSuggestions.Count);
+    }
+
+    /// <summary>New → Suggested when the campaign's auto-suggest rule holds (see <see cref="Opportunity.SuggestForApproval"/>).</summary>
+    private void Suggest(Opportunity o, Campaign campaign, DateTime now)
+    {
+        if (o.SuggestForApproval(campaign.AutoSuggestMinScore, now) is not { } activity) return;
+        db.Activities.Add(activity);
+        _pendingSuggestions[o.Id] = activity;
     }
 
     private static void Apply(Opportunity o, Scored s, OpportunityMode mode, Guid jobId, DateTime now)
@@ -423,7 +457,7 @@ public sealed class ResearchRunner(
         var c = s.Candidate;
         var r = s.Result;
         o.ApplyResearch(c.Title, c.Organization, c.Location ?? (mode == OpportunityMode.Customer ? c.Country : null),
-            c.Url, mode == OpportunityMode.Job ? c.Url : null, c.Platform, c.ExternalId, c.Text.Length > 0 ? c.Text : null,
+            c.Url, mode == OpportunityMode.Job ? c.ApplyUrl ?? c.Url : null, c.Platform, c.ExternalId, c.Text.Length > 0 ? c.Text : null,
             r.Score, r.Coverage, r.Outcome, r.OutcomeReason,
             JsonSerializer.Serialize(r.Breakdown, JsonSerializerOptions.Web),
             JsonSerializer.Serialize(r.Facts, JsonSerializerOptions.Web),
@@ -447,6 +481,7 @@ public sealed class ResearchRunner(
             try
             {
                 await db.SaveChangesAsync(ct);
+                _pendingSuggestions.Clear();
                 return;
             }
             catch (DbUpdateConcurrencyException ex) when (attempt < 3)
@@ -462,6 +497,16 @@ public sealed class ResearchRunner(
                     }
                     if (entry.Entity is ResearchJob && stored.GetValue<int>(nameof(ResearchJob.Attempts)) != job.Attempts)
                         throw new LeaseLostException();
+
+                    // The user moved the opportunity while this run was scoring it: their status wins and the
+                    // suggestion is withdrawn, because research may only ever move New → Suggested.
+                    if (entry.Entity is Opportunity o && _pendingSuggestions.TryGetValue(o.Id, out var suggestion) &&
+                        stored[nameof(Opportunity.Status)] is OpportunityStatus storedStatus && storedStatus != OpportunityStatus.New)
+                    {
+                        entry.Property(nameof(Opportunity.Status)).IsModified = false;
+                        db.Activities.Remove(suggestion);
+                        _pendingSuggestions.Remove(o.Id);
+                    }
 
                     foreach (var property in entry.Properties)
                     {
