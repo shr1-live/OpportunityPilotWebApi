@@ -61,7 +61,7 @@ Code: `Application/Research/Rules/Scoring.cs`
 | Coverage | `Σ effective weight of known criteria`, same rounding |
 | Fraction rule | all found → 1; at least half → 0.5; fewer → 0 (`FractionValue`) |
 | Nothing configured | score 0, coverage 0, empty breakdown |
-| Evidence | every known criterion cites the candidate's single evidence row |
+| Evidence | every known criterion cites the candidate's single evidence row; every awarded point also carries the matching sentence or structured-field note (bounded to 300 characters) |
 
 ### Text matching
 
@@ -82,8 +82,9 @@ Code: `Application/Research/Rules/JobRules.cs`
 | location | locations or workModes set | a location matches (field or text; "Remote" matches a remote posting); with only workModes set, a detected mode | — | detected work mode not accepted, or a known location outside the list | location (or mode, when only modes are set) not stated |
 
 - Experience parsing reads the first match of, in order: `3-5 years` / `3 to 5 yrs`; `5+ years`; `minimum|min.|at least 4 years`; `4 years (of) … experience` (a minimum). Values above 50 are ignored.
-- Work mode: Hybrid wins, then Remote (`remote`, `work from home`, `wfh`, `work from anywhere`), then Onsite (`on-site`, `onsite`, `in office`, `work from office`, `wfo`); searched in location + title + text.
-- Facts recorded: company, location, work mode, experience asked, required skills found, salary (currency or LPA pattern). "Company not stated" is a gap.
+- Work mode: a structured Lever `workplaceType` wins; otherwise Hybrid wins, then Remote (`remote`, `work from home`, `wfh`, `work from anywhere`), then Onsite (`on-site`, `onsite`, `in office`, `work from office`, `wfo`); searched in location + title + text.
+- Evidence sentences split only at punctuation followed by a capital/digit or at a line break, so dotted technology names such as `.NET` and `Node.js` are not truncated.
+- Facts recorded: company, location, work mode, experience asked, required skills found, salary (currency or LPA pattern), source posting date and detected staffing-agency signal. "Company not stated" is a gap.
 
 ### Customer rules
 
@@ -113,6 +114,8 @@ The outcome reason joins the failing (or unknown) reasons.
 | requiredSkills | Job | text present and **none** of the required skills appear | posting text empty |
 | workModes | Job | detected mode not in the list | mode not detected |
 | locations | both | known location matches none | location not stated |
+| excludeStaffingAgencies | Job | body says `our client`, `staffing`, `recruitment agency`, `on behalf of our`, `C2H` or `contract to hire`, or company name matches staffing/consultancy/recruit/manpower/talent solutions | — (absence passes) |
+| maxPostingAgeDays | Job | source date is older than 1–365 configured days | — (missing date passes) |
 
 ## Dedupe and upsert
 

@@ -59,7 +59,8 @@ public static class BoardMapping
     public static Candidate GreenhouseCandidate(Source source, string token, GreenhouseJob job, string? description)
     {
         var organization = job.Company ?? token;
-        return Build(source, JobPlatform.Greenhouse, job.Id, job.Title, organization, job.Location, null, job.Url, job.Url, null, description);
+        return Build(source, JobPlatform.Greenhouse, job.Id, job.Title, organization, job.Location, null, job.Url, job.Url, null, description,
+            job.UpdatedAt);
     }
 
     // ---------- Lever ----------
@@ -92,9 +93,10 @@ public static class BoardMapping
                 }
             }
             var hostedUrl = HttpUrl(Text(p, "hostedUrl"));
+            var workplaceType = Text(p, "workplaceType");
             result.Add(Build(source, JobPlatform.Lever, id, title, organization, Text(Child(p, "categories"), "location"),
-                WorkplaceHint(Text(p, "workplaceType")), hostedUrl, HttpUrl(Text(p, "applyUrl")) ?? hostedUrl, Text(p, "country"),
-                description.ToString().Trim()));
+                workplaceType, hostedUrl, HttpUrl(Text(p, "applyUrl")) ?? hostedUrl, Text(p, "country"),
+                description.ToString().Trim(), EpochMilliseconds(p, "createdAt")));
         }
         return result;
     }
@@ -165,8 +167,10 @@ public static class BoardMapping
     // ---------- helpers ----------
 
     private static Candidate Build(Source source, JobPlatform platform, string externalId, string title, string organization,
-        string? location, string? workplace, string? url, string? applyUrl, string? country, string? description)
+        string? location, string? workplaceType, string? url, string? applyUrl, string? country, string? description,
+        DateTime? postedAt = null)
     {
+        var workplace = WorkplaceHint(workplaceType);
         var text = Candidates.Bound(string.Join("\n", new[] { workplace is null ? null : $"Workplace: {workplace}", description }
             .Where(x => !string.IsNullOrWhiteSpace(x))));
         var lines = new List<string> { title };
@@ -176,7 +180,7 @@ public static class BoardMapping
         if (url is not null) lines.Add($"URL: {url}");
         if (!string.IsNullOrWhiteSpace(description)) lines.Add("\n" + description);
         return new Candidate(source.Id, source.Label, title, organization, location, url, platform, externalId, text, null, country, null,
-            url, string.Join('\n', lines), [], applyUrl);
+            url, string.Join('\n', lines), [], applyUrl, workplaceType, postedAt);
     }
 
     /// <summary>Lever's <c>workplaceType</c> in words the work-mode rule recognises; unknown values give no hint.</summary>
@@ -219,4 +223,11 @@ public static class BoardMapping
 
     private static DateTime? Date(string? value) =>
         DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at) ? at.UtcDateTime : null;
+
+    private static DateTime? EpochMilliseconds(JsonElement element, string name) => Child(element, name) switch
+    {
+        { ValueKind: JsonValueKind.Number } n when n.TryGetInt64(out var value) =>
+            DateTimeOffset.FromUnixTimeMilliseconds(value).UtcDateTime,
+        _ => null
+    };
 }

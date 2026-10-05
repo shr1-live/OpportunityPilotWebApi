@@ -9,6 +9,8 @@ public sealed record CampaignCriteria
     public const int MaxItemsPerList = 50;
     public const int MaxItemLength = 100;
     public const double MaxCandidateYears = 60;
+    public const int MinPostingAge = 1;
+    public const int MaxPostingAge = 365;
     public static readonly string[] AllowedWorkModes = ["Remote", "Hybrid", "Onsite"];
     public static readonly CampaignCriteria Empty = new();
 
@@ -27,6 +29,12 @@ public sealed record CampaignCriteria
     public IReadOnlyList<string> Signals { get; init; } = [];
     public IReadOnlyList<string> ExcludeKeywords { get; init; } = [];
     public IReadOnlyList<string> ExcludeOrganizations { get; init; } = [];
+
+    /// <summary>Job: exclude postings that look like a staffing agency (body phrase or company-name pattern). Off by default.</summary>
+    public bool ExcludeStaffingAgencies { get; init; }
+
+    /// <summary>Job: exclude postings the source dates older than this many days (1–365); null = off. Undated postings are kept.</summary>
+    public int? MaxPostingAgeDays { get; init; }
 
     public string ToJson() => JsonSerializer.Serialize(this, JsonSerializerOptions.Web);
 
@@ -53,6 +61,9 @@ public sealed record CampaignCriteria
         if (input.CandidateYears is { } years && (double.IsNaN(years) || years < 0 || years > MaxCandidateYears))
             errors["criteria.candidateYears"] = [$"Years of experience must be between 0 and {MaxCandidateYears}."];
 
+        var ageOk = input.MaxPostingAgeDays is not { } age || age is >= MinPostingAge and <= MaxPostingAge;
+        if (!ageOk) errors["criteria.maxPostingAgeDays"] = [$"Maximum posting age must be between {MinPostingAge} and {MaxPostingAge} days."];
+
         return new CampaignCriteria
         {
             Keywords = List(input.Keywords, "criteria.keywords", errors),
@@ -65,7 +76,9 @@ public sealed record CampaignCriteria
             Problems = List(input.Problems, "criteria.problems", errors),
             Signals = List(input.Signals, "criteria.signals", errors),
             ExcludeKeywords = List(input.ExcludeKeywords, "criteria.excludeKeywords", errors),
-            ExcludeOrganizations = List(input.ExcludeOrganizations, "criteria.excludeOrganizations", errors)
+            ExcludeOrganizations = List(input.ExcludeOrganizations, "criteria.excludeOrganizations", errors),
+            ExcludeStaffingAgencies = input.ExcludeStaffingAgencies,
+            MaxPostingAgeDays = ageOk ? input.MaxPostingAgeDays : null
         };
     }
 

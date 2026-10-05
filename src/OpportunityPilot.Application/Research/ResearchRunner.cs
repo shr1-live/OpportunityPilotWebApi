@@ -198,9 +198,9 @@ public sealed class ResearchRunner(
         var scored = candidates.Select((c, i) =>
             {
                 var input = new RuleInput(c.Title, c.Organization, c.Location, c.Text, evidence[i].Id.ToString(),
-                    c.Website, c.Country, c.Industry, c.Links);
+                    c.Website, c.Country, c.Industry, c.Links, c.WorkplaceType, c.PostedAt);
                 var result = campaign.Mode == OpportunityMode.Job
-                    ? JobRules.Evaluate(criteria, weights, input)
+                    ? JobRules.Evaluate(criteria, weights, input, Now())
                     : CustomerRules.Evaluate(criteria, weights, input);
                 return new Scored(c, evidence[i], result,
                     Candidates.DedupeKey(campaign.Mode, c.Platform, c.ExternalId, c.Title, c.Organization, c.Website));
