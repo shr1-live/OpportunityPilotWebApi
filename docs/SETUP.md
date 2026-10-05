@@ -54,6 +54,7 @@ Environment variables use `__` for nesting (`ConnectionStrings__Main`).
 | `Auth__DevBypass` | no | Development only |
 | `Auth__GuestSigningKey` | no | demo mode only: keeps guest sessions valid across restarts (pointless while data is in memory) |
 | `Cors__AllowedOrigins__0` | yes for a browser | the web app's origin, e.g. `https://app.example.com`; add `__1`, `__2`… for more |
+| `Cors__AllowedOriginPatterns__0` | no | https origin with one `*` for a single hostname fragment (letters, digits, hyphens — no dots), for hosts that give each deployment its own address. Default allows this project's Vercel deployments: `https://opportunity-pilot-webapp-*-vsr6.vercel.app` |
 | `Features__GeminiEnabled` | no | `false`. Capability shows *Configured · unverified* when true and a key is present; live calls arrive in M4 |
 | `Ai__GeminiApiKey` | no | server-side secret; never returned to the browser |
 | `Ai__GeminiModel`, `Ai__MaxCallsPerRun`, `Ai__MaxOutputTokens`, `Ai__AllowPaidUsage` | no | budgets for M4 |
