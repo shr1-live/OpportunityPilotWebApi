@@ -1,5 +1,11 @@
 # Research pipeline contract (M2 + M3, Job and Customer modes)
 
+> **Design spec for a slice** (M2 + M3, written before the code; built 2026-10-01). It is kept as the design record and
+> is not updated. **[api-contracts.md](api-contracts.md) is authoritative for what exists**; current rules are in
+> [business-rules.md](business-rules.md), states in [opportunity-lifecycle.md](opportunity-lifecycle.md) and tables in
+> [db-schema.md](db-schema.md). Where this file differs from those, they win (e.g. the code also treats `asp.net` and
+> `c sharp` as skill aliases and reads "4 years of experience" as a minimum).
+
 Implements the implementation plan's research design (§6, §9, §11, §12, §16, §18) for two
 modes first — **Job** and **Customer** — on the shared pipeline. Other modes
 (Partner, Investor, Freelance) are rejected with 400 "not supported yet" until M7.

@@ -56,3 +56,13 @@ describe('pickOption', () => {
     expect(pickOption(['Select an option', 'Day', 'Night'], 'Yes')).toBeUndefined()
   })
 })
+
+describe('nothing assumed by default', () => {
+  const none: Answers = { fields: [], skills: { 'c#': 6 }, defaults: { yearsOfExperience: null, yesNo: '' } }
+
+  it('leaves experience in an unlisted skill and uncovered yes/no questions to the user', () => {
+    expect(answerFor({ label: 'How many years of experience do you have with Kubernetes?', kind: 'text' }, none)).toBeUndefined()
+    expect(answerFor({ label: 'Are you comfortable with night shifts?', kind: 'radio', options: ['Yes', 'No'] }, none)).toBeUndefined()
+    expect(answerFor({ label: 'How many years of experience do you have with C#?', kind: 'text' }, none)).toBe('6')
+  })
+})

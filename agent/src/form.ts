@@ -136,16 +136,25 @@ export async function discoverFields(root: Locator): Promise<FieldInfo[]> {
 const AGREE = /\b(agree|terms|acknowledge|consent|certify|confirm that)\b/i
 
 /** Fills every empty field a saved answer covers. Prefilled values are left as the user (or site) set them. */
-export async function fillStep(page: Page, root: Locator, answers: Answers, opts: { followCompanies: boolean }): Promise<FillResult> {
+export async function fillStep(
+  page: Page,
+  root: Locator,
+  answers: Answers,
+  opts: { followCompanies: boolean; acceptTerms: boolean },
+): Promise<FillResult> {
   const result: FillResult = { answered: [], unanswered: [] }
   for (const f of await discoverFields(root)) {
     const el = root.locator(`[data-op-field="${f.id}"]`)
 
     if (f.kind === 'checkbox') {
-      const wanted = /follow/i.test(f.label) ? opts.followCompanies : f.required || AGREE.test(f.label) ? true : undefined
+      // Agreeing to terms is the user's consent to give, so it only happens when they opted in.
+      const consent = f.required || AGREE.test(f.label)
+      const wanted = /follow/i.test(f.label) ? opts.followCompanies : consent && opts.acceptTerms ? true : undefined
       if (wanted !== undefined && wanted !== f.filled) {
         await el.setChecked(wanted, { force: true })
         result.answered.push(f.label)
+      } else if (wanted === undefined && f.required && !f.filled) {
+        result.unanswered.push(f.label || 'Required checkbox')
       }
       continue
     }

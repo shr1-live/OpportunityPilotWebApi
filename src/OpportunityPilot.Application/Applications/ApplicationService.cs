@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using OpportunityPilot.Application.Abstractions;
 using OpportunityPilot.Application.Common;
 using OpportunityPilot.Domain.Applications;
+using OpportunityPilot.Domain.Common;
+using OpportunityPilot.Domain.Opportunities;
 
 namespace OpportunityPilot.Application.Applications;
 
@@ -49,14 +51,17 @@ public sealed class ApplicationService(IAppDbContext db, ICurrentUser user, Time
                     item.Location, item.Status, item.Detail, occurredAt, now));
         }
 
-        // A shortlisted job the agent applied to moves to Applied. Ids the caller does not own are ignored, not
-        // rejected: the application itself happened and must still be recorded.
+        // A shortlisted job the agent applied to moves to Applied. Only Job opportunities the user shortlisted qualify
+        // (the agent acts on the shortlist alone); other ids are ignored, not rejected: the application itself
+        // happened and must still be recorded.
         var appliedTo = latest.Values.Where(i => i.Status == ApplicationStatus.Applied && i.OpportunityId is not null)
             .GroupBy(i => i.OpportunityId!.Value).ToDictionary(g => g.Key, g => g.Last());
         if (appliedTo.Count > 0)
         {
             var ids = appliedTo.Keys.ToList();
-            var opportunities = await db.Opportunities.Where(o => o.OwnerId == ownerId && ids.Contains(o.Id)).ToListAsync(ct);
+            var opportunities = await db.Opportunities
+                .Where(o => o.OwnerId == ownerId && ids.Contains(o.Id) && o.Mode == OpportunityMode.Job && o.Status == OpportunityStatus.Shortlisted)
+                .ToListAsync(ct);
             foreach (var opportunity in opportunities)
             {
                 var item = appliedTo[opportunity.Id];

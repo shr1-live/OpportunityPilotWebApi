@@ -1,17 +1,11 @@
 # Setup
 
-**Demo mode.** The API never refuses to start over missing setup:
-
-| Missing | What happens instead |
-|---|---|
-| `ConnectionStrings__Main` | data is kept **in memory** (EF Core InMemory); everything works but resets on every restart; migrations are skipped |
-| `Auth__SupabaseUrl` | **guest sign-in**: `POST /api/v1/auth/guest` returns a server-signed token for a random identity (30 days, HS256). Guests are isolated like real users. The signing key is random per process unless `Auth__GuestSigningKey` (≥32 chars) is set, so guest sessions end on restart |
-
-`/api/v1/capabilities` reports `guestSignIn`, `temporaryStorage` and a
-`setupRequired` list; the web app shows a "Demo mode" banner. Startup logs one
-`Demo mode:` warning per gap. Setting the real value switches each fallback off
-automatically (guest endpoint then returns 404). Enabling `Auth:DevBypass`
-outside Development still stops the process — that is a security guard.
+**Demo mode.** The API never refuses to start over missing setup: without
+`ConnectionStrings__Main` data is kept in memory, and without `Auth__SupabaseUrl`
+visitors sign in as guests. The exact behaviour is in
+[business-rules.md → Demo mode](business-rules.md#demo-mode);
+the web app shows a "Demo mode" banner from `/api/v1/capabilities`. Enabling
+`Auth:DevBypass` outside Development still stops the process — that is a security guard.
 
 ## 1. Local development
 
@@ -64,34 +58,16 @@ Environment variables use `__` for nesting (`ConnectionStrings__Main`).
 | `Ai__GeminiApiKey` | no | server-side secret; never returned to the browser |
 | `Ai__GeminiModel`, `Ai__MaxCallsPerRun`, `Ai__MaxOutputTokens`, `Ai__AllowPaidUsage` | no | budgets for M4 |
 | `Features__GmailEnabled`, `Features__MongoArchiveEnabled` | no | flip capability status from *Disabled* to *Not built yet* |
-| `Research__ProcessorEnabled` | no | `true`. The in-process research worker that runs queued jobs (polls every 2 s). Integration tests set `false` and run jobs themselves |
-| `Research__MaxCandidates` | no | `100` (ceiling 100): candidates scored per run. Each campaign's `resultLimit` separately caps the *new* opportunities saved per run |
-| `Research__MaxFetches` | no | `50` (ceiling 50): HTTP requests per run for Url/Feed sources, redirects and retries included |
-| `Research__TimeoutSeconds` | no | `10` (ceiling 30): per request, including reading the body |
-| `Research__MaxBytes` | no | `1048576` (ceiling 1 MB): per page, counted after decompression |
-| `Research__Concurrency` | no | `2` (ceiling 4): simultaneous outbound fetches in the process |
+| `Research__ProcessorEnabled`, `Research__PollSeconds`, `Research__MaxCandidates`, `Research__MaxFetches`, `Research__TimeoutSeconds`, `Research__MaxBytes`, `Research__Concurrency` | no | research worker switch and run limits; defaults and server ceilings in [business-rules.md → Research runs](business-rules.md#research-runs). Integration tests set `Research__ProcessorEnabled=false` and run jobs themselves |
 | `MIGRATE_ON_START` | no | container only, default `true`: runs `--migrate` as a separate process before the server starts; skipped while no connection string is set |
 | `PORT` | no | set by Render; the app binds `0.0.0.0:$PORT` unless `ASPNETCORE_URLS` is set |
 
 ## 3. Migrations
 
-There are two migration sets, one per provider. Add a migration to **both**:
-
-```bash
-dotnet ef migrations add <Name> -p src/OpportunityPilot.Infrastructure -s src/OpportunityPilot.Api \
-  --context SqlServerAppDbContext -o Persistence/Migrations/SqlServer
-dotnet ef migrations add <Name> -p src/OpportunityPilot.Infrastructure -s src/OpportunityPilot.Api \
-  --context PostgresAppDbContext -o Persistence/Migrations/Postgres
-```
-
-Generation never touches a database (see `DesignTimeFactories.cs`). Everything
-lives in the `app` schema, including `__EFMigrationsHistory`.
-
-Applying outside Development is an explicit release step:
-
-```bash
-dotnet OpportunityPilot.Api.dll --migrate      # applies pending migrations, then exits
-```
+There are two migration sets, one per provider (SqlServer and Postgres), both in schema `app`. The exact commands are in
+the [CLAUDE.md](../CLAUDE.md#2-cheat-sheet-commands) cheat-sheet and the procedure with its review checklist in
+[skills/migrations.SKILL.md](../skills/migrations.SKILL.md). Outside Development, applying them is an explicit release
+step: `dotnet OpportunityPilot.Api.dll --migrate` applies pending migrations and exits.
 
 ## 4. Supabase
 
@@ -134,17 +110,6 @@ with backoff rather than reporting a failure.
 
 ## 6. Tests
 
-```bash
-dotnet test
-```
-
-Integration tests start `postgres:17-alpine` with Testcontainers, run the real
-API in Development with dev bypass, and exercise two synthetic users. They need
-a running Docker daemon; unit tests do not.
-
-The research processor is switched off in those tests (`Research:ProcessorEnabled=false`);
-each test runs queued jobs through `IResearchRunner` so results are deterministic. Url and
-Feed sources are exercised against a tiny HTTP server on loopback, which only a fetch
-policy defined inside the test project may reach — production always uses
-`StrictFetchAddressPolicy`, and no setting can relax it. The demo-mode test
-(`StartupGuardTests`) runs the real background processor against the in-memory store.
+`dotnet test` runs everything; integration tests start `postgres:17-alpine` with Testcontainers and need a running
+Docker daemon, unit tests and `StartupGuardTests` do not. How the test harness works (dev-bypass users, the research
+processor switched off, the loopback fetch policy) is in [skills/unit-test.SKILL.md](../skills/unit-test.SKILL.md).

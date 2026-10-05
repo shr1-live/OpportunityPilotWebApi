@@ -98,14 +98,17 @@ limit, `limits.maxApplicationsPerDay`, or three failures in a row.
 | `limits.maxPages` | result pages per keyword when collecting |
 | `limits.maxPostingsPerCollect` | postings opened and sent per collect run |
 | `search.postedWithinDays` | only postings this recent |
+| `profile.resumePath` | uploaded only when a form demands a resume |
+| `profile.followCompanies` | LinkedIn's "follow company" box (default off) |
+| `profile.acceptTermsCheckboxes` | tick "I agree / I confirm" boxes for you (default **off** — such forms become *Needs you*) |
+| `answers.fields` | `{ "match": ["notice period"], "value": "30" }` — first rule whose phrase appears in the question wins |
+| `answers.skills` | `"c#": 6` answers "How many years of experience with C#?" |
+| `answers.defaults.yearsOfExperience` | experience in a skill you didn't list; default `null` = *Needs you* |
+| `answers.defaults.yesNo` | Yes/No questions no rule covers; default `""` = *Needs you* (set `"Yes"`/`"No"` only if you want a blanket answer) |
 
 Keywords, locations, work mode, skills and exclusions come from the **campaign** —
 research applies them with evidence, so the agent does not filter on its own.
-| `profile.followCompanies` | LinkedIn's "follow company" box (default off) |
-| `answers.fields` | `{ "match": ["notice period"], "value": "30" }` — first rule whose phrase appears in the question wins |
-| `answers.skills` | `"c#": 6` answers "How many years of experience with C#?" |
-| `answers.defaults.yearsOfExperience` | experience questions naming an unknown skill |
-| `answers.defaults.yesNo` | Yes/No questions no rule covers; set `""` to treat them as *Needs you* |
+Nothing is assumed: every answer comes from a rule you wrote, and anything else is left for you.
 
 ## When something breaks
 

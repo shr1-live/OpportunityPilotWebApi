@@ -20,7 +20,7 @@ Last updated: 2026-10-01.
 
 ## M2 + M3: what exists
 
-Contract: `docs/RESEARCH_CONTRACT.md`.
+Design spec: `docs/RESEARCH_CONTRACT.md`. What exists now: [api-contracts.md](api-contracts.md), [db-schema.md](db-schema.md).
 
 - Domain — `src/OpportunityPilot.Domain/Campaigns/Campaign.cs`; `Research/` (`Source`, `SourceItem`, `ImportBatch`,
   `ResearchJob` with lease/claim/cancel rules, `ResearchEvent`, `Evidence`, enums); `Opportunities/` (`Opportunity`
@@ -62,13 +62,9 @@ page fetching over real sockets from a loopback server; demo mode (InMemory) wit
 
 ## Not verified / known gaps
 
-- No fetch against the real public internet was run (by design in tests). TLS, real redirects and real-world HTML
-  are therefore unverified in this environment.
-- One evidence row per candidate holds the first 2000 characters. A skill matched later in a long page is scored, but
-  the cited excerpt may not show it. Snippet-level evidence windows are a follow-up.
-- The processor is in-process: research stops while the API is down or asleep (free hosting). Jobs resume from their
-  lease when it wakes.
-- Rate limiting is the existing global per-user limiter (120 requests/minute); there is no separate research quota.
+Tracked with owners and priorities in [open-questions.md](open-questions.md): real-internet fetching (OQ-BE-005),
+evidence excerpt windows (OQ-BE-015), the in-process processor not being a scheduler (OQ-BE-023), rate limiting and
+research quota (OQ-BE-021), live LinkedIn/Naukri selectors (OQ-BE-001) and deployment of this slice (OQ-BE-013).
 
 ## Beyond the plan (user decisions)
 
@@ -80,6 +76,10 @@ page fetching over real sockets from a loopback server; demo mode (InMemory) wit
 
 ## Exact next task
 
-Wire the React app's campaign, source, import, research-progress and opportunity screens to these endpoints (contract
-in `docs/RESEARCH_CONTRACT.md`) and run one end-to-end smoke test in Development: profile → Job campaign → paste source →
+Wire the React app's campaign, source, import, research-progress and opportunity screens to these endpoints
+([api-contracts.md](api-contracts.md)) and run one end-to-end smoke test in Development: profile → Job campaign → paste source →
 research → shortlist → agent report. Then start M4 (Gemini request parsing and evidence summaries with rules fallback).
+
+> Docs audit 2026-10-05: according to the workspace HANDOFF the web screens and the end-to-end check were done on
+> 2026-10-01, and the next slice is M4 + M5 ([M4_M5_CONTRACT.md](M4_M5_CONTRACT.md), not built — OQ-BE-006). This file
+> has not been re-verified since 2026-10-01 (OQ-BE-013).

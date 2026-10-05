@@ -13,13 +13,9 @@ with rules that were never designed for them.
 
 Rules (keyword matching on word boundaries, a few skill aliases, experience-range regexes, work-mode keywords) run
 before any AI. They are pure functions in `Application/Research/Rules`, unit-tested per criterion, and versioned with
-the code: changing a pattern or alias changes scores. Defaults — Job: mandatory skills 40, experience 20, location 20,
-preferred skills 20; Customer: industry 25, problem 30, geography 15, signal 20, contact path 10. Weights are editable
-per campaign and stored normalised to integers summing to exactly 100 (largest-remainder rounding).
-
-Every criterion is 1, 0.5, 0 or unknown, with a reason and the evidence it used. Hard filters (excluded keywords and
-organisations, required skills, work modes, locations) run first: any Fail excludes, any Unknown means
-NeedsVerification. Unknown is never a pass.
+the code: changing a pattern or alias changes scores. Weights have fixed per-mode defaults, are editable per campaign and
+are stored as integers summing to exactly 100, so a breakdown always adds up. Hard filters run before scoring and an
+unknown is never a pass. The exact values and rules: [business-rules.md](business-rules.md#scoring).
 
 ## 2026-10-01 — Not applicable is redistributed; unknown is not
 

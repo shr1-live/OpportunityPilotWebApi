@@ -33,7 +33,7 @@ export function linkedIn(base = 'https://www.linkedin.com'): PlatformAdapter {
 
     async isLoggedIn(page) {
       await page.goto(`${base}/feed/`, { waitUntil: 'domcontentloaded' })
-      return !/\/(login|authwall|uas\/login|signup|checkpoint)/.test(page.url())
+      return !/\/(login|authwall|uas\/login|signup|checkpoint|challenge)/.test(page.url())
     },
 
     async searchPage(page, search: SearchConfig, keyword, pageIndex) {
@@ -112,7 +112,7 @@ export function linkedIn(base = 'https://www.linkedin.com'): PlatformAdapter {
       let steps = 0
       for (; steps < MAX_STEPS; steps++) {
         await sleep(between(500, 1000))
-        const filled = await fillStep(page, dialog, ctx.answers, { followCompanies: ctx.followCompanies })
+        const filled = await fillStep(page, dialog, ctx.answers, { followCompanies: ctx.followCompanies, acceptTerms: ctx.acceptTerms })
         if (filled.unanswered.length) {
           const remaining = await tryResume(dialog, ctx, filled.unanswered)
           if (remaining.length) {

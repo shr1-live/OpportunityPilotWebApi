@@ -31,7 +31,15 @@ export class Store {
       this.records = readFileSync(path, 'utf8')
         .split('\n')
         .filter((l) => l.trim())
-        .map((l) => JSON.parse(l) as ApplicationRecord)
+        .flatMap((l, i) => {
+          // One damaged line must not stop every command; it is reported and skipped.
+          try {
+            return [JSON.parse(l) as ApplicationRecord]
+          } catch {
+            console.warn(`Skipping unreadable line ${i + 1} in ${path}`)
+            return []
+          }
+        })
     }
   }
 

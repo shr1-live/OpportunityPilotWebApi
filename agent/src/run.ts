@@ -87,6 +87,7 @@ export async function applyToShortlist(opts: ApplyOptions): Promise<RunSummary> 
           submit: opts.submit,
           answers: config.answers,
           followCompanies: config.profile.followCompanies,
+          acceptTerms: config.profile.acceptTermsCheckboxes,
           resumePath: config.profile.resumePath,
         })
         await record(job, outcome)

@@ -109,6 +109,24 @@ public class AgentResearchApiTests(PostgresApiFactory factory) : IClassFixture<P
         Assert.Empty((await agent.GetJson("/api/v1/agent/shortlist?platform=LinkedIn")).EnumerateArray());
         Assert.Equal(1, (await user.GetJson("/api/v1/applications")).Int("total"));
 
+        // A report naming a job the user never shortlisted is recorded, but does not move that opportunity.
+        var java = items.Single(i => i.Str("title") == "Java Lead");
+        var unlisted = await agent.PostAsJsonAsync("/api/v1/applications/report", new
+        {
+            items = new[]
+            {
+                new
+                {
+                    platform = "LinkedIn", externalJobId = "4099999999", jobUrl = "https://www.linkedin.com/jobs/view/4099999999/",
+                    title = "Java Lead", company = "Acme", location = "Pune", status = "Applied", detail = "Easy Apply",
+                    occurredAt = DateTime.UtcNow, opportunityId = java.Id()
+                }
+            }
+        });
+        Assert.Equal(HttpStatusCode.OK, unlisted.StatusCode);
+        Assert.Equal("New", (await user.GetJson($"/api/v1/opportunities/{java.Id()}")).Str("status"));
+        Assert.Equal(2, (await user.GetJson("/api/v1/applications")).Int("total"));
+
         // Research again: the applied opportunity stays applied.
         await ResearchApi.QueueAsync(user, jobCampaign.Id());
         await factory.RunResearchAsync();

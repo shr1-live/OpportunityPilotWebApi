@@ -16,8 +16,8 @@ export interface Answers {
   /** "How many years of experience do you have with X?" — keys are skills as they appear in questions. */
   skills: Record<string, number>
   defaults: {
-    /** Used for experience questions that name no known skill. */
-    yearsOfExperience: number
+    /** Used for experience questions that name no known skill. null = leave them for you ("Needs you"). */
+    yearsOfExperience: number | null
     /** Used for Yes/No questions no rule covers. Leave empty to treat them as unanswered. */
     yesNo: 'Yes' | 'No' | ''
   }
@@ -60,7 +60,8 @@ export function answerFor(q: Question, answers: Answers): string | undefined {
     const skill = Object.keys(answers.skills)
       .sort((a, b) => b.length - a.length)
       .find((s) => label.includes(normalize(s)))
-    return String(skill ? answers.skills[skill] : answers.defaults.yearsOfExperience)
+    if (skill) return String(answers.skills[skill])
+    return answers.defaults.yearsOfExperience === null ? undefined : String(answers.defaults.yearsOfExperience)
   }
 
   if (isYesNo(q.options) && answers.defaults.yesNo) return answers.defaults.yesNo

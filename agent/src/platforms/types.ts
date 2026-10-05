@@ -25,6 +25,7 @@ export interface ApplyContext {
   submit: boolean
   answers: Answers
   followCompanies: boolean
+  acceptTerms: boolean
   resumePath: string
 }
 

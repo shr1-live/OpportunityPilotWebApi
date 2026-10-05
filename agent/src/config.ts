@@ -28,7 +28,8 @@ export interface Config {
     maxPostingsPerCollect: number
   }
   search: { postedWithinDays: number }
-  profile: { resumePath: string; followCompanies: boolean }
+  /** acceptTermsCheckboxes: tick "I agree / I confirm" boxes on application forms. Off = such forms become "Needs you". */
+  profile: { resumePath: string; followCompanies: boolean; acceptTermsCheckboxes: boolean }
   answers: Answers
 }
 
@@ -37,7 +38,7 @@ export const EXAMPLE_CONFIG: Config = {
   iUnderstandAccountRisk: false,
   limits: { maxApplicationsPerRun: 10, maxApplicationsPerDay: 25, pauseSeconds: [8, 20], maxPages: 2, maxPostingsPerCollect: 30 },
   search: { postedWithinDays: 7 },
-  profile: { resumePath: '', followCompanies: false },
+  profile: { resumePath: '', followCompanies: false, acceptTermsCheckboxes: false },
   answers: {
     fields: [
       { match: ['notice period'], value: '30' },
@@ -49,12 +50,13 @@ export const EXAMPLE_CONFIG: Config = {
       { match: ['authorized to work', 'authorised to work', 'legally', 'work permit'], value: 'Yes' },
       { match: ['relocate', 'relocation'], value: 'Yes' },
       { match: ['immediate joiner', 'join immediately'], value: 'No' },
-      { match: ['hybrid', 'work from office', 'onsite', 'on-site'], value: 'Yes' },
+      { match: ['hybrid', 'from office', 'onsite', 'on-site'], value: 'Yes' },
       { match: ['gender', 'race', 'ethnicity', 'veteran', 'disability'], value: 'Prefer not to say' },
       { match: ['linkedin profile', 'linkedin url'], value: 'https://www.linkedin.com/in/your-handle' },
     ],
     skills: { 'c#': 5, '.net core': 5, '.net': 5, 'asp.net': 5, react: 3, typescript: 3, sql: 5, azure: 2 },
-    defaults: { yearsOfExperience: 5, yesNo: 'Yes' },
+    // Nothing is assumed: questions your rules don't cover become "Needs you". Opt in to defaults here if you want them.
+    defaults: { yearsOfExperience: null, yesNo: '' },
   },
 }
 
