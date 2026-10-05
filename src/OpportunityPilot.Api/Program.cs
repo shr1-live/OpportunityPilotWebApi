@@ -43,8 +43,10 @@ builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
 builder.Services.AddHostedService<ResearchProcessor>();
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+var allowedOriginPatterns = builder.Configuration.GetSection("Cors:AllowedOriginPatterns").Get<string[]>() ?? [];
+var originAllowed = CorsOrigins.Matcher(allowedOrigins, allowedOriginPatterns);
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
-    .WithOrigins(allowedOrigins)
+    .SetIsOriginAllowed(originAllowed)
     .WithHeaders("Authorization", "Content-Type", CorrelationId.Header, DevBypassAuthenticationHandler.Header)
     .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
     .WithExposedHeaders(CorrelationId.Header)));
@@ -92,8 +94,8 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup") && setup.Datab
 foreach (var gap in setup.Missing)
     app.Logger.LogWarning("Demo mode: {Gap}", gap);
 
-if (allowedOrigins.Length == 0)
-    app.Logger.LogWarning("Cors:AllowedOrigins is empty; browsers on other origins cannot call this API.");
+if (allowedOrigins.Length == 0 && allowedOriginPatterns.Length == 0)
+    app.Logger.LogWarning("Cors:AllowedOrigins and Cors:AllowedOriginPatterns are empty; browsers on other origins cannot call this API.");
 
 app.UseForwardedHeaders();
 app.UseCorrelationId();
