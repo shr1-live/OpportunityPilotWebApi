@@ -8,7 +8,7 @@ Last updated: 2026-10-06.
 | Milestone | Status | Notes |
 |---|---|---|
 | M0 Inspect, scaffold | Done (earlier sessions) | Solution, Clean Architecture layers, health endpoints, ProblemDetails, demo mode |
-| M1 Auth, database, profiles | Done locally; hosted account flow awaits configuration | Supabase JWT/JWKS (RS256/ES256/EdDSA; isolated opt-in HS256 legacy support), expiring guest tokens, dev-bypass guard, GUID owner subjects, owner-scoped profiles, SqlServer + Postgres migrations. Browser signup/sign-in/refresh/reset hardening is in the web repo; live Supabase verification still needs production keys |
+| M1 Auth, database, profiles | Guest mode done; hosted account flow awaits optional configuration | Durable hashed opaque guest sessions need no auth provider; Supabase JWT/JWKS (RS256/ES256/EdDSA; isolated opt-in HS256 legacy support), dev-bypass guard, GUID owner subjects, owner-scoped profiles, SqlServer + Postgres migrations. Browser signup/sign-in/refresh/reset hardening is in the web repo; live Supabase account verification still needs production keys |
 | M2 Campaigns and source imports | **Done (verified)** | Job and Customer only; Partner/Investor/Freelance return 400 until M7 |
 | M3 Research pipeline and scoring | **Done (verified locally)** | Live fetching of real public internet pages was not exercised (tests use a loopback server and stubbed handlers) |
 | M4 Shortlist, Gemini, manual AI recovery | In progress | Deterministic CoverNote template and user approval are built; Gemini and manual AI exchange are not |

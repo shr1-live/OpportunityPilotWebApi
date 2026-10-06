@@ -58,4 +58,14 @@ duplicates themselves. Data still disappears on restart, and capabilities say so
 
 **Decision:** "Continue as guest" is offered even when Supabase sign-in is configured (`Auth:AllowGuests`, default `true`). Each guest is a random, server-signed identity with its own isolated data; set `Auth__AllowGuests=false` to require an account.
 **Why:** design round 3 (`AuthSignIn`) keeps guest access for demos next to email/Google sign-in, and the user asked for the full design to be implemented.
-**Consequence:** set `Auth__GuestSigningKey` so guest sessions survive restarts. Guest data is never merged into an account.
+**Consequence (superseded below):** the original implementation required `Auth__GuestSigningKey` for restart survival.
+Guest data is never merged into an account.
+
+## 2026-10-06 — Guest mode has no external-auth or signing-key dependency
+
+**Decision:** Until Supabase Auth is configured, guest login must work seamlessly on its own and survive Render
+restarts when the main database is durable.
+
+**Consequence:** guest credentials are now opaque 256-bit `opg_…` tokens. The database stores only SHA-256 hashes,
+random owner ids and expiry times; no plaintext credential, Supabase Auth project or manually configured guest
+signing key is required. In pure in-memory demo mode, guest sessions reset together with the data they protect.

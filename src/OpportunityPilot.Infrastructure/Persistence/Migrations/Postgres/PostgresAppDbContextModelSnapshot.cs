@@ -130,6 +130,35 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.Postgres
                     b.ToTable("job_applications", "app");
                 });
 
+            modelBuilder.Entity("OpportunityPilot.Domain.Auth.GuestSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("guest_sessions", "app");
+                });
+
             modelBuilder.Entity("OpportunityPilot.Domain.Campaigns.Campaign", b =>
                 {
                     b.Property<Guid>("Id")

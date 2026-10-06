@@ -55,12 +55,6 @@ public sealed class AuthOptions
     public string? LegacyJwtSecret { get; set; }
 
     /// <summary>
-    /// Signs guest tokens (demo mode, and next to accounts when AllowGuests). At least 32 characters. When unset a random key is
-    /// generated per process, so guest sessions end whenever the server restarts.
-    /// </summary>
-    public string? GuestSigningKey { get; set; }
-
-    /// <summary>
     /// Keep "Continue as guest" next to real accounts once SupabaseUrl is set (default true). Guests always get their
     /// own isolated identity; set false to require an account.
     /// </summary>

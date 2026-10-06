@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OpportunityPilot.Domain.Agents;
 using OpportunityPilot.Domain.Applications;
+using OpportunityPilot.Domain.Auth;
 using OpportunityPilot.Domain.Campaigns;
 using OpportunityPilot.Domain.Drafts;
 using OpportunityPilot.Domain.Opportunities;
@@ -16,6 +17,7 @@ public interface IAppDbContext
     DbSet<Profile> Profiles { get; }
     DbSet<JobApplication> JobApplications { get; }
     DbSet<AgentKey> AgentKeys { get; }
+    DbSet<GuestSession> GuestSessions { get; }
     DbSet<Campaign> Campaigns { get; }
     DbSet<Source> Sources { get; }
     DbSet<SourceItem> SourceItems { get; }

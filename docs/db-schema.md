@@ -297,6 +297,16 @@ Indexes: unique `(OwnerId, Source, ExternalId)` when `ExternalId` is present; `(
 
 Indexes: `(OwnerId, ProjectId, UpdatedAt)`; `ProjectId`.
 
+### guest_sessions — `Domain/Auth/GuestSession.cs`
+
+| Column | Type | Notes |
+|---|---|---|
+| Id, OwnerId | uuid | Random server-generated ids |
+| TokenHash | string(64) | Unique lowercase SHA-256; the opaque `opg_…` token is never stored |
+| CreatedAt, ExpiresAt | time | 30-day lifetime |
+
+Indexes: unique `TokenHash` for authentication lookup; `ExpiresAt` for bounded cleanup.
+
 ## Delete behaviour
 
 | From | To | Behaviour |
@@ -334,6 +344,7 @@ Both sets must contain the same logical migrations in the same order.
 | 4 | AddAutoSuggest | `20261005062559_AddAutoSuggest` | `20261005062613_AddAutoSuggest` | nullable `campaigns.AutoSuggestMinScore` |
 | 5 | AddOutreachDrafts | `20261006100640_AddOutreachDrafts` | `20261006100654_AddOutreachDrafts` | outreach_drafts |
 | 6 | AddSalesPipeline | `20261006105733_AddSalesPipeline` | `20261006105746_AddSalesPipeline` | sales_projects, sales_bids |
+| 7 | AddPersistentGuestSessions | `20261006123942_AddPersistentGuestSessions` | `20261006123947_AddPersistentGuestSessions` | guest_sessions |
 
 The remaining M4/M5 persistence from [M4_M5_CONTRACT.md](M4_M5_CONTRACT.md) is not built:
 Suppression, NextAction and UsageRecord.

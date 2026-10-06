@@ -44,7 +44,7 @@ Reproduce first, then isolate to one layer, then fix with a test that fails befo
 |---|---|
 | Integration tests fail at start | Docker running? (`docker info`); image `postgres:17-alpine` pullable? StartupGuardTests still pass? |
 | `dotnet run` fails to connect to the database | LocalDB installed and running (`sqllocaldb info MSSQLLocalDB`); the connection string in `appsettings.Development.json`; migrations apply on startup in Development |
-| 401 on every call | Development: header `X-Dev-User` sent and `Auth:DevBypass` true. Deployed: token issuer equals `{Auth:SupabaseUrl}/auth/v1`, audience `authenticated`; old Supabase projects need `Auth__LegacyJwtSecret`. Demo mode: guest tokens die on restart unless `Auth__GuestSigningKey` is set |
+| 401 on every call | Development: header `X-Dev-User` sent and `Auth:DevBypass` true. Deployed accounts: token issuer equals `{Auth:SupabaseUrl}/auth/v1`, audience `authenticated`; old Supabase projects need `Auth__LegacyJwtSecret`. Guest mode: token starts `opg_`, its hash exists in `app.guest_sessions`, and it has not expired |
 | 401 with an agent key | the key revoked, or the in-memory demo store restarted (keys lost); user tokens never work on `/api/v1/agent/*` or `/applications/report`, keys never work elsewhere |
 | Browser CORS error | the web origin is in `Cors:AllowedOrigins` (env `Cors__AllowedOrigins__0`…); the request only uses allowed headers |
 | 404 for a record that exists | it belongs to another `sub` (dev user names map to different owners) |
