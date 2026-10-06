@@ -31,7 +31,9 @@ public sealed class OpportunityService(IAppDbContext db, ICurrentUser user, Time
         var total = await query.CountAsync(ct);
         var ordered = string.Equals(sort, "recent", StringComparison.OrdinalIgnoreCase)
             ? query.OrderByDescending(o => o.UpdatedAt).ThenBy(o => o.Id)
-            : query.OrderByDescending(o => o.Score).ThenByDescending(o => o.Coverage).ThenByDescending(o => o.UpdatedAt).ThenBy(o => o.Id);
+            // Qualified first, then Needs verification, then Excluded — a high-scoring excluded job must not top the list.
+            : query.OrderBy(o => o.Outcome == FilterOutcome.Qualified ? 0 : o.Outcome == FilterOutcome.NeedsVerification ? 1 : 2)
+                .ThenByDescending(o => o.Score).ThenByDescending(o => o.Coverage).ThenByDescending(o => o.UpdatedAt).ThenBy(o => o.Id);
         var items = await ordered.Skip(skip).Take(take).ToListAsync(ct);
         return new OpportunityPageDto(total, items.Select(ToSummary).ToList());
     }
@@ -73,7 +75,7 @@ public sealed class OpportunityService(IAppDbContext db, ICurrentUser user, Time
         var campaign = await db.Campaigns.FirstOrDefaultAsync(c => c.Id == campaignId && c.OwnerId == user.OwnerId, ct)
             ?? throw new NotFoundException("Campaign not found.");
         var rows = await Owned.Where(o => o.CampaignId == campaignId)
-            .OrderByDescending(o => o.Score).ThenBy(o => o.Id)
+            .OrderBy(o => o.Outcome == FilterOutcome.Qualified ? 0 : o.Outcome == FilterOutcome.NeedsVerification ? 1 : 2).ThenByDescending(o => o.Score).ThenBy(o => o.Id)
             .Take(MaxExportRows)
             .ToListAsync(ct);
         var ids = rows.Select(o => o.Id).ToList();

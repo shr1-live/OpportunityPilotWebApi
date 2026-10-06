@@ -140,6 +140,11 @@ public sealed class ResearchRunner(
         var fetchesLeft = _limits.EffectiveFetches;
         var candidates = new List<Candidate>();
         var cancelled = false;
+        // Each fetching source gets an equal share of what is left of the budget, so one large board cannot starve the
+        // rest; whatever a source leaves unused flows on to the next one.
+        static bool Fetches(SourceKind k) => k is SourceKind.Url or SourceKind.Feed or SourceKind.Greenhouse or SourceKind.Lever or SourceKind.Adzuna;
+        var fetchingLeft = sources.Count(s => Fetches(s.Kind));
+        var sourcesLeft = sources.Count;
         foreach (var source in sources)
         {
             if (await CancelRequestedAsync(job, ct))
@@ -149,11 +154,16 @@ public sealed class ResearchRunner(
                 break;
             }
 
-            var room = maxCandidates - candidates.Count;
+            var totalRoom = maxCandidates - candidates.Count;
+            var room = totalRoom <= 0 ? 0 : Math.Max(1, totalRoom / Math.Max(1, sourcesLeft));
+            var fetchShare = Fetches(source.Kind) ? Math.Max(1, fetchesLeft / Math.Max(1, fetchingLeft)) : fetchesLeft;
+            if (fetchesLeft <= 0) fetchShare = 0;
+            sourcesLeft--;
+            if (Fetches(source.Kind)) fetchingLeft--;
             var gathered = room <= 0
                 ? new Gathered(SourceStatus.Skipped, $"Skipped: this run already reached its limit of {maxCandidates} candidates.", [], 0,
                     $"{source.Label}: skipped, candidate limit ({maxCandidates}) reached.", EventLevel.Warning)
-                : await GatherAsync(source, campaign.Mode, criteria, room, fetchesLeft, KeepAlive, ct);
+                : await GatherAsync(source, campaign.Mode, criteria, room, fetchShare, KeepAlive, ct);
             fetchesLeft -= gathered.Requests;
 
             var items = gathered.Items.Take(Math.Max(0, room)).ToList();
