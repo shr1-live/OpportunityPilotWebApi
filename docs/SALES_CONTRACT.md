@@ -1,8 +1,8 @@
 # Sales pipeline contract (N5)
 
-Status: **first slice implemented**. Owner-scoped manual project/bid endpoints, deterministic validation, versioned
-approval, and provider migrations are wired. Freelancer discovery/placement, tender feeds, proposal/email drafts,
-and the Sales UI remain pending.
+Status: **review workflow implemented**. Owner-scoped project/tender import, deterministic validation, versioned
+bid approval, batch approval, manual tender handoff, provider migrations, and Sales UI are wired. Official Freelancer
+discovery/placement remains credential-dependent; no external bid is claimed as placed by this build.
 
 This contract covers the first sales slice after the Candidate phase. The app is a sales assistant: it finds
 projects and tenders, prepares proposals and bids, and waits for explicit approval before any external action.
@@ -56,8 +56,9 @@ versions. External calls are idempotent by provider and external id; retries mus
 
 ## First implementation slice
 
-The first domain slice now implements owner-scoped project/bid objects, deterministic validation and versioned bid
-approval in `Domain/Sales`; SQL Server and Postgres migrations create their tables. The API exposes manual project
-creation, project listing/detail, bid creation/editing, and exact-version bid approval. A mockable Freelancer client,
-tender feeds, proposal/email drafts, Gmail sending, and a new campaign mode remain separate follow-up slices and must
-not add real credentials or live external automation until those integration decisions are confirmed.
+The domain implements owner-scoped project/bid objects, deterministic validation and versioned bid approval in
+`Domain/Sales`; SQL Server and Postgres migrations create their tables. The API accepts manual or explicitly sourced
+projects (provider imports require an external id), exposes listing/detail, bid create/edit/exact-version approval,
+`POST /api/v1/sales/bids/batch-approve`, and `POST /api/v1/sales/projects/{id}/handoff`. All five campaign modes are
+available. Freelancer discovery/placement and Gmail sending remain unavailable until their server-side credentials
+and live verification exist.

@@ -19,6 +19,8 @@ public static class TextMatch
     ];
 
     private static readonly ConcurrentDictionary<string, Regex> Cache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentQueue<string> CacheOrder = new();
+    private const int MaxCachedPatterns = 512;
 
     public static IReadOnlyList<string> Variants(string term)
     {
@@ -52,6 +54,8 @@ public static class TextMatch
 
     private static Regex For(string variant) => Cache.GetOrAdd(variant, v =>
     {
+        CacheOrder.Enqueue(v);
+        while (Cache.Count >= MaxCachedPatterns && CacheOrder.TryDequeue(out var oldest)) Cache.TryRemove(oldest, out _);
         var body = string.Join(@"\s+", v.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(Regex.Escape));
         return new Regex($@"(?<![\p{{L}}\p{{N}}]){body}(?![\p{{L}}\p{{N}}])",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250));

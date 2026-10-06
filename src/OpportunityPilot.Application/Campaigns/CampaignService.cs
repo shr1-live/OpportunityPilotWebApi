@@ -31,8 +31,7 @@ public sealed class CampaignService(IAppDbContext db, ICurrentUser user, TimePro
         var errors = new Dictionary<string, string[]>();
         if (request is null) throw new RequestValidationException(new Dictionary<string, string[]> { ["body"] = ["Request body is required."] });
         if (!Enum.IsDefined(request.Mode)) errors["mode"] = ["Unknown mode."];
-        else if (!CampaignCriteria.IsSupportedMode(request.Mode))
-            errors["mode"] = [$"{request.Mode} campaigns are not supported yet. Use Job or Customer."];
+        else if (!CampaignCriteria.IsSupportedMode(request.Mode)) errors["mode"] = ["Unknown mode."];
 
         if (request.ProfileId == Guid.Empty || !await db.Profiles.AnyAsync(p => p.Id == request.ProfileId && p.OwnerId == user.OwnerId, ct))
             errors["profileId"] = ["Profile not found."];

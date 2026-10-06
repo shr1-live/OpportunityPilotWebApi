@@ -8,7 +8,7 @@ namespace OpportunityPilot.Api.Auth;
 
 /// <summary>
 /// The local desktop agent authenticates with a personal key in the X-Agent-Key header. This scheme is not part
-/// of the fallback policy, so a key only works on endpoints that name this scheme explicitly (the report endpoint).
+/// of the fallback policy, so a key only works on endpoints that explicitly allow the local-agent scheme.
 /// </summary>
 public sealed class AgentKeyAuthenticationHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,

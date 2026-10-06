@@ -138,7 +138,8 @@ public sealed class AgentResearchService(IAppDbContext db, ICurrentUser user, Ti
     {
         var errors = new Dictionary<string, string[]>();
         if (request is null) throw new RequestValidationException(new Dictionary<string, string[]> { ["body"] = ["Request body is required."] });
-        if (request.Platform is not (JobPlatform.LinkedIn or JobPlatform.Naukri)) errors["platform"] = ["Platform must be LinkedIn or Naukri."];
+        if (request.Platform is not (JobPlatform.LinkedIn or JobPlatform.Naukri or JobPlatform.Instahyre))
+            errors["platform"] = ["Platform must be LinkedIn, Naukri or Instahyre."];
 
         var items = request.Items;
         if (items is null || items.Count == 0) errors["items"] = ["At least one item is required."];

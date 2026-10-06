@@ -18,4 +18,8 @@ public sealed class ApprovalsController(ApprovalService approvals) : ControllerB
     [HttpPost("decide")]
     public async Task<ActionResult<DecideApprovalsResult>> Decide(DecideApprovalsRequest request, CancellationToken ct) =>
         await approvals.DecideAsync(request, ct);
+
+    [HttpPost("decide-all")]
+    public async Task<ActionResult<DecideApprovalsResult>> DecideAll(DecideAllApprovalsRequest request, CancellationToken ct) =>
+        await approvals.DecideAllAsync(request, ct);
 }

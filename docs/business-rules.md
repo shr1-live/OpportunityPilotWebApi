@@ -38,7 +38,7 @@ Code: `Application/Campaigns/*`, `Domain/Campaigns/Campaign.cs`
 
 | Rule | Value |
 |---|---|
-| Modes accepted | **Job** and **Customer** only; Partner, Investor, Freelance → 400 "not supported yet" (planned M7) |
+| Modes accepted | Job, Customer, Partner, Investor and Freelance; non-Job modes use the evidence-based business criteria/weights path |
 | Mode | fixed at creation |
 | Profile | must exist and belong to the caller (400 `profileId` otherwise) |
 | Name / goal | name required ≤200; goal optional ≤2000 |

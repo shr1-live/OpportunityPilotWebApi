@@ -19,29 +19,29 @@ Audit date: 2026-10-05.
 | OQ-BE-003 | Supabase Data API exposure of schema `app` not verified | P1 | Shivanshu | Open |
 | OQ-BE-004 | Agent defaults answer questions the user never answered | P1 | Shivanshu | Closed 2026-10-05 — example config assumes nothing (`yesNo: ""`, `yearsOfExperience: null`); "I agree" boxes need `profile.acceptTermsCheckboxes` |
 | OQ-BE-005 | Fetching of the real public internet is unverified | P2 | Shivanshu | Open |
-| OQ-BE-006 | Remaining M4 + M5 AI, outreach and follow-ups not built | P2 | Claude | Open |
+| OQ-BE-006 | Remaining M4 + M5 AI, outreach and follow-ups not built | P2 | Claude | Closed 2026-10-07 — review flow and goal parser built; AI summaries remain separate |
 | OQ-BE-007 | Gemini integration absent; model id and `Ai:Mode` unused | P2 | Shivanshu | Open |
 | OQ-BE-008 | Hard-coded deployment URLs disagree | P2 | Shivanshu | Open |
 | OQ-BE-009 | No account data deletion or export; no delete endpoints | P2 | Shivanshu | Open |
-| OQ-BE-010 | No continuous integration | P2 | Shivanshu | Open |
-| OQ-BE-011 | API lets the user move an Applied opportunity back to New | P2 | Shivanshu | Open |
+| OQ-BE-010 | No continuous integration | P2 | Shivanshu | Closed 2026-10-07 — GitHub Actions added |
+| OQ-BE-011 | API lets the user move an Applied opportunity back to New | P2 | Shivanshu | Closed 2026-10-07 — backwards pipeline moves rejected |
 | OQ-BE-012 | Agent security-check and daily-limit paths are untested | P2 | Claude | Open |
 | OQ-BE-013 | Research slice not deployed; status docs dated 2026-10-01 | P2 | Shivanshu | Open |
 | OQ-BE-014 | No research resume endpoint (plan §16) | P3 | Claude | Open |
-| OQ-BE-015 | Evidence holds only the first 2000 characters | P3 | Claude | Open |
-| OQ-BE-016 | Regex cache in `TextMatch` grows without bound | P3 | Claude | Open |
-| OQ-BE-017 | Model-binding 400s reveal internal type names | P3 | Claude | Open |
-| OQ-BE-018 | Forwarded headers trusted from any source | P3 | Claude | Open |
+| OQ-BE-015 | Evidence holds only the first 2000 characters | P3 | Claude | Closed 2026-10-07 — bounded storage raised to 8000 |
+| OQ-BE-016 | Regex cache in `TextMatch` grows without bound | P3 | Claude | Closed 2026-10-07 — bounded at 512 patterns |
+| OQ-BE-017 | Model-binding 400s reveal internal type names | P3 | Claude | Closed 2026-10-07 — formatter exception messages disabled |
+| OQ-BE-018 | Forwarded headers trusted from any source | P3 | Claude | Closed 2026-10-07 — X-Forwarded-For no longer trusted |
 | OQ-BE-019 | Supabase JWKS refresh blocks a request thread | P3 | Claude | Open |
 | OQ-BE-020 | No retention for import batches, research jobs and events | P3 | Shivanshu | Open |
 | OQ-BE-021 | Single global rate limit; no research quota | P3 | Shivanshu | Open |
 | OQ-BE-022 | Agent report can mark any owned opportunity Applied | P3 | Shivanshu | Closed 2026-10-05 — only shortlisted Job opportunities move to Applied (integration test added) |
 | OQ-BE-023 | M6–M8 capabilities not built (Gmail, other modes, Mongo, scheduler) | P3 | Shivanshu | Open |
-| OQ-BE-024 | InstaHyre exists in the API enum but not in the agent | P3 | Shivanshu | Open |
+| OQ-BE-024 | InstaHyre exists in the API enum but not in the agent | P3 | Shivanshu | Closed 2026-10-07 — adapter/API path added; live selectors need U3 |
 | OQ-BE-025 | Agent crashes on a corrupt local log line | P3 | Claude | Closed 2026-10-05 — unreadable lines are reported and skipped |
-| OQ-BE-026 | Stale code comments describe removed behaviour | P3 | Claude | Open |
+| OQ-BE-026 | Stale code comments describe removed behaviour | P3 | Claude | Closed 2026-10-07 |
 | OQ-BE-027 | Agent README config table is broken | P3 | Claude | Closed 2026-10-05 — table repaired, new setting documented |
-| OQ-BE-028 | Tooling not pinned: no dotnet-ef manifest, no formatter config | P3 | Claude | Open |
+| OQ-BE-028 | Tooling not pinned: no dotnet-ef manifest, no formatter config | P3 | Claude | Closed 2026-10-07 — tool manifest and editorconfig added |
 
 ## Entries
 
@@ -71,7 +71,7 @@ Audit date: 2026-10-05.
 - **What is needed** One manual run in Development against a few real public pages and feeds (TLS, real redirects, real HTML, charsets) and a note of the results. Tests use stubbed handlers and a loopback server only.
 
 ### OQ-BE-006 — Remaining M4 + M5 AI, outreach and follow-ups not built
-- **Priority** P2 · **Owner** Claude · **Status** Open
+- **Priority** P2 · **Owner** Claude · **Status** Closed 2026-10-07
 - **Where** `docs/M4_M5_CONTRACT.md`; CoverNote persistence, template generation, approval and agent handoff are built, but there is no `ILlmClient`, Suppression, NextAction, UsageRecord, other outreach channel or cross-opportunity draft inbox
 - **What is needed** Build the remaining contract slices, keeping the deterministic CoverNote path as the no-AI fallback.
 
@@ -91,12 +91,12 @@ Audit date: 2026-10-05.
 - **What is needed** Decide the retention and deletion policy, then add deletion/export for an account (profiles, campaigns and everything below them, applications, keys) and delete endpoints for profiles and campaigns. Note `campaigns → profiles` is Restrict.
 
 ### OQ-BE-010 — No continuous integration
-- **Priority** P2 · **Owner** Shivanshu · **Status** Open
+- **Priority** P2 · **Owner** Shivanshu · **Status** Closed 2026-10-07
 - **Where** repository root (no `.github/` or other pipeline)
 - **What is needed** Choose a CI host; run `dotnet build`, `dotnet test` (Docker available for Testcontainers) and `agent` `npm run typecheck && npm test` on every push.
 
 ### OQ-BE-011 — API lets the user move an Applied opportunity back to New
-- **Priority** P2 · **Owner** Shivanshu · **Status** Open
+- **Priority** P2 · **Owner** Shivanshu · **Status** Closed 2026-10-07
 - **Where** `Domain/Opportunities/Opportunity.cs:102-111`, `Application/Opportunities/OpportunityService.cs:46-65`
 - **What is needed** Decide which transitions are allowed. Any status → any status is accepted; the web app was patched not to downgrade Applied (HANDOFF), but the API does not enforce it.
 
@@ -116,22 +116,22 @@ Audit date: 2026-10-05.
 - **What is needed** Decide whether `POST /api/v1/research-jobs/{id}/resume` is still wanted; today a job resumes only when its lease expires.
 
 ### OQ-BE-015 — Evidence holds only the first 2000 characters
-- **Priority** P3 · **Owner** Claude · **Status** Open
+- **Priority** P3 · **Owner** Claude · **Status** Closed 2026-10-07
 - **Where** `Domain/Research/Evidence.cs:13`, `Application/Research/ResearchRunner.cs:352-374`
 - **What is needed** Snippet-level evidence windows, so a skill matched late in a long posting is visible in the cited excerpt.
 
 ### OQ-BE-016 — Regex cache in `TextMatch` grows without bound
-- **Priority** P3 · **Owner** Claude · **Status** Open
+- **Priority** P3 · **Owner** Claude · **Status** Closed 2026-10-07
 - **Where** `Application/Research/Rules/TextMatch.cs:21,40`
 - **What is needed** Every distinct user-supplied term ever scored is cached for the life of the process, across all users. Bound the cache (size limit or LRU).
 
 ### OQ-BE-017 — Model-binding 400s reveal internal type names
-- **Priority** P3 · **Owner** Claude · **Status** Open
+- **Priority** P3 · **Owner** Claude · **Status** Closed 2026-10-07
 - **Where** `Api/Program.cs:31-32`
 - **What is needed** A body that fails JSON conversion returns e.g. "could not be converted to OpportunityPilot.Application.Profiles.CreateProfileRequest". Set `JsonOptions.AllowInputFormatterExceptionMessages = false` or customise the invalid-model-state response.
 
 ### OQ-BE-018 — Forwarded headers trusted from any source
-- **Priority** P3 · **Owner** Claude · **Status** Open
+- **Priority** P3 · **Owner** Claude · **Status** Closed 2026-10-07
 - **Where** `Api/Program.cs:60-65`
 - **What is needed** `KnownIPNetworks`/`KnownProxies` are cleared so `X-Forwarded-For` is accepted from anyone. On Render the last hop is the proxy's, but if the app is reachable directly the per-IP rate limit for anonymous calls can be spoofed. Restrict when the hosting network is known.
 
@@ -161,7 +161,7 @@ Audit date: 2026-10-05.
 - **What is needed** Gmail (M6), Partner/Investor/Freelance modes (M7), Mongo archive and a reliable scheduler (M8) are capability entries only. The first manual sales project/bid/approve endpoints and migrations now exist; Freelancer discovery/placement, tender feeds, proposal drafts, and Freelance mode remain unimplemented.
 
 ### OQ-BE-024 — InstaHyre exists in the API enum but not in the agent
-- **Priority** P3 · **Owner** Shivanshu · **Status** Open
+- **Priority** P3 · **Owner** Shivanshu · **Status** Closed 2026-10-07
 - **Where** `Domain/Applications/ApplicationPlatform.cs:7`, `Domain/Opportunities/JobPlatform.cs`, `Application/Capabilities/CapabilityService.cs:101-103`
 - **What is needed** Decide whether to build an InstaHyre adapter; `JobPlatform` has no InstaHyre value, so research cannot target it.
 
@@ -171,7 +171,7 @@ Audit date: 2026-10-05.
 - **What is needed** One unparsable line in `.data/applications.jsonl` makes every command that opens the store throw. Skip and report bad lines instead.
 
 ### OQ-BE-026 — Stale code comments describe removed behaviour
-- **Priority** P3 · **Owner** Claude · **Status** Open
+- **Priority** P3 · **Owner** Claude · **Status** Closed 2026-10-07
 - **Where** `Application/Configuration/SetupState.cs:3-6` (says affected requests get 503 "Setup required"; demo mode replaced that), `Api/Auth/AgentKeyAuthenticationHandler.cs:10-11` (says the key works on "the report endpoint" only; `/api/v1/agent/*` also accepts it)
 - **What is needed** Update the comments.
 
@@ -181,6 +181,6 @@ Audit date: 2026-10-05.
 - **What is needed** A paragraph inside the `config.json` reference table splits it; the rows after it render as plain text. The agent folder belongs to another engineer, so it was not edited in the docs pass.
 
 ### OQ-BE-028 — Tooling not pinned: no dotnet-ef manifest, no formatter config
-- **Priority** P3 · **Owner** Claude · **Status** Open
+- **Priority** P3 · **Owner** Claude · **Status** Closed 2026-10-07
 - **Where** repository root (no `.config/dotnet-tools.json`, no `.editorconfig`)
 - **What is needed** Pin `dotnet-ef` 10.x in a local tool manifest so migration commands are reproducible, and add an `.editorconfig` matching the current style.

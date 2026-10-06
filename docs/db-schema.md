@@ -259,6 +259,31 @@ Indexes: `(OpportunityId, OccurredAt)`; `OwnerId`.
 
 Indexes: unique `(OpportunityId, Channel)`; `(OwnerId, OpportunityId, UpdatedAt)`; `(OwnerId, State, UpdatedAt)`.
 
+### suppressions — `Domain/Outreach/Suppression.cs`
+
+Owner-scoped normalized recipients that block approval. Unique `(OwnerId, NormalizedRecipient)`.
+
+| Column | Type / rule |
+|---|---|
+| Id, OwnerId | uuid |
+| NormalizedRecipient | required, 320; trimmed lower-case |
+| Reason | required storage, 200 |
+| CreatedAt | UTC |
+
+### next_actions — `Domain/Outreach/NextAction.cs`
+
+In-app reminders only; no notification delivery is implied.
+
+| Column | Type / rule |
+|---|---|
+| Id, OwnerId | uuid |
+| OpportunityId | FK → opportunities, Cascade |
+| Kind | FollowUp, CheckStatus, Call, Other |
+| Note | 500 |
+| DueAt, CreatedAt, CompletedAt | UTC |
+| TimeZone | required IANA/browser zone, 100 |
+| State | Open, Done, Cancelled |
+
 ### sales_projects — `Domain/Sales/SalesProject.cs`
 
 | Column | Type | Notes |
@@ -314,7 +339,7 @@ Indexes: unique `TokenHash` for authentication lookup; `ExpiresAt` for bounded c
 | campaigns | sources, import_batches, research_jobs, evidence, opportunities | Cascade |
 | sources | source_items | Cascade (and deleted explicitly by `SourceService`, because InMemory runs no cascades) |
 | research_jobs | research_events | Cascade |
-| opportunities | opportunity_evidence, activities, outreach_drafts | Cascade |
+| opportunities | opportunity_evidence, activities, outreach_drafts, next_actions | Cascade |
 | sales_projects | sales_bids | Cascade |
 | evidence | opportunity_evidence | Restrict |
 | profiles | campaigns | Restrict |
@@ -345,6 +370,7 @@ Both sets must contain the same logical migrations in the same order.
 | 5 | AddOutreachDrafts | `20261006100640_AddOutreachDrafts` | `20261006100654_AddOutreachDrafts` | outreach_drafts |
 | 6 | AddSalesPipeline | `20261006105733_AddSalesPipeline` | `20261006105746_AddSalesPipeline` | sales_projects, sales_bids |
 | 7 | AddPersistentGuestSessions | `20261006123942_AddPersistentGuestSessions` | `20261006123947_AddPersistentGuestSessions` | guest_sessions |
+| 8 | AddOutreachFollowUps | `20261006182426_AddOutreachFollowUps` | `20261006182652_AddOutreachFollowUps` | suppressions, next_actions, evidence excerpt 8000 |
 
 The remaining M4/M5 persistence from [M4_M5_CONTRACT.md](M4_M5_CONTRACT.md) is not built:
 Suppression, NextAction and UsageRecord.

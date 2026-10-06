@@ -6,6 +6,7 @@ using OpportunityPilot.Domain.Auth;
 using OpportunityPilot.Domain.Campaigns;
 using OpportunityPilot.Domain.Drafts;
 using OpportunityPilot.Domain.Opportunities;
+using OpportunityPilot.Domain.Outreach;
 using OpportunityPilot.Domain.Profiles;
 using OpportunityPilot.Domain.Research;
 using OpportunityPilot.Domain.Sales;
@@ -36,6 +37,8 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
     public DbSet<OpportunityEvidence> OpportunityEvidence => Set<OpportunityEvidence>();
     public DbSet<Activity> Activities => Set<Activity>();
     public DbSet<OutreachDraft> OutreachDrafts => Set<OutreachDraft>();
+    public DbSet<Suppression> Suppressions => Set<Suppression>();
+    public DbSet<NextAction> NextActions => Set<NextAction>();
     public DbSet<SalesProject> SalesProjects => Set<SalesProject>();
     public DbSet<SalesBid> SalesBids => Set<SalesBid>();
 
@@ -269,6 +272,30 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
             e.HasIndex(d => new { d.OwnerId, d.OpportunityId, d.UpdatedAt });
             e.HasIndex(d => new { d.OwnerId, d.State, d.UpdatedAt });
             e.HasIndex(d => new { d.OpportunityId, d.Channel }).IsUnique();
+        });
+
+        modelBuilder.Entity<Suppression>(e =>
+        {
+            e.ToTable("suppressions");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.NormalizedRecipient).HasMaxLength(Suppression.MaxRecipientLength).IsRequired();
+            e.Property(x => x.Reason).HasMaxLength(Suppression.MaxReasonLength).IsRequired();
+            e.HasIndex(x => new { x.OwnerId, x.NormalizedRecipient }).IsUnique();
+        });
+
+        modelBuilder.Entity<NextAction>(e =>
+        {
+            e.ToTable("next_actions");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.Note).HasMaxLength(NextAction.MaxNoteLength).IsRequired();
+            e.Property(x => x.TimeZone).HasMaxLength(NextAction.MaxTimeZoneLength).IsRequired();
+            e.HasOne<Opportunity>().WithMany().HasForeignKey(x => x.OpportunityId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.OwnerId, x.State, x.DueAt });
+            e.HasIndex(x => new { x.OpportunityId, x.DueAt });
         });
 
         modelBuilder.Entity<SalesProject>(e =>

@@ -8,7 +8,7 @@ public sealed record AgentCampaignDto(Guid Id, string Name, OpportunityMode Mode
 
 public sealed record AgentPostingItem(string ExternalId, string Url, string Title, string Company, string? Location, string? Description);
 
-/// <param name="Platform">LinkedIn or Naukri: the site the agent read the postings from in the user's own browser.</param>
+/// <param name="Platform">LinkedIn, Naukri or InstaHyre: the site the agent read in the user's own browser.</param>
 public sealed record AgentPostingsRequest(JobPlatform Platform, IReadOnlyList<AgentPostingItem> Items, bool QueueResearch);
 
 /// <param name="Accepted">Distinct postings stored (duplicates in one batch count once).</param>

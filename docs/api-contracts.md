@@ -102,12 +102,21 @@ profile is confirmed. No message is sent; approval only makes the exact approved
 
 | Method | Path | Auth | Request | Response / errors |
 |---|---|---|---|---|
-| POST | `/api/v1/opportunities/{id}/drafts` | user | `{ channel: "CoverNote", recipient? }` | 201 `DraftDto`; 400 (not CoverNote, non-Job, unconfirmed profile); 404; 409 (one already exists) |
+| POST | `/api/v1/opportunities/{id}/drafts` | user | `{ channel: Email|CoverNote|LinkedInMessage|ContactForm, recipient? }` | 201 `DraftDto`; confirmed profile required; CoverNote is Job-only; 404/409 |
 | GET | `/api/v1/opportunities/{id}/drafts` | user | — | 200 `DraftDto[]`, newest first; 404 |
 | GET | `/api/v1/drafts/{id}` | user | — | 200 `DraftDto`; 404 |
 | PUT | `/api/v1/drafts/{id}` | user | `{ recipient?, subject?, body, expectedVersion }` | 200 `DraftDto`; material edits increment version and clear approval; 400; 404; 409 |
 | POST | `/api/v1/drafts/{id}/approve` | user | `{ version }` | 200 `DraftDto`; approval is bound to SHA-256 of exact content and version; 400; 404; 409 |
 | POST | `/api/v1/drafts/{id}/revoke-approval` | user | — | 200 `DraftDto`; 404; 409 |
+| GET | `/api/v1/drafts` | user | query `state?`, `take`, `skip` | cross-opportunity `DraftPageDto` |
+| POST | `/api/v1/drafts/batch-approve` | user | `{ items: [{ id, version }] }` | independent exact-version results; blocked/stale items are skipped with reasons |
+| GET/POST/DELETE | `/api/v1/suppressions[/{id}]` | user | recipient/reason on POST | owner suppression list |
+| GET/POST | `/api/v1/opportunities/{id}/activities` | user | `kind, detail, occurredAt?` on POST | activity history; observed stages update status |
+| GET/POST | `/api/v1/opportunities/{id}/next-actions` | user | next-action fields on POST | opportunity reminders |
+| GET/PATCH | `/api/v1/next-actions[/{id}]` | user | `state?`, `dueAt?` on PATCH | owner due-date list and state changes |
+| POST | `/api/v1/goal-previews` | user | `{ profileId, goal, mode? }` | Gemini when configured, validated deterministic fallback otherwise |
+| GET | `/api/v1/ai/status` | user | — | provider/model/fallback status |
+| GET/DELETE | `/api/v1/account-data/export`, `/api/v1/account-data` | user | `{ confirm: true }` on DELETE | portable JSON export or permanent owned-data deletion |
 | DELETE | `/api/v1/drafts/{id}` | user | — | 204; 404 |
 
 ### Approval queue
@@ -126,8 +135,10 @@ remain unavailable.
 | Method | Path | Auth | Request | Response / errors |
 |---|---|---|---|---|
 | GET | `/api/v1/sales/projects` | user | query `state?`, `source?`, `take` (1–200, default 50), `skip` | 200 `SalesProjectDto[]`, newest updated first |
-| POST | `/api/v1/sales/projects` | user | `CreateSalesProjectRequest` (`source` must be `Manual`) | 201 `SalesProjectDto`; 400; 409 duplicate provider id |
+| POST | `/api/v1/sales/projects` | user | `CreateSalesProjectRequest`; non-manual sources require `externalId` | 201 `SalesProjectDto`; 400; 409 duplicate provider id |
 | GET | `/api/v1/sales/projects/{id}` | user | — | 200 `SalesProjectDto`; 404 |
+| POST | `/api/v1/sales/bids/batch-approve` | user | `{ items: [{ id, version }] }` | exact-version per-item results |
+| POST | `/api/v1/sales/projects/{id}/handoff` | user | — | marks manual tender/provider handoff |
 | POST | `/api/v1/sales/projects/{id}/bid` | user | `CreateSalesBidRequest` | 200 project with the new Draft bid; 400; 404 |
 | PUT | `/api/v1/sales/bids/{id}` | user | `UpdateSalesBidRequest` with `expectedVersion` | 200 project; 400; 404; 409 stale version |
 | POST | `/api/v1/sales/bids/{id}/approve` | user | `{ version }` | 200 project; 404; 409 stale version |
@@ -177,5 +188,5 @@ Nothing below exists in the code; do not call it or document it as available.
 
 | Source | Endpoints |
 |---|---|
-| [M4_M5_CONTRACT.md](M4_M5_CONTRACT.md) | goal previews, opportunity AI summary, drafts, suppressions, activities, next actions, `/api/v1/ai/status` |
+| [M4_M5_CONTRACT.md](M4_M5_CONTRACT.md) | opportunity AI summary and persisted Gemini usage remain; goal previews, drafts, suppressions, activities, next actions and AI status are built |
 | Implementation plan §16 | `POST /api/v1/research-jobs/{id}/resume`, AI exchanges, Gmail integration, sending |

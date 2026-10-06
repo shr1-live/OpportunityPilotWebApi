@@ -104,6 +104,8 @@ public class Opportunity : IOwned
     {
         if (!Enum.IsDefined(status)) throw new ArgumentOutOfRangeException(nameof(status));
         if (status == Status) return null;
+        if (Status == OpportunityStatus.Applied && status is OpportunityStatus.New or OpportunityStatus.Suggested or OpportunityStatus.Shortlisted or OpportunityStatus.Dismissed)
+            throw new InvalidOperationException("An applied opportunity cannot be moved back to an earlier pipeline stage.");
         var from = Status;
         Status = status;
         UpdatedAt = utcNow;

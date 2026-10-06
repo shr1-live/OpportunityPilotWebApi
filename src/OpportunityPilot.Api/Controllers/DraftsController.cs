@@ -21,6 +21,11 @@ public sealed class DraftsController(DraftService drafts) : ControllerBase
     [HttpGet("drafts/{id:guid}")]
     public async Task<ActionResult<DraftDto>> Get(Guid id, CancellationToken ct) => await drafts.GetAsync(id, ct);
 
+    [HttpGet("drafts")]
+    public async Task<ActionResult<DraftPageDto>> ListAll([FromQuery] OpportunityPilot.Domain.Drafts.DraftState? state,
+        [FromQuery] int take = 50, [FromQuery] int skip = 0, CancellationToken ct = default) =>
+        await drafts.ListAsync(state, take, skip, ct);
+
     [HttpPut("drafts/{id:guid}")]
     public async Task<ActionResult<DraftDto>> Update(Guid id, UpdateDraftRequest request, CancellationToken ct) =>
         await drafts.UpdateAsync(id, request, ct);
@@ -28,6 +33,10 @@ public sealed class DraftsController(DraftService drafts) : ControllerBase
     [HttpPost("drafts/{id:guid}/approve")]
     public async Task<ActionResult<DraftDto>> Approve(Guid id, ApproveDraftRequest request, CancellationToken ct) =>
         await drafts.ApproveAsync(id, request, ct);
+
+    [HttpPost("drafts/batch-approve")]
+    public async Task<ActionResult<IReadOnlyList<BatchApproveDraftResult>>> BatchApprove(BatchApproveDraftRequest request, CancellationToken ct) =>
+        Ok(await drafts.BatchApproveAsync(request, ct));
 
     [HttpPost("drafts/{id:guid}/revoke-approval")]
     public async Task<ActionResult<DraftDto>> Revoke(Guid id, CancellationToken ct) => await drafts.RevokeAsync(id, ct);
