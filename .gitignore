@@ -483,3 +483,4 @@ $RECYCLE.BIN/
 
 # Claude Code hook log (local only)
 .claude/hooks/write.log
+scratch-*
