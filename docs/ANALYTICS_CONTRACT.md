@@ -2,7 +2,7 @@
 
 > Design spec for one slice (branch `feature/analytics-api`). After merge, `docs/api-contracts.md` and
 > `docs/business-rules.md` are authoritative. Drives the v2 overview designs
-> (`opportunitypilot-ui_1/opportunitypilot-ui/Main.dc.html`, `OverviewSales.dc.html`).
+> (`opportunitypilot-ui/Main.dc.html`, `OverviewSales.dc.html`).
 
 **Every number is computed from stored data for the calling owner. Nothing is estimated or sampled.**
 Where the data does not exist (e.g. contacted/responded for Sales before Outreach), the field is `null`
