@@ -16,6 +16,22 @@ Code: `Application/Profiles/ProfileService.cs`
 | Confirmation | `confirmed: true` stamps `confirmedAt` with the save time; any save without it clears `confirmedAt` |
 | Edit | `expectedVersion` must equal the stored version, otherwise 409 |
 
+## Analytics
+
+Code: `Application/Analytics/AnalyticsService.cs`; detailed response semantics: [ANALYTICS_CONTRACT.md](ANALYTICS_CONTRACT.md).
+
+| Rule | Value |
+|---|---|
+| Workspace | required, case-insensitive `Candidate` (Job mode) or `Sales` (Customer mode) |
+| Window | `days` 1–365, default 30; applies to new opportunities, status/application activity and completed research jobs |
+| Ownership | every query is scoped to the authenticated owner; another owner's records never contribute |
+| Unknown values | `null`, never estimated (for example Sales contacted/responded until Outreach exists) |
+| Rates | numerator / denominator, rounded to 4 decimals; `null` when the denominator is zero or either input is unknown |
+| Funnel history | current status or stored status activity proves a stage was reached; later Dismissed/Closed does not erase an earlier reached stage |
+| Fit histogram | 10 bands: 0–9 through 90–100; Qualified opportunities only |
+| Sources | ordered by items read, maximum 20; qualified yield is deduplicated by opportunity |
+| Candidate activity chart | 14 UTC calendar days, oldest first |
+
 ## Campaigns
 
 Code: `Application/Campaigns/*`, `Domain/Campaigns/Campaign.cs`

@@ -32,11 +32,12 @@ Query enums that fail to bind return 400 from model binding.
 | POST | `/api/v1/auth/guest` | anonymous | — | 200 `{ token, expiresAt }`; 404 when guest sign-in is off (Supabase configured or dev bypass on) |
 | GET | `/openapi/v1.json` | anonymous | — | OpenAPI document, **Development only** |
 
-### Overview and profiles
+### Overview, analytics and profiles
 
 | Method | Path | Auth | Request | Response |
 |---|---|---|---|---|
 | GET | `/api/v1/overview` | user | — | 200 `{ profiles, applied, needsManual, campaigns, shortlisted }` |
+| GET | `/api/v1/analytics/overview` | user | query `workspace=Candidate|Sales` (required), `days` (1–365, default 30) | 200 `AnalyticsOverviewDto`; 400 field errors |
 | GET | `/api/v1/profiles` | user | — | 200 `ProfileSummaryDto[]`, latest update first |
 | GET | `/api/v1/profiles/{id}` | user | — | 200 `ProfileDto`; 404 |
 | POST | `/api/v1/profiles` | user | `CreateProfileRequest` | 201 `ProfileDto` + `Location`; 400 |
@@ -96,6 +97,7 @@ JSON is camelCase and enums are strings. `?` marks nullable.
 |---|---|
 | CapabilitiesDto | `environment, databaseProvider, aiMode, setupRequired: string[], guestSignIn: bool, temporaryStorage: bool, items: CapabilityDto[]` |
 | CapabilityDto | `key, name, category, status (Ready, Configured, NotConfigured, Disabled, ManualHandoff, NotBuilt, LocalAgent), detail, can: string[], cannot: string[]` |
+| AnalyticsOverviewDto | `workspace, days, generatedAt, campaignCount, kpis, funnel, fitHistogram, unknownCriteria, sources, applicationsPerDay?, attention, activeResearch?, qualifiedByIndustry?, signalsFound?`; fields that stored data cannot answer are `null`, never estimates (full semantics in `ANALYTICS_CONTRACT.md`) |
 | ProfileSummaryDto | `id, type, name, version, confirmedAt?, updatedAt` |
 | ProfileDto | `id, type, name, data (JSON object), version, confirmedAt?, createdAt, updatedAt` |
 | CreateProfileRequest | `type (Product, Business, Candidate, Services), name, data?, confirmed` |
