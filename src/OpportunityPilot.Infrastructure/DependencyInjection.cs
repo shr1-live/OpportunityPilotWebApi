@@ -52,6 +52,8 @@ public static class DependencyInjection
     {
         var connectionString = configuration["ConnectionStrings:Main"];
         var provider = ResolveProvider(configuration[$"{DatabaseOptions.Section}:{nameof(DatabaseOptions.Provider)}"], connectionString);
+        // Report the provider actually in use, not a raw (possibly mistyped) setting.
+        services.PostConfigure<DatabaseOptions>(o => o.Provider = provider);
         if (!string.IsNullOrWhiteSpace(connectionString) && provider == "Postgres")
         {
             try { connectionString = PostgresConnectionString.Normalize(connectionString); }
