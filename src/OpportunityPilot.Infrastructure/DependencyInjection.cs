@@ -32,13 +32,26 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// The connection string decides when it is unambiguous (a postgres:// URI or a Postgres host), so a mistyped
+    /// Database__Provider cannot take the service down; otherwise the setting decides, case-insensitively.
+    /// </summary>
+    public static string ResolveProvider(string? configured, string? connectionString)
+    {
+        var cs = connectionString?.Trim() ?? "";
+        if (cs.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) || cs.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase)
+            || cs.Contains("supabase.co", StringComparison.OrdinalIgnoreCase) || cs.Contains("supabase.com", StringComparison.OrdinalIgnoreCase))
+            return "Postgres";
+        var value = configured?.Trim();
+        if (string.Equals(value, "Postgres", StringComparison.OrdinalIgnoreCase) || string.Equals(value, "Postgresql", StringComparison.OrdinalIgnoreCase)) return "Postgres";
+        if (string.IsNullOrEmpty(value) || string.Equals(value, "SqlServer", StringComparison.OrdinalIgnoreCase)) return "SqlServer";
+        throw new InvalidOperationException($"Setup required: Database:Provider must be SqlServer or Postgres (got '{value}').");
+    }
+
     private static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration, SetupState setup)
     {
-        var provider = configuration[$"{DatabaseOptions.Section}:{nameof(DatabaseOptions.Provider)}"] ?? "SqlServer";
-        if (provider is not ("SqlServer" or "Postgres"))
-            throw new InvalidOperationException($"Setup required: Database:Provider must be SqlServer or Postgres (got '{provider}').");
-
         var connectionString = configuration["ConnectionStrings:Main"];
+        var provider = ResolveProvider(configuration[$"{DatabaseOptions.Section}:{nameof(DatabaseOptions.Provider)}"], connectionString);
         if (!string.IsNullOrWhiteSpace(connectionString) && provider == "Postgres")
         {
             try { connectionString = PostgresConnectionString.Normalize(connectionString); }
