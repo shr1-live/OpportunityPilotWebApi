@@ -31,8 +31,10 @@ public static class AuthSetup
             setup.AuthMissing("Auth__SupabaseUrl is not set, so sign-in is guest-only.");
         }
 
-        // Demo mode: with no real sign-in provider (and outside local dev bypass), guests get random server-signed identities.
-        var guests = new GuestTokens(enabled: !supabaseConfigured && !devBypass, auth.GuestSigningKey);
+        // Guests get random server-signed identities: always in demo mode, and next to real accounts unless
+        // Auth:AllowGuests is false. Never with the local dev bypass.
+        var guests = new GuestTokens(enabled: (!supabaseConfigured || auth.AllowGuests) && !devBypass, auth.GuestSigningKey);
+        setup.GuestsEnabled = guests.Enabled;
         builder.Services.AddSingleton(guests);
 
         var schemes = new List<string>();

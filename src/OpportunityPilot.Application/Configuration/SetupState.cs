@@ -10,6 +10,9 @@ public sealed class SetupState
 
     public bool DatabaseConfigured { get; private set; } = true;
     public bool AuthConfigured { get; private set; } = true;
+
+    /// <summary>Guests can sign in: always in demo mode, and next to real accounts unless Auth:AllowGuests is false.</summary>
+    public bool GuestsEnabled { get; set; }
     public IReadOnlyList<string> Missing => _missing;
 
     public void DatabaseMissing(string reason)

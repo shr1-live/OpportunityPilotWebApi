@@ -10,7 +10,7 @@ public sealed class AuthController(GuestTokens guests, TimeProvider clock) : Con
 {
     public sealed record GuestSessionDto(string Token, DateTime ExpiresAt);
 
-    /// <summary>Demo mode only: a fresh random guest identity. 404 once real sign-in is configured.</summary>
+    /// <summary>A fresh random guest identity. 404 when guests are switched off (Auth:AllowGuests=false with accounts on).</summary>
     [HttpPost("guest")]
     [AllowAnonymous]
     public ActionResult<GuestSessionDto> Guest()
