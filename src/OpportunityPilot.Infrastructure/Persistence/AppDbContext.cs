@@ -3,9 +3,11 @@ using OpportunityPilot.Application.Abstractions;
 using OpportunityPilot.Domain.Agents;
 using OpportunityPilot.Domain.Applications;
 using OpportunityPilot.Domain.Campaigns;
+using OpportunityPilot.Domain.Drafts;
 using OpportunityPilot.Domain.Opportunities;
 using OpportunityPilot.Domain.Profiles;
 using OpportunityPilot.Domain.Research;
+using OpportunityPilot.Domain.Sales;
 
 namespace OpportunityPilot.Infrastructure.Persistence;
 
@@ -31,6 +33,9 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
     public DbSet<Opportunity> Opportunities => Set<Opportunity>();
     public DbSet<OpportunityEvidence> OpportunityEvidence => Set<OpportunityEvidence>();
     public DbSet<Activity> Activities => Set<Activity>();
+    public DbSet<OutreachDraft> OutreachDrafts => Set<OutreachDraft>();
+    public DbSet<SalesProject> SalesProjects => Set<SalesProject>();
+    public DbSet<SalesBid> SalesBids => Set<SalesBid>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -232,6 +237,60 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
             e.HasOne<Opportunity>().WithMany().HasForeignKey(a => a.OpportunityId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(a => new { a.OpportunityId, a.OccurredAt });
             e.HasIndex(a => a.OwnerId);
+        });
+
+        modelBuilder.Entity<OutreachDraft>(e =>
+        {
+            e.ToTable("outreach_drafts");
+            e.HasKey(d => d.Id);
+            e.Property(d => d.Id).ValueGeneratedNever();
+            e.Property(d => d.Channel).HasConversion<string>().HasMaxLength(32);
+            e.Property(d => d.State).HasConversion<string>().HasMaxLength(32);
+            e.Property(d => d.Source).HasConversion<string>().HasMaxLength(32);
+            e.Property(d => d.Recipient).HasMaxLength(OutreachDraft.MaxRecipientLength);
+            e.Property(d => d.Subject).HasMaxLength(OutreachDraft.MaxSubjectLength);
+            e.Property(d => d.Body).HasMaxLength(OutreachDraft.MaxBodyLength).IsRequired();
+            e.Property(d => d.ApprovedHash).HasMaxLength(OutreachDraft.HashLength);
+            e.Property(d => d.ClaimsJson).IsRequired();
+            e.Property(d => d.Version).IsConcurrencyToken();
+            e.HasOne<Opportunity>().WithMany().HasForeignKey(d => d.OpportunityId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(d => new { d.OwnerId, d.OpportunityId, d.UpdatedAt });
+            e.HasIndex(d => new { d.OwnerId, d.State, d.UpdatedAt });
+            e.HasIndex(d => new { d.OpportunityId, d.Channel }).IsUnique();
+        });
+
+        modelBuilder.Entity<SalesProject>(e =>
+        {
+            e.ToTable("sales_projects");
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Id).ValueGeneratedNever();
+            e.Property(p => p.Source).HasConversion<string>().HasMaxLength(32);
+            e.Property(p => p.ExternalId).HasMaxLength(SalesProject.MaxExternalIdLength);
+            e.Property(p => p.Title).HasMaxLength(SalesProject.MaxTitleLength).IsRequired();
+            e.Property(p => p.Buyer).HasMaxLength(SalesProject.MaxBuyerLength);
+            e.Property(p => p.Description).HasMaxLength(SalesProject.MaxDescriptionLength);
+            e.Property(p => p.Url).HasMaxLength(SalesProject.MaxUrlLength);
+            e.Property(p => p.State).HasConversion<string>().HasMaxLength(32);
+            e.Property(p => p.EvidenceJson).IsRequired();
+            e.Property(p => p.Version).IsConcurrencyToken();
+            e.HasIndex(p => new { p.OwnerId, p.UpdatedAt });
+            e.HasIndex(p => new { p.OwnerId, p.Source, p.ExternalId }).IsUnique();
+        });
+
+        modelBuilder.Entity<SalesBid>(e =>
+        {
+            e.ToTable("sales_bids");
+            e.HasKey(b => b.Id);
+            e.Property(b => b.Id).ValueGeneratedNever();
+            e.Property(b => b.Amount).HasPrecision(18, 2);
+            e.Property(b => b.Currency).HasMaxLength(SalesBid.MaxCurrencyLength).IsRequired();
+            e.Property(b => b.Proposal).HasMaxLength(SalesBid.MaxProposalLength).IsRequired();
+            e.Property(b => b.ClaimsJson).IsRequired();
+            e.Property(b => b.State).HasConversion<string>().HasMaxLength(32);
+            e.Property(b => b.ApprovedHash).HasMaxLength(SalesBid.HashLength);
+            e.Property(b => b.Version).IsConcurrencyToken();
+            e.HasOne<SalesProject>().WithMany().HasForeignKey(b => b.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(b => new { b.OwnerId, b.ProjectId, b.UpdatedAt });
         });
     }
 }

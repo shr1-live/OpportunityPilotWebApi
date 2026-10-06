@@ -44,7 +44,8 @@ public sealed class SourceService(IAppDbContext db, ICurrentUser user, TimeProvi
                 else if (url.Length > Source.MaxUrlLength) errors["url"] = [$"URL must be at most {Source.MaxUrlLength} characters."];
                 else if (fetcher.CheckUrl(url) is { } reason) errors["url"] = [reason];
                 break;
-            case SourceKind.Greenhouse or SourceKind.Lever or SourceKind.Adzuna when mode != OpportunityMode.Job:
+            case SourceKind.Greenhouse or SourceKind.Lever or SourceKind.Adzuna or SourceKind.Ashby or SourceKind.SmartRecruiters or
+                SourceKind.Recruitee or SourceKind.Workable or SourceKind.Remotive or SourceKind.RemoteOk when mode != OpportunityMode.Job:
                 errors["kind"] = [$"{request.Kind} sources list jobs, so they can only be added to Job campaigns."];
                 break;
             case SourceKind.Greenhouse:
@@ -65,6 +66,20 @@ public sealed class SourceService(IAppDbContext db, ICurrentUser user, TimeProvi
             case SourceKind.Adzuna:
                 // Searches with the campaign's keywords and first location; nothing to store.
                 break;
+            case SourceKind.Ashby:
+                Board(SourceKind.Ashby, BoardIdentifiers.Ashby(request.Url), "Ashby organization slug (e.g. ashby) or jobs.ashbyhq.com URL");
+                break;
+            case SourceKind.SmartRecruiters:
+                Board(SourceKind.SmartRecruiters, BoardIdentifiers.SmartRecruiters(request.Url), "SmartRecruiters company identifier or careers URL");
+                break;
+            case SourceKind.Recruitee:
+                Board(SourceKind.Recruitee, BoardIdentifiers.Recruitee(request.Url), "Recruitee account slug or careers URL");
+                break;
+            case SourceKind.Workable:
+                Board(SourceKind.Workable, BoardIdentifiers.Workable(request.Url), "Workable account slug or apply.workable.com URL");
+                break;
+            case SourceKind.Remotive or SourceKind.RemoteOk:
+                break;
             case SourceKind.Csv:
                 errors["kind"] = ["CSV sources are created by committing an import preview (POST /api/v1/imports/preview)."];
                 break;
@@ -74,6 +89,12 @@ public sealed class SourceService(IAppDbContext db, ICurrentUser user, TimeProvi
             default:
                 errors["kind"] = ["Unknown source kind."];
                 break;
+        }
+
+        void Board(SourceKind kind, string? value, string help)
+        {
+            url = value;
+            if (url is null) errors["url"] = [$"Enter a valid {help}."];
         }
 
         var label = request.Label?.Trim();
@@ -130,6 +151,12 @@ public sealed class SourceService(IAppDbContext db, ICurrentUser user, TimeProvi
             SourceKind.Greenhouse => $"Greenhouse board {url}",
             SourceKind.Lever => $"Lever company {url}",
             SourceKind.Adzuna => "Adzuna search",
+            SourceKind.Ashby => $"Ashby board {url}",
+            SourceKind.SmartRecruiters => $"SmartRecruiters company {url}",
+            SourceKind.Recruitee => $"Recruitee company {url}",
+            SourceKind.Workable => $"Workable company {url}",
+            SourceKind.Remotive => "Remotive remote jobs",
+            SourceKind.RemoteOk => "Remote OK jobs",
             _ => kind.ToString()
         };
     }

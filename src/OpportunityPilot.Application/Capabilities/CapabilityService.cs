@@ -104,6 +104,13 @@ public sealed class CapabilityService(
                     "Server keys missing (Adzuna__AppId and Adzuna__AppKey). Adzuna sources can be added but fail until the keys are set.",
                     [], ["Search Adzuna"]),
 
+            PublicBoard("ashby", "Ashby job boards", "a company's public Ashby careers board"),
+            PublicBoard("smartrecruiters", "SmartRecruiters postings", "a company's public SmartRecruiters postings"),
+            PublicBoard("recruitee", "Recruitee offers", "a company's public Recruitee offers"),
+            PublicBoard("workable", "Workable jobs", "a company's public Workable careers widget"),
+            PublicBoard("remotive", "Remotive remote jobs", "the public Remotive remote-jobs feed", company: false),
+            PublicBoard("remoteok", "Remote OK jobs", "the public Remote OK jobs feed", company: false),
+
             new("gmail", "Gmail", "Outreach",
                 f.GmailEnabled ? CapabilityStatus.NotBuilt : CapabilityStatus.Disabled,
                 "OAuth drafts and reviewed sending. Milestone M6. Nothing is sent from this build.",
@@ -137,5 +144,11 @@ public sealed class CapabilityService(
             setup.DatabaseConfigured ? database.Value.Provider : "In-memory (temporary)",
             geminiKeyPresent ? "Gemini (key present)" : "Rules",
             setup.Missing, setup.GuestsEnabled, !setup.DatabaseConfigured, items);
+
+        static CapabilityDto PublicBoard(string key, string name, string detail, bool company = true) =>
+            new(key, name, "Sources", CapabilityStatus.Ready,
+                $"Reads {detail}; no key or login is needed.",
+                [company ? "Read open jobs from one company per source" : "Read the board-wide public feed"],
+                ["Apply for you — open the application page yourself"]);
     }
 }

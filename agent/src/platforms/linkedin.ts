@@ -112,7 +112,11 @@ export function linkedIn(base = 'https://www.linkedin.com'): PlatformAdapter {
       let steps = 0
       for (; steps < MAX_STEPS; steps++) {
         await sleep(between(500, 1000))
-        const filled = await fillStep(page, dialog, ctx.answers, { followCompanies: ctx.followCompanies, acceptTerms: ctx.acceptTerms })
+        const filled = await fillStep(page, dialog, ctx.answers, {
+          followCompanies: ctx.followCompanies,
+          acceptTerms: ctx.acceptTerms,
+          coverNote: ctx.coverNote,
+        })
         if (filled.unanswered.length) {
           const remaining = await tryResume(dialog, ctx, filled.unanswered)
           if (remaining.length) {

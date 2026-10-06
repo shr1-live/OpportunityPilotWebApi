@@ -20,6 +20,8 @@ export interface ShortlistItem {
   url: string
   title: string
   organization: string
+  /** Exact user-approved cover note; absent when no current approval exists. */
+  coverNote: string | null
 }
 
 const TIMEOUT = 90_000 // a sleeping free host can take a minute to wake

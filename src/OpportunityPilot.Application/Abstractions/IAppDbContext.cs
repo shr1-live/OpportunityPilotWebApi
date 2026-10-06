@@ -2,9 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using OpportunityPilot.Domain.Agents;
 using OpportunityPilot.Domain.Applications;
 using OpportunityPilot.Domain.Campaigns;
+using OpportunityPilot.Domain.Drafts;
 using OpportunityPilot.Domain.Opportunities;
 using OpportunityPilot.Domain.Profiles;
 using OpportunityPilot.Domain.Research;
+using OpportunityPilot.Domain.Sales;
 
 namespace OpportunityPilot.Application.Abstractions;
 
@@ -24,6 +26,9 @@ public interface IAppDbContext
     DbSet<Opportunity> Opportunities { get; }
     DbSet<OpportunityEvidence> OpportunityEvidence { get; }
     DbSet<Activity> Activities { get; }
+    DbSet<OutreachDraft> OutreachDrafts { get; }
+    DbSet<SalesProject> SalesProjects { get; }
+    DbSet<SalesBid> SalesBids { get; }
 
     /// <summary>The research runner clears tracked state before recording a failure, so a half-applied batch is not saved.</summary>
     Microsoft.EntityFrameworkCore.ChangeTracking.ChangeTracker ChangeTracker { get; }

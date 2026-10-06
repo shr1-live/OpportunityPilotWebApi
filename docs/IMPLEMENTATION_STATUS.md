@@ -3,18 +3,18 @@
 Backend repository (`OpportunityPilotWebApi`). Milestones follow the implementation plan §20.
 "Verified" means the commands below were run and passed in this repository; anything not run is called out.
 
-Last updated: 2026-10-01.
+Last updated: 2026-10-06.
 
 | Milestone | Status | Notes |
 |---|---|---|
 | M0 Inspect, scaffold | Done (earlier sessions) | Solution, Clean Architecture layers, health endpoints, ProblemDetails, demo mode |
-| M1 Auth, database, profiles | Done for the API (earlier sessions) | Supabase JWT/JWKS, guest and dev-bypass sign-in, owner-scoped profiles, SqlServer + Postgres migrations. Browser sign-in flow lives in the web app and was not re-verified here |
+| M1 Auth, database, profiles | Done locally; hosted account flow awaits configuration | Supabase JWT/JWKS (RS256/ES256/EdDSA; isolated opt-in HS256 legacy support), expiring guest tokens, dev-bypass guard, GUID owner subjects, owner-scoped profiles, SqlServer + Postgres migrations. Browser signup/sign-in/refresh/reset hardening is in the web repo; live Supabase verification still needs production keys |
 | M2 Campaigns and source imports | **Done (verified)** | Job and Customer only; Partner/Investor/Freelance return 400 until M7 |
 | M3 Research pipeline and scoring | **Done (verified locally)** | Live fetching of real public internet pages was not exercised (tests use a loopback server and stubbed handlers) |
-| M4 Shortlist, Gemini, manual AI recovery | Not started | List/detail/filter/status/export endpoints already exist (contract); Gemini and the manual AI exchange do not |
-| M5 Outreach and pipeline tracking | Not started | Activities exist for status changes, research and agent applications only |
+| M4 Shortlist, Gemini, manual AI recovery | In progress | Deterministic CoverNote template and user approval are built; Gemini and manual AI exchange are not |
+| M5 Outreach and pipeline tracking | In progress | Versioned CoverNote persistence and agent handoff are built; other outreach channels, inbox and follow-ups are not |
 | M6 Gmail | Not started | |
-| M7 Partner, Investor, Freelance modes | Not started | |
+| M7 Partner, Investor, Freelance modes | In progress | Manual sales project/bid/approve API plus provider migrations exist; campaign mode, Freelancer/tender providers, and the Sales UI are not wired |
 | M8 Mongo archive, scheduled research | Not started | The in-process processor is not a scheduler (plan §18, §29) |
 | M9 Deployment readiness | Not started for this slice | `render.yaml` and the Dockerfile exist from M0; the research slice has not been deployed |
 
@@ -49,7 +49,8 @@ Design spec: `docs/RESEARCH_CONTRACT.md`. What exists now: [api-contracts.md](ap
 | `dotnet ef migrations add AddResearchPipeline …` (SqlServer and Postgres contexts) | Generated; reviewed: create-table/create-index only |
 | `dotnet ef database update --context SqlServerAppDbContext` on a scratch LocalDB database, then `database drop` | All three SqlServer migrations applied; scratch database dropped |
 
-Postgres migrations are applied by every integration test run (`Database:MigrateOnStartup` in the test factory).
+Postgres migrations are applied by every integration test run (`Database:MigrateOnStartup` in the test factory). The current
+sales migration has been generated for both providers; a Docker-backed migration/integration run is still required.
 
 Integration coverage for this slice: Job research over pasted postings (Qualified / Excluded / NeedsVerification,
 scores, coverage, evidence links, reasons); rerun without duplicates keeping Shortlisted; CSV preview errors, commit,

@@ -32,10 +32,22 @@ public sealed class ResearchOptions
     public string GreenhouseApiBase { get; set; } = DefaultGreenhouseApiBase;
     public string LeverApiBase { get; set; } = DefaultLeverApiBase;
     public string AdzunaApiBase { get; set; } = DefaultAdzunaApiBase;
+    public string AshbyApiBase { get; set; } = DefaultAshbyApiBase;
+    public string SmartRecruitersApiBase { get; set; } = DefaultSmartRecruitersApiBase;
+    public string RecruiteeHostSuffix { get; set; } = DefaultRecruiteeHostSuffix;
+    public string WorkableApiBase { get; set; } = DefaultWorkableApiBase;
+    public string RemotiveApiBase { get; set; } = DefaultRemotiveApiBase;
+    public string RemoteOkApiBase { get; set; } = DefaultRemoteOkApiBase;
 
     public const string DefaultGreenhouseApiBase = "https://boards-api.greenhouse.io";
     public const string DefaultLeverApiBase = "https://api.lever.co";
     public const string DefaultAdzunaApiBase = "https://api.adzuna.com";
+    public const string DefaultAshbyApiBase = "https://api.ashbyhq.com";
+    public const string DefaultSmartRecruitersApiBase = "https://api.smartrecruiters.com";
+    public const string DefaultRecruiteeHostSuffix = "recruitee.com";
+    public const string DefaultWorkableApiBase = "https://apply.workable.com";
+    public const string DefaultRemotiveApiBase = "https://remotive.com";
+    public const string DefaultRemoteOkApiBase = "https://remoteok.com";
 
     public int EffectiveCandidates => Math.Clamp(MaxCandidates, 1, CeilingCandidates);
     public int EffectiveFetches => Math.Clamp(MaxFetches, 1, CeilingFetches);

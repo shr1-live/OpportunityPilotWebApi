@@ -142,6 +142,7 @@ To send real applications, set "iUnderstandAccountRisk": true in config.json, th
         company: s.organization,
         location: null,
         opportunityId: s.opportunityId,
+        coverNote: s.coverNote ?? undefined,
       }))
       const summary = await applyToShortlist({ adapter, config, store: store(), jobs, submit, limit, headless: flag('--headless') })
       if (summary.stoppedBecause) process.exitCode = 2

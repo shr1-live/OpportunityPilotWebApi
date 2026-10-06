@@ -79,6 +79,14 @@ public class AgentResearchApiTests(PostgresApiFactory factory) : IClassFixture<P
         Assert.Empty((await agent.GetJson("/api/v1/agent/shortlist?platform=LinkedIn")).EnumerateArray());
         await (await user.PatchAsJsonAsync($"/api/v1/opportunities/{dotnet.Id()}/status", new { status = "Shortlisted" })).Json(HttpStatusCode.OK);
 
+        var draft = await (await user.PostAsJsonAsync($"/api/v1/opportunities/{dotnet.Id()}/drafts",
+            new { channel = "CoverNote" })).Json(HttpStatusCode.Created);
+        Assert.Equal("Draft", draft.Str("state"));
+        Assert.Equal("Template", draft.Str("source"));
+        Assert.Contains("Senior .NET Developer", draft.Str("body"));
+        Assert.Contains("Fictional test profile", draft.Str("body"));
+        Assert.False(draft.GetProperty("sendReady").GetBoolean());
+
         var shortlist = (await agent.GetJson("/api/v1/agent/shortlist?platform=LinkedIn")).EnumerateArray().ToList();
         var entry = Assert.Single(shortlist);
         Assert.Equal(dotnet.Id(), entry.GetProperty("opportunityId").GetGuid());
@@ -87,6 +95,25 @@ public class AgentResearchApiTests(PostgresApiFactory factory) : IClassFixture<P
         Assert.Equal("LinkedIn", entry.Str("platform"));
         Assert.Equal("Acme", entry.Str("organization"));
         Assert.Equal("https://www.linkedin.com/jobs/view/4012345678/", entry.Str("url"));
+        Assert.Equal(JsonValueKind.Null, entry.GetProperty("coverNote").ValueKind);
+
+        var approved = await (await user.PostAsJsonAsync($"/api/v1/drafts/{draft.Id()}/approve", new { version = draft.Int("version") }))
+            .Json(HttpStatusCode.OK);
+        Assert.Equal("Approved", approved.Str("state"));
+        Assert.False(approved.GetProperty("sendReady").GetBoolean());
+        entry = Assert.Single((await agent.GetJson("/api/v1/agent/shortlist?platform=LinkedIn")).EnumerateArray().ToList());
+        Assert.Equal(approved.Str("body"), entry.Str("coverNote"));
+
+        var edited = await (await user.PutAsJsonAsync($"/api/v1/drafts/{draft.Id()}", new
+        {
+            recipient = (string?)null,
+            subject = (string?)null,
+            body = approved.Str("body") + "\nReviewed by the candidate.",
+            expectedVersion = approved.Int("version")
+        })).Json(HttpStatusCode.OK);
+        Assert.Equal("Draft", edited.Str("state"));
+        entry = Assert.Single((await agent.GetJson("/api/v1/agent/shortlist?platform=LinkedIn")).EnumerateArray().ToList());
+        Assert.Equal(JsonValueKind.Null, entry.GetProperty("coverNote").ValueKind);
         Assert.Empty((await agent.GetJson("/api/v1/agent/shortlist?platform=Naukri")).EnumerateArray());
 
         var report = await agent.PostAsJsonAsync("/api/v1/applications/report", new

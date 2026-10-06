@@ -16,6 +16,22 @@ Code: `Application/Profiles/ProfileService.cs`
 | Confirmation | `confirmed: true` stamps `confirmedAt` with the save time; any save without it clears `confirmedAt` |
 | Edit | `expectedVersion` must equal the stored version, otherwise 409 |
 
+## Analytics
+
+Code: `Application/Analytics/AnalyticsService.cs`; detailed response semantics: [ANALYTICS_CONTRACT.md](ANALYTICS_CONTRACT.md).
+
+| Rule | Value |
+|---|---|
+| Workspace | required, case-insensitive `Candidate` (Job mode) or `Sales` (Customer mode) |
+| Window | `days` 1–365, default 30; applies to new opportunities, status/application activity and completed research jobs |
+| Ownership | every query is scoped to the authenticated owner; another owner's records never contribute |
+| Unknown values | `null`, never estimated (for example Sales contacted/responded until Outreach exists) |
+| Rates | numerator / denominator, rounded to 4 decimals; `null` when the denominator is zero or either input is unknown |
+| Funnel history | current status or stored status activity proves a stage was reached; later Dismissed/Closed does not erase an earlier reached stage |
+| Fit histogram | 10 bands: 0–9 through 90–100; Qualified opportunities only |
+| Sources | ordered by items read, maximum 20; qualified yield is deduplicated by opportunity |
+| Candidate activity chart | 14 UTC calendar days, oldest first |
+
 ## Campaigns
 
 Code: `Application/Campaigns/*`, `Domain/Campaigns/Campaign.cs`
@@ -27,6 +43,7 @@ Code: `Application/Campaigns/*`, `Domain/Campaigns/Campaign.cs`
 | Profile | must exist and belong to the caller (400 `profileId` otherwise) |
 | Name / goal | name required ≤200; goal optional ≤2000 |
 | Result limit | 1–100, default 25: caps **new** opportunities saved per run |
+| Auto-suggest threshold | Job only; null = off, otherwise 1–100. A new Qualified result at or above it moves New → Suggested |
 | Criteria lists | each list ≤50 entries, each entry ≤100 characters; trimmed; blanks dropped; case-insensitive duplicates dropped |
 | Work modes | Remote, Hybrid, Onsite; input is canonicalised ignoring case, spaces and hyphens ("on-site" → Onsite) |
 | Candidate years | 0–60, optional |
@@ -45,6 +62,18 @@ Code: `Application/Campaigns/CampaignWeights.cs`
 - Keys are matched case-insensitively; a key outside the mode is a 400; each value must be 0–100; a key left out counts as 0.
 - All zero → 400. Otherwise values are scaled to integers summing to exactly 100 (largest remainder, ties broken by key).
 - Stored JSON that cannot be read falls back to the defaults.
+
+## Public job boards
+
+Code: `Application/Research/Boards/*`, `Application/Sources/SourceService.cs`.
+
+| Source | Input and behavior |
+|---|---|
+| Greenhouse, Lever, Ashby, SmartRecruiters, Recruitee, Workable | One company slug or trusted careers URL; normalized to `[a-z0-9-]{1,100}` so callers cannot redirect the fetcher to another host |
+| Adzuna | Up to 3 campaign keywords and first non-Remote location; needs server-side keys and fails safely when absent |
+| Remotive, Remote OK | Board-wide public feed; no key or company slug |
+| All fetched sources | Job campaigns only; safe-fetch address/redirect/size/time limits apply; share the run fetch and candidate budgets fairly |
+| Apply path | LinkedIn/Naukri use the local agent; every public board exposes an external application URL for the user |
 
 ## Scoring
 
@@ -237,7 +266,20 @@ Code: `Application/Agents/AgentResearchService.cs`
 
 Job opportunities with status Shortlisted, a platform and an external id, optionally one platform; best score first, max 200;
 URL is `applyUrl ?? url` (items with neither are left out). Excluded: any job the owner already has an **Applied** application
-for (same platform and external id).
+for (same platform and external id). `coverNote` is returned only when the opportunity has a CoverNote whose state,
+approved version and SHA-256 content hash all still match.
+
+### Cover notes
+
+Code: `Application/Drafts/DraftService.cs`, `Domain/Drafts/OutreachDraft.cs`
+
+- One CoverNote per opportunity. Creation is limited to Job opportunities and requires the campaign profile to be confirmed.
+- The deterministic template uses the sourced role title, verified organization/skill facts, confirmed campaign years,
+  and the confirmed profile's own offer/summary and availability text. Missing profile summary is shown as a placeholder.
+- Drafts start at version 1. A material recipient/subject/body edit increments the version and clears approval.
+- Approval stores the version and SHA-256 of `id|version|channel|recipient|subject|body`; a mismatch is reported as Draft.
+- No outbound delivery occurs. A valid approved CoverNote is exposed to the desktop agent, which fills it only into an
+  explicitly cover-letter-like free-text field. Unapproved, edited or revoked text is never returned to the agent.
 
 ### Reports
 

@@ -80,6 +80,7 @@ Indexes: unique `KeyHash`; `OwnerId`.
 | CriteriaJson | json | `CampaignCriteria`, camelCase |
 | WeightsJson | json | `{ "<criterionKey>": int }`, sums to 100 |
 | ResultLimit | int | 1–100, default 25 |
+| AutoSuggestMinScore | int, null | Job-only approval threshold, 1–100; null disables auto-suggest |
 | Version | int | concurrency token |
 | CreatedAt, UpdatedAt | time | |
 
@@ -91,12 +92,12 @@ Indexes: `(OwnerId, CreatedAt)`; `ProfileId`.
 |---|---|---|
 | Id, OwnerId | uuid | |
 | CampaignId | uuid | FK → campaigns, Cascade |
-| Kind | string(32) | `SourceKind`: Paste, Csv, Url, Feed, Agent |
+| Kind | string(32) | `SourceKind`: Paste, Csv, Url, Feed, Agent, Greenhouse, Lever, Adzuna, Ashby, SmartRecruiters, Recruitee, Workable, Remotive, RemoteOk |
 | Label | string(200) | |
 | Url | string(1000), null | Url and Feed only |
 | Text | string(50000), null | Paste only (SqlServer `nvarchar(max)`) |
 | PermissionNote | string(500), null | |
-| Platform | string(32), null | `JobPlatform`; set on Agent sources only |
+| Platform | string(32), null | `JobPlatform`; set on Agent source rows; fetched board candidates carry their platform into opportunities |
 | Status | string(32) | `SourceStatus`: Pending, Ok, Failed, Skipped |
 | LastFetchedAt | time, null | |
 | SafeError | string(500), null | user-facing reason; cleared on Ok |
@@ -236,6 +237,66 @@ Indexes: PK `(OpportunityId, EvidenceId)`; `EvidenceId`. Not owner-stamped.
 
 Indexes: `(OpportunityId, OccurredAt)`; `OwnerId`.
 
+### outreach_drafts — `Domain/Drafts/OutreachDraft.cs`
+
+| Column | Type | Notes |
+|---|---|---|
+| Id, OwnerId | uuid | |
+| OpportunityId | uuid | FK → opportunities, Cascade |
+| Channel | string(32) | `DraftChannel`; CoverNote is the implemented generator |
+| Recipient | string(320), null | |
+| RecipientVerified | bool | false for the current CoverNote flow |
+| Subject | string(300), null | |
+| Body | string(10000) | exact user-editable draft text |
+| Version | int | concurrency token; starts at 1 |
+| State | string(32) | Draft or Approved |
+| ApprovedHash | string(64), null | SHA-256 hex of exact approved content |
+| ApprovedVersion | int, null | |
+| ApprovedAt | time, null | |
+| Source | string(32) | Template or Gemini (current generator is Template) |
+| ClaimsJson | json | `{ text, basis, evidenceId? }[]` |
+| CreatedAt, UpdatedAt | time | |
+
+Indexes: unique `(OpportunityId, Channel)`; `(OwnerId, OpportunityId, UpdatedAt)`; `(OwnerId, State, UpdatedAt)`.
+
+### sales_projects — `Domain/Sales/SalesProject.cs`
+
+| Column | Type | Notes |
+|---|---|---|
+| Id, OwnerId | uuid | |
+| Source | string(32) | `Freelancer`, `TenderFeed`, `PublicUrl` or `Manual` |
+| ExternalId | string(200), null | Provider id; unique per owner/source when present |
+| Title | string(300) | |
+| Buyer | string(300), null | |
+| Description | string(8000), null | |
+| Url | string(1000), null | |
+| DeadlineUtc | time, null | |
+| State | string(32) | `New`, `Shortlisted`, `BidPrepared`, `BidApproved`, `BidPlaced`, `ManualHandoff`, `Dismissed` |
+| EvidenceJson | json | Evidence references; no inferred claims |
+| Version | int | concurrency token |
+| CreatedAt, UpdatedAt | time | |
+
+Indexes: unique `(OwnerId, Source, ExternalId)` when `ExternalId` is present; `(OwnerId, UpdatedAt)`.
+
+### sales_bids — `Domain/Sales/SalesBid.cs`
+
+| Column | Type | Notes |
+|---|---|---|
+| Id, OwnerId | uuid | |
+| ProjectId | uuid | FK → sales_projects, Cascade |
+| Amount | decimal(18,2) | User-supplied; never inferred |
+| Currency | string(3) | ISO alphabetic code |
+| DeliveryDays | int | User-supplied, 1–3650 |
+| Proposal | string(10000) | exact versioned text |
+| ClaimsJson | json | claim basis/evidence |
+| Version | int | concurrency token; starts at 1 |
+| State | string(32) | Draft, Approved, Placed or Failed |
+| ApprovedHash | string(64), null | SHA-256 of exact amount, timing, text and version |
+| ApprovedVersion, ApprovedAt | int/time, null | |
+| CreatedAt, UpdatedAt | time | |
+
+Indexes: `(OwnerId, ProjectId, UpdatedAt)`; `ProjectId`.
+
 ## Delete behaviour
 
 | From | To | Behaviour |
@@ -243,7 +304,8 @@ Indexes: `(OpportunityId, OccurredAt)`; `OwnerId`.
 | campaigns | sources, import_batches, research_jobs, evidence, opportunities | Cascade |
 | sources | source_items | Cascade (and deleted explicitly by `SourceService`, because InMemory runs no cascades) |
 | research_jobs | research_events | Cascade |
-| opportunities | opportunity_evidence, activities | Cascade |
+| opportunities | opportunity_evidence, activities, outreach_drafts | Cascade |
+| sales_projects | sales_bids | Cascade |
 | evidence | opportunity_evidence | Restrict |
 | profiles | campaigns | Restrict |
 
@@ -253,7 +315,7 @@ No endpoint deletes profiles, campaigns or opportunities today (see [open-questi
 
 | Concern | SqlServer (`SqlServerAppDbContext`, local LocalDB) | Postgres (`PostgresAppDbContext`, Supabase and tests) | InMemory (`InMemoryAppDbContext`, demo mode) |
 |---|---|---|---|
-| JSON columns | `nvarchar(max)` | `jsonb` (8 columns: StructuredDataJson, CriteriaJson, WeightsJson, RowsJson, CountsJson, BreakdownJson, FactsJson, GapsJson) | text |
+| JSON columns | `nvarchar(max)` | `jsonb` (11 mapped properties across research, drafts, and sales: StructuredDataJson, CriteriaJson, WeightsJson, RowsJson, CountsJson, BreakdownJson, FactsJson, GapsJson, ClaimsJson, EvidenceJson) | text |
 | Strings > 4000 | `nvarchar(max)` (Source.Text, SourceItem.Description) | `character varying(n)` | — |
 | DateTime | `datetime2` + UTC converter | `timestamp with time zone` | — |
 | Filtered unique indexes | `[ExternalId] IS NOT NULL`, `[State] IN (N'Queued', N'Running')` | `"ExternalId" IS NOT NULL`, `"State" IN ('Queued', 'Running')` | **not enforced** |
@@ -269,6 +331,9 @@ Both sets must contain the same logical migrations in the same order.
 | 1 | InitialProfiles | `20260930120109_InitialProfiles` | `20260930120115_InitialProfiles` | schema `app`, profiles |
 | 2 | AddApplicationsAndAgentKeys | `20261001065453_AddApplicationsAndAgentKeys` | `20261001065506_AddApplicationsAndAgentKeys` | job_applications, agent_keys |
 | 3 | AddResearchPipeline | `20261001105144_AddResearchPipeline` | `20261001105153_AddResearchPipeline` | campaigns, sources, source_items, import_batches, research_jobs, research_events, evidence, opportunities, opportunity_evidence, activities |
+| 4 | AddAutoSuggest | `20261005062559_AddAutoSuggest` | `20261005062613_AddAutoSuggest` | nullable `campaigns.AutoSuggestMinScore` |
+| 5 | AddOutreachDrafts | `20261006100640_AddOutreachDrafts` | `20261006100654_AddOutreachDrafts` | outreach_drafts |
+| 6 | AddSalesPipeline | `20261006105733_AddSalesPipeline` | `20261006105746_AddSalesPipeline` | sales_projects, sales_bids |
 
-All three only create tables and indexes. Planned but not built: `AddOutreachAndAi` from
-[M4_M5_CONTRACT.md](M4_M5_CONTRACT.md) (OutreachDraft, Suppression, NextAction, UsageRecord).
+The remaining M4/M5 persistence from [M4_M5_CONTRACT.md](M4_M5_CONTRACT.md) is not built:
+Suppression, NextAction and UsageRecord.

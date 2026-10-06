@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using OpportunityPilot.Application.Abstractions;
 using OpportunityPilot.Application.Configuration;
@@ -10,6 +11,9 @@ namespace OpportunityPilot.Api.Auth;
 
 public static class AuthSetup
 {
+    private static readonly string[] ModernSupabaseAlgorithms =
+        [SecurityAlgorithms.RsaSha256, SecurityAlgorithms.EcdsaSha256, "EdDSA"];
+
     public static void AddOpportunityPilotAuth(this WebApplicationBuilder builder, SetupState setup)
     {
         var auth = builder.Configuration.GetSection(AuthOptions.Section).Get<AuthOptions>() ?? new AuthOptions();
@@ -73,14 +77,31 @@ public static class AuthSetup
                         ValidateIssuer = true,
                         ValidateAudience = true,
                         ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
                         RequireSignedTokens = true,
+                        RequireExpirationTime = true,
                         ClockSkew = TimeSpan.FromMinutes(1),
-                        IssuerSigningKeyResolver = (_, _, kid, _) =>
+                        ValidAlgorithms = string.IsNullOrWhiteSpace(auth.LegacyJwtSecret)
+                            ? ModernSupabaseAlgorithms
+                            : [.. ModernSupabaseAlgorithms, SecurityAlgorithms.HmacSha256],
+                        IssuerSigningKeyResolver = (_, token, kid, _) =>
                         {
-                            var keys = jwks.GetKeys(kid).ToList();
-                            if (!string.IsNullOrWhiteSpace(auth.LegacyJwtSecret))
-                                keys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(auth.LegacyJwtSecret)));
-                            return keys;
+                            var algorithm = (token as JsonWebToken)?.Alg;
+                            if (!string.Equals(algorithm, SecurityAlgorithms.HmacSha256, StringComparison.Ordinal))
+                                return jwks.GetKeys(kid);
+
+                            return string.IsNullOrWhiteSpace(auth.LegacyJwtSecret)
+                                ? []
+                                : [new SymmetricSecurityKey(Encoding.UTF8.GetBytes(auth.LegacyJwtSecret))];
+                        }
+                    };
+                    o.Events = new JwtBearerEvents
+                    {
+                        OnTokenValidated = context =>
+                        {
+                            var subject = context.Principal?.FindFirst("sub")?.Value;
+                            if (!Guid.TryParse(subject, out _)) context.Fail("The token subject is invalid.");
+                            return Task.CompletedTask;
                         }
                     };
                 });

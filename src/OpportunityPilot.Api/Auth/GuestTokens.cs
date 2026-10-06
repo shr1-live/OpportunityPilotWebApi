@@ -54,7 +54,9 @@ public sealed class GuestTokens
         ValidateIssuer = true,
         ValidateAudience = true,
         ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
         RequireSignedTokens = true,
+        RequireExpirationTime = true,
         ClockSkew = TimeSpan.FromMinutes(1)
     };
 }

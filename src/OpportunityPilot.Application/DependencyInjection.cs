@@ -5,6 +5,8 @@ using OpportunityPilot.Application.Applications;
 using OpportunityPilot.Application.Approvals;
 using OpportunityPilot.Application.Campaigns;
 using OpportunityPilot.Application.Capabilities;
+using OpportunityPilot.Application.Drafts;
+using OpportunityPilot.Application.Sales;
 using OpportunityPilot.Application.Imports;
 using OpportunityPilot.Application.Opportunities;
 using OpportunityPilot.Application.Profiles;
@@ -30,6 +32,8 @@ public static class DependencyInjection
         services.AddScoped<AgentResearchService>();
         services.AddScoped<ApprovalService>();
         services.AddScoped<AnalyticsService>();
+        services.AddScoped<DraftService>();
+        services.AddScoped<SalesService>();
         services.AddScoped<JobBoardGatherer>();
         services.AddScoped<IResearchRunner, ResearchRunner>();
         services.AddSingleton<CapabilityService>();

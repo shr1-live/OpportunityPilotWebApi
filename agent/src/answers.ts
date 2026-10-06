@@ -40,6 +40,7 @@ export function normalize(text: string): string {
 }
 
 const EXPERIENCE = /\b(years?|yrs)\b.*\b(experience|worked|working)\b|\bexperience\b.*\b(years?|yrs)\b/
+const COVER_NOTE = /\b(cover\s*(?:letter|note)|message\s+to\s+(?:the\s+)?hiring|why\s+(?:do\s+)?you\s+want\s+to\s+(?:work|join)|additional\s+message)\b/
 
 function isYesNo(options: string[] | undefined): boolean {
   if (!options || options.length < 2) return false
@@ -47,9 +48,13 @@ function isYesNo(options: string[] | undefined): boolean {
   return set.size === 2 && set.has('yes') && set.has('no')
 }
 
-export function answerFor(q: Question, answers: Answers): string | undefined {
+export function answerFor(q: Question, answers: Answers, approvedCoverNote?: string): string | undefined {
   const label = normalize(q.label)
   if (!label) return undefined
+
+  // A draft can fill only an explicitly cover-note-like free-text field. The API returns it only
+  // while the user's approval hash matches the current saved version.
+  if (approvedCoverNote && (q.kind === 'textarea' || q.kind === 'text') && COVER_NOTE.test(label)) return approvedCoverNote
 
   for (const rule of answers.fields) {
     if (rule.match.some((m) => m.trim() && label.includes(normalize(m)))) return rule.value

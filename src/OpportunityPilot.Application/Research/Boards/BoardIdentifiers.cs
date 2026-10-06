@@ -13,6 +13,9 @@ public static partial class BoardIdentifiers
 
     private static readonly string[] GreenhouseHosts = ["boards.greenhouse.io", "job-boards.greenhouse.io"];
     private static readonly string[] LeverHosts = ["jobs.lever.co"];
+    private static readonly string[] AshbyHosts = ["jobs.ashbyhq.com"];
+    private static readonly string[] SmartRecruitersHosts = ["careers.smartrecruiters.com", "jobs.smartrecruiters.com"];
+    private static readonly string[] WorkableHosts = ["apply.workable.com"];
 
     /// <summary>
     /// <c>stripe</c>, <c>https://boards.greenhouse.io/stripe</c>, <c>job-boards.greenhouse.io/stripe/jobs/123</c> and
@@ -22,6 +25,18 @@ public static partial class BoardIdentifiers
 
     /// <summary><c>leverdemo</c> and <c>https://jobs.lever.co/leverdemo/&lt;posting id&gt;</c> give <c>leverdemo</c>.</summary>
     public static string? Lever(string? input) => Normalise(input, LeverHosts, embedQuery: null);
+
+    public static string? Ashby(string? input) => Normalise(input, AshbyHosts, embedQuery: null);
+
+    public static string? SmartRecruiters(string? input) => Normalise(input, SmartRecruitersHosts, embedQuery: null);
+
+    public static string? Recruitee(string? input) => SubdomainOrIdentifier(input, ".recruitee.com");
+
+    public static string? Workable(string? input)
+    {
+        var standard = Normalise(input, WorkableHosts, embedQuery: null);
+        return standard ?? SubdomainOrIdentifier(input, ".workable.com");
+    }
 
     private static string? Normalise(string? input, string[] hosts, string? embedQuery)
     {
@@ -47,6 +62,22 @@ public static partial class BoardIdentifiers
     {
         var lower = value?.Trim().ToLowerInvariant();
         return lower is { Length: > 0 and <= MaxLength } && Identifier().IsMatch(lower) ? lower : null;
+    }
+
+    private static string? SubdomainOrIdentifier(string? input, string suffix)
+    {
+        var value = input?.Trim();
+        if (string.IsNullOrEmpty(value)) return null;
+        if (Identifier().IsMatch(value)) return Valid(value);
+        var candidate = value.Contains("://", StringComparison.Ordinal) ? value : "https://" + value;
+        if (!Uri.TryCreate(candidate, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp) ||
+            !string.IsNullOrEmpty(uri.UserInfo) || !uri.IsDefaultPort) return null;
+        var host = uri.Host.ToLowerInvariant();
+        if (host.StartsWith("www.", StringComparison.Ordinal)) host = host[4..];
+        return host.EndsWith(suffix, StringComparison.Ordinal) && host.Length > suffix.Length
+            ? Valid(host[..^suffix.Length])
+            : null;
     }
 
     private static string? QueryValue(string query, string name)
