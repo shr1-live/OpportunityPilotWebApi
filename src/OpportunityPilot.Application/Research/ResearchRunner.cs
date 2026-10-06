@@ -142,7 +142,8 @@ public sealed class ResearchRunner(
         var cancelled = false;
         // Each fetching source gets an equal share of what is left of the budget, so one large board cannot starve the
         // rest; whatever a source leaves unused flows on to the next one.
-        static bool Fetches(SourceKind k) => k is SourceKind.Url or SourceKind.Feed or SourceKind.Greenhouse or SourceKind.Lever or SourceKind.Adzuna;
+        static bool Fetches(SourceKind k) => k is SourceKind.Url or SourceKind.Feed or SourceKind.Greenhouse or SourceKind.Lever or SourceKind.Adzuna or
+            SourceKind.Ashby or SourceKind.SmartRecruiters or SourceKind.Recruitee or SourceKind.Workable or SourceKind.Remotive or SourceKind.RemoteOk;
         var fetchingLeft = sources.Count(s => Fetches(s.Kind));
         var sourcesLeft = sources.Count;
         foreach (var source in sources)
@@ -285,7 +286,8 @@ public sealed class ResearchRunner(
                         $"{source.Label}: could not be read safely — {result.FailureReason}", EventLevel.Warning);
                 return source.Kind == SourceKind.Url ? FromPage(source, mode, result) : FromFeed(source, mode, result);
             }
-            case SourceKind.Greenhouse or SourceKind.Lever or SourceKind.Adzuna:
+            case SourceKind.Greenhouse or SourceKind.Lever or SourceKind.Adzuna or SourceKind.Ashby or SourceKind.SmartRecruiters or
+                SourceKind.Recruitee or SourceKind.Workable or SourceKind.Remotive or SourceKind.RemoteOk:
             {
                 if (mode != OpportunityMode.Job)
                     return new(SourceStatus.Skipped, "Job-board sources are read for Job campaigns only.", [], 0,

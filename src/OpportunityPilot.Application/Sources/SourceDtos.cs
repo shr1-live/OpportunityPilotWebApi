@@ -19,7 +19,6 @@ public sealed record SourceDto(
     DateTime CreatedAt);
 
 /// <summary>
-/// Paste, Url, Feed, Greenhouse, Lever and Adzuna are created here; Csv comes from an import commit and Agent from the
-/// desktop agent. Greenhouse and Lever take the board token / company slug (or a board URL) in <c>url</c>; Adzuna takes nothing.
+/// User-created sources. Per-company boards take a slug (or their careers URL); aggregate boards take no URL.
 /// </summary>
 public sealed record CreateSourceRequest(SourceKind Kind, string? Label, string? Url, string? Text, string? PermissionNote);

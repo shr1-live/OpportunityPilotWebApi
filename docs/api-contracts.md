@@ -52,7 +52,7 @@ Query enums that fail to bind return 400 from model binding.
 | POST | `/api/v1/campaigns` | user | `CreateCampaignRequest` | 201 `CampaignDto` + `Location`; 400 (also for Partner/Investor/Freelance: "not supported yet", and for a profile that is not the caller's) |
 | PUT | `/api/v1/campaigns/{id}` | user | `UpdateCampaignRequest` | 200 `CampaignDto`; 400 (validated before the version check); 404; 409 |
 | GET | `/api/v1/campaigns/{campaignId}/sources` | user | — | 200 `SourceDto[]`, oldest first; 404 |
-| POST | `/api/v1/campaigns/{campaignId}/sources` | user | `CreateSourceRequest` (Paste, Url or Feed only); body ≤256 KB | 201 `SourceDto`; 400; 404; 413 |
+| POST | `/api/v1/campaigns/{campaignId}/sources` | user | `CreateSourceRequest` (Paste, Url, Feed, Greenhouse, Lever, Adzuna, Ashby, SmartRecruiters, Recruitee, Workable, Remotive or RemoteOk); body ≤256 KB | 201 `SourceDto`; 400; 404; 413 |
 | DELETE | `/api/v1/campaigns/{campaignId}/sources/{sourceId}` | user | — | 204; 404 |
 | POST | `/api/v1/imports/preview` | user | `{ campaignId, csv }`; body ≤3 MB | 200 `ImportPreviewDto`; 400; 404; 413 |
 | POST | `/api/v1/imports/{importId}/commit` | user | optional `{ label }` | 201 `SourceDto` (Kind Csv); 400 (no valid rows, label too long, 20-source limit); 404 (unknown or expired); 409 (already committed) |
@@ -89,6 +89,13 @@ Query enums that fail to bind return 400 from model binding.
 | POST | `/api/v1/agent/campaigns/{id}/postings` | **agent key** | `AgentPostingsRequest`; body ≤4 MB | 200 `{ accepted, sourceId, jobId }` (`jobId` null unless `queueResearch`); 400 (not a Job campaign, field errors); 404; 409; 413 |
 | GET | `/api/v1/agent/shortlist` | **agent key** | query `platform?` (LinkedIn, Naukri, Other) | 200 `AgentShortlistItem[]`, best score first, max 200 |
 
+### Approval queue
+
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| GET | `/api/v1/approvals` | user | query `campaignId?`, `take` (1–200, default 100), `skip` | 200 `{ total, items: ApprovalItem[] }`, Suggested opportunities by score |
+| POST | `/api/v1/approvals/decide` | user | `{ approve?: Guid[], reject?: Guid[] }`, 1–200 distinct ids, no overlap | 200 `{ approved, rejected, skipped }`; approve → Shortlisted, reject → Dismissed; stale/foreign ids are skipped; 400 |
+
 ## DTO shapes
 
 JSON is camelCase and enums are strings. `?` marks nullable.
@@ -102,12 +109,12 @@ JSON is camelCase and enums are strings. `?` marks nullable.
 | ProfileDto | `id, type, name, data (JSON object), version, confirmedAt?, createdAt, updatedAt` |
 | CreateProfileRequest | `type (Product, Business, Candidate, Services), name, data?, confirmed` |
 | UpdateProfileRequest | `name, data?, confirmed, expectedVersion` |
-| CampaignSummaryDto | `id, profileId, mode, name, goal, resultLimit, version, createdAt, updatedAt, sourceCount, opportunityCount, lastJob? { id, state, stage, finishedAt? }` |
+| CampaignSummaryDto | `id, profileId, mode, name, goal, resultLimit, version, createdAt, updatedAt, sourceCount, opportunityCount, lastJob? { id, state, stage, finishedAt? }, autoSuggestMinScore?` |
 | CampaignDto | CampaignSummaryDto + `criteria: CampaignCriteria, weights: { [criterion]: int }` |
 | CampaignCriteria | `keywords, requiredSkills, preferredSkills, locations, workModes, industries, problems, signals, excludeKeywords, excludeOrganizations` (all `string[]`), `candidateYears?: number` |
-| CreateCampaignRequest | `profileId, mode, name, goal?, criteria?, weights? { [criterion]: number }, resultLimit?` |
-| UpdateCampaignRequest | `name, goal?, criteria?, weights?, resultLimit?, expectedVersion` (omitted weights keep the stored ones) |
-| CreateSourceRequest | `kind (Paste, Url, Feed), label?, url?, text?, permissionNote?` |
+| CreateCampaignRequest | `profileId, mode, name, goal?, criteria?, weights? { [criterion]: number }, resultLimit?, autoSuggestMinScore?` |
+| UpdateCampaignRequest | `name, goal?, criteria?, weights?, resultLimit?, expectedVersion, autoSuggestMinScore?` (omitted values keep stored ones; explicit null disables auto-suggest) |
+| CreateSourceRequest | `kind, label?, url?, text?, permissionNote?`; per-company boards require a safe slug/board URL, aggregate Remotive/RemoteOk and Adzuna take no URL |
 | SourceDto | `id, campaignId, kind, label, url?, platform?, permissionNote?, status, lastFetchedAt?, safeError?, itemCount, textLength, createdAt` |
 | ImportPreviewDto | `importId, columns: string[], warnings: string[], rows: { row, values: { [column]: string }, errors: string[] }[] (first 50), validCount, errorCount` |
 | ResearchJobDto | `id, campaignId, state, stage, createdAt, startedAt?, finishedAt?, safeError?, counts: { sources, sourcesDone, sourcesFailed, fetched, candidates, qualified, needsVerification, excluded }, events?: { at, stage, level, message }[]` |
@@ -120,6 +127,7 @@ JSON is camelCase and enums are strings. `?` marks nullable.
 | AgentCampaignDto | `id, name, mode, criteria: CampaignCriteria` |
 | AgentPostingsRequest | `platform (LinkedIn or Naukri), items: { externalId, url, title, company, location?, description? }[] (1–100), queueResearch: bool` |
 | AgentShortlistItem | `opportunityId, campaignId, platform, externalId, url, title, organization` |
+| ApprovalItem | `opportunityId, campaignId, campaignName, title, organization, location?, platform?, applyUrl?, score, coverage, outcomeReason?, appliesVia (Agent, You)` |
 
 ## Planned, not built
 

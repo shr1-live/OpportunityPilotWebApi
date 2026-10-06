@@ -30,7 +30,8 @@ public class Source : IOwned
                 throw new ArgumentException("Pasted text is required.", nameof(text));
             case SourceKind.Url or SourceKind.Feed when string.IsNullOrWhiteSpace(url):
                 throw new ArgumentException("URL is required.", nameof(url));
-            case SourceKind.Greenhouse or SourceKind.Lever when string.IsNullOrWhiteSpace(url):
+            case SourceKind.Greenhouse or SourceKind.Lever or SourceKind.Ashby or SourceKind.SmartRecruiters or
+                SourceKind.Recruitee or SourceKind.Workable when string.IsNullOrWhiteSpace(url):
                 throw new ArgumentException("A board token or company slug is required.", nameof(url));
             case SourceKind.Agent when platform is null:
                 throw new ArgumentException("Agent sources need a platform.", nameof(platform));

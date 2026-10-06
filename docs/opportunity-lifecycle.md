@@ -12,6 +12,9 @@ Values: `New`, `Shortlisted`, `Dismissed`, `Applied`, `Contacted`, `Responded`, 
 ```mermaid
 stateDiagram-v2
     [*] --> New: research creates it
+    New --> Suggested: research threshold
+    Suggested --> Shortlisted: approve
+    Suggested --> Dismissed: reject
     New --> Shortlisted: user
     New --> Dismissed: user
     Shortlisted --> Applied: user, or agent report
@@ -28,7 +31,7 @@ status, including moving an Applied opportunity back to New (see OQ-BE-011).
 | Actor | Can move status? | How | Activity written |
 |---|---|---|---|
 | User | yes, to any value | `PATCH /api/v1/opportunities/{id}/status` → `ChangeStatus`; the same status is a no-op | `StatusChanged`, detail `From → To` |
-| Research run | **never** | `ApplyResearch` re-scores and overwrites facts but leaves `Status` alone, so reruns keep Shortlisted/Applied | `Researched` when created, and when a rerun changes the score |
+| Research run | only New → Suggested | a Qualified Job result at or above the campaign's `AutoSuggestMinScore`; reruns preserve every non-New state | `Suggested` when queued; `Researched` when created or re-scored |
 | Desktop agent | only to **Applied** | `POST /api/v1/applications/report` with `status: Applied` and the opportunity's id → `MarkApplied` from any status; idempotent once Applied | `Applied`, detail `Applied on <platform> by the desktop agent.` |
 
 Only `Shortlisted` Job opportunities with a platform and external id are offered to the agent

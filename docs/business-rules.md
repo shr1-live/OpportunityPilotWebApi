@@ -43,6 +43,7 @@ Code: `Application/Campaigns/*`, `Domain/Campaigns/Campaign.cs`
 | Profile | must exist and belong to the caller (400 `profileId` otherwise) |
 | Name / goal | name required ≤200; goal optional ≤2000 |
 | Result limit | 1–100, default 25: caps **new** opportunities saved per run |
+| Auto-suggest threshold | Job only; null = off, otherwise 1–100. A new Qualified result at or above it moves New → Suggested |
 | Criteria lists | each list ≤50 entries, each entry ≤100 characters; trimmed; blanks dropped; case-insensitive duplicates dropped |
 | Work modes | Remote, Hybrid, Onsite; input is canonicalised ignoring case, spaces and hyphens ("on-site" → Onsite) |
 | Candidate years | 0–60, optional |
@@ -61,6 +62,18 @@ Code: `Application/Campaigns/CampaignWeights.cs`
 - Keys are matched case-insensitively; a key outside the mode is a 400; each value must be 0–100; a key left out counts as 0.
 - All zero → 400. Otherwise values are scaled to integers summing to exactly 100 (largest remainder, ties broken by key).
 - Stored JSON that cannot be read falls back to the defaults.
+
+## Public job boards
+
+Code: `Application/Research/Boards/*`, `Application/Sources/SourceService.cs`.
+
+| Source | Input and behavior |
+|---|---|
+| Greenhouse, Lever, Ashby, SmartRecruiters, Recruitee, Workable | One company slug or trusted careers URL; normalized to `[a-z0-9-]{1,100}` so callers cannot redirect the fetcher to another host |
+| Adzuna | Up to 3 campaign keywords and first non-Remote location; needs server-side keys and fails safely when absent |
+| Remotive, Remote OK | Board-wide public feed; no key or company slug |
+| All fetched sources | Job campaigns only; safe-fetch address/redirect/size/time limits apply; share the run fetch and candidate budgets fairly |
+| Apply path | LinkedIn/Naukri use the local agent; every public board exposes an external application URL for the user |
 
 ## Scoring
 

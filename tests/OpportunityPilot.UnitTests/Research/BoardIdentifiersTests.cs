@@ -64,4 +64,31 @@ public class BoardIdentifiersTests
     [InlineData("https://jobs.lever.co.evil.example/leverdemo")]
     public void Invalid_lever_input_is_refused(string? input) =>
         Assert.Null(BoardIdentifiers.Lever(input));
+
+    [Theory]
+    [InlineData("ashby", "https://jobs.ashbyhq.com/ashby", "ashby")]
+    [InlineData("smartrecruiters", "https://careers.smartrecruiters.com/smartrecruiters", "smartrecruiters")]
+    [InlineData("recruitee", "https://recruiteedemo.recruitee.com/o/developer", "recruiteedemo")]
+    [InlineData("workable", "https://apply.workable.com/acme/jobs/", "acme")]
+    [InlineData("workable-subdomain", "https://acme.workable.com/", "acme")]
+    public void Additional_board_urls_are_reduced_to_safe_slugs(string kind, string input, string expected)
+    {
+        var actual = kind switch
+        {
+            "ashby" => BoardIdentifiers.Ashby(input),
+            "smartrecruiters" => BoardIdentifiers.SmartRecruiters(input),
+            "recruitee" => BoardIdentifiers.Recruitee(input),
+            _ => BoardIdentifiers.Workable(input)
+        };
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void Additional_boards_refuse_untrusted_hosts()
+    {
+        Assert.Null(BoardIdentifiers.Ashby("https://evil.example/ashby"));
+        Assert.Null(BoardIdentifiers.SmartRecruiters("https://careers.smartrecruiters.com.evil.example/acme"));
+        Assert.Null(BoardIdentifiers.Recruitee("https://acme.recruitee.com.evil.example"));
+        Assert.Null(BoardIdentifiers.Workable("https://evil.example/workable"));
+    }
 }

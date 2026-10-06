@@ -80,6 +80,7 @@ Indexes: unique `KeyHash`; `OwnerId`.
 | CriteriaJson | json | `CampaignCriteria`, camelCase |
 | WeightsJson | json | `{ "<criterionKey>": int }`, sums to 100 |
 | ResultLimit | int | 1–100, default 25 |
+| AutoSuggestMinScore | int, null | Job-only approval threshold, 1–100; null disables auto-suggest |
 | Version | int | concurrency token |
 | CreatedAt, UpdatedAt | time | |
 
@@ -91,12 +92,12 @@ Indexes: `(OwnerId, CreatedAt)`; `ProfileId`.
 |---|---|---|
 | Id, OwnerId | uuid | |
 | CampaignId | uuid | FK → campaigns, Cascade |
-| Kind | string(32) | `SourceKind`: Paste, Csv, Url, Feed, Agent |
+| Kind | string(32) | `SourceKind`: Paste, Csv, Url, Feed, Agent, Greenhouse, Lever, Adzuna, Ashby, SmartRecruiters, Recruitee, Workable, Remotive, RemoteOk |
 | Label | string(200) | |
 | Url | string(1000), null | Url and Feed only |
 | Text | string(50000), null | Paste only (SqlServer `nvarchar(max)`) |
 | PermissionNote | string(500), null | |
-| Platform | string(32), null | `JobPlatform`; set on Agent sources only |
+| Platform | string(32), null | `JobPlatform`; set on Agent source rows; fetched board candidates carry their platform into opportunities |
 | Status | string(32) | `SourceStatus`: Pending, Ok, Failed, Skipped |
 | LastFetchedAt | time, null | |
 | SafeError | string(500), null | user-facing reason; cleared on Ok |
@@ -269,6 +270,7 @@ Both sets must contain the same logical migrations in the same order.
 | 1 | InitialProfiles | `20260930120109_InitialProfiles` | `20260930120115_InitialProfiles` | schema `app`, profiles |
 | 2 | AddApplicationsAndAgentKeys | `20261001065453_AddApplicationsAndAgentKeys` | `20261001065506_AddApplicationsAndAgentKeys` | job_applications, agent_keys |
 | 3 | AddResearchPipeline | `20261001105144_AddResearchPipeline` | `20261001105153_AddResearchPipeline` | campaigns, sources, source_items, import_batches, research_jobs, research_events, evidence, opportunities, opportunity_evidence, activities |
+| 4 | AddAutoSuggest | `20261005062559_AddAutoSuggest` | `20261005062613_AddAutoSuggest` | nullable `campaigns.AutoSuggestMinScore` |
 
 All three only create tables and indexes. Planned but not built: `AddOutreachAndAi` from
 [M4_M5_CONTRACT.md](M4_M5_CONTRACT.md) (OutreachDraft, Suppression, NextAction, UsageRecord).

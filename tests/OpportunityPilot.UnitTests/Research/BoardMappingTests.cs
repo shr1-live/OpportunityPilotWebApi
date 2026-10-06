@@ -310,4 +310,38 @@ public class BoardMappingTests
     [InlineData("a--b", "A B")]
     public void Lever_slugs_are_title_cased_for_the_organization(string slug, string expected) =>
         Assert.Equal(expected, BoardMapping.TitleCase(slug));
+
+    [Fact]
+    public void Additional_public_boards_map_to_honest_candidates()
+    {
+        var ashby = BoardMapping.AshbyCandidates("""{"jobs":[{"id":"a1","title":"Engineer","location":"Remote","workplaceType":"Remote","jobUrl":"https://jobs.ashbyhq.com/acme/a1","applyUrl":"https://jobs.ashbyhq.com/acme/a1/application","descriptionPlain":"C# APIs","publishedAt":"2026-10-01T00:00:00Z"}]}""",
+            SourceOf(SourceKind.Ashby, "acme", "Ashby"), "acme", Parser)!.Single();
+        Assert.Equal((JobPlatform.Ashby, "a1", "Acme", "Remote"), (ashby.Platform, ashby.ExternalId, ashby.Organization, ashby.WorkplaceType));
+
+        var smart = BoardMapping.SmartRecruitersCandidates("""{"content":[{"id":"s1","name":"Developer","company":{"name":"Globex"},"location":{"city":"Pune","country":"in","remote":true},"releasedDate":"2026-10-01T00:00:00Z"}]}""",
+            SourceOf(SourceKind.SmartRecruiters, "globex", "SmartRecruiters"), "globex", Parser)!.Single();
+        Assert.Equal(JobPlatform.SmartRecruiters, smart.Platform);
+        Assert.Equal("Pune, in", smart.Location);
+        Assert.StartsWith("https://jobs.smartrecruiters.com/globex/s1", smart.ApplyUrl);
+
+        var recruitee = BoardMapping.RecruiteeCandidates("""{"offers":[{"id":7,"title":"Backend Engineer","company_name":"Acme","location":"Remote","careers_url":"https://acme.recruitee.com/o/backend","careers_apply_url":"https://acme.recruitee.com/o/backend/c/new","description":"<p>.NET and SQL</p>"}]}""",
+            SourceOf(SourceKind.Recruitee, "acme", "Recruitee"), "acme", Parser)!.Single();
+        Assert.Equal((JobPlatform.Recruitee, "7", ".NET and SQL"), (recruitee.Platform, recruitee.ExternalId, recruitee.Text));
+
+        var workable = BoardMapping.WorkableCandidates("""{"jobs":[{"shortcode":"W1","title":"Platform Engineer","location":{"location_str":"India"},"description":"<p>Docker</p>","url":"https://apply.workable.com/acme/j/W1/"}]}""",
+            SourceOf(SourceKind.Workable, "acme", "Workable"), "acme", Parser)!.Single();
+        Assert.Equal((JobPlatform.Workable, "W1", "Docker"), (workable.Platform, workable.ExternalId, workable.Text));
+    }
+
+    [Fact]
+    public void Aggregate_remote_feeds_skip_metadata_and_map_jobs()
+    {
+        var remotive = BoardMapping.RemotiveCandidates("""{"jobs":[{"id":1,"url":"https://remotive.com/job/1","title":"Remote Developer","company_name":"Acme","candidate_required_location":"Worldwide","description":"<p>Go services</p>","publication_date":"2026-10-01T00:00:00Z"}]}""",
+            SourceOf(SourceKind.Remotive, null, "Remotive"), Parser)!.Single();
+        Assert.Equal((JobPlatform.Remotive, "1", "Go services"), (remotive.Platform, remotive.ExternalId, remotive.Text));
+
+        var remoteOk = BoardMapping.RemoteOkCandidates("""[{"legal":"Please link back"},{"id":"2","position":"Engineer","company":"Globex","location":"Remote","url":"https://remoteok.com/remote-jobs/2","description":"<p>Rust</p>","date":"2026-10-01T00:00:00Z"}]""",
+            SourceOf(SourceKind.RemoteOk, null, "Remote OK"), Parser)!.Single();
+        Assert.Equal((JobPlatform.RemoteOk, "2", "Rust"), (remoteOk.Platform, remoteOk.ExternalId, remoteOk.Text));
+    }
 }

@@ -126,6 +126,134 @@ public static class BoardMapping
         return result;
     }
 
+    // ---------- Additional public boards ----------
+
+    /// <summary>Ashby's public posting feed: <c>{ jobs: [{ id, title, location, workplaceType, jobUrl, applyUrl, descriptionPlain }] }</c>.</summary>
+    public static IReadOnlyList<Candidate>? AshbyCandidates(string? json, Source source, string slug, IContentParser parser)
+    {
+        using var document = Parse(json);
+        if (document?.RootElement is not { ValueKind: JsonValueKind.Object } root ||
+            Child(root, "jobs") is not { ValueKind: JsonValueKind.Array } jobs) return null;
+        var result = new List<Candidate>();
+        foreach (var job in jobs.EnumerateArray())
+        {
+            var id = Text(job, "id");
+            var title = Text(job, "title");
+            if (id is null || title is null) continue;
+            var description = Text(job, "descriptionPlain") ??
+                              (Text(job, "descriptionHtml") is { } html ? HtmlToText(html, parser) : null);
+            var url = HttpUrl(Text(job, "jobUrl"));
+            result.Add(Build(source, JobPlatform.Ashby, id, title, TitleCase(slug), Text(job, "location"),
+                Text(job, "workplaceType"), url, HttpUrl(Text(job, "applyUrl")) ?? url, null, description,
+                Date(Text(job, "publishedAt"))));
+        }
+        return result;
+    }
+
+    /// <summary>SmartRecruiters public posting list. List rows are honest title/location candidates; detail is optional.</summary>
+    public static IReadOnlyList<Candidate>? SmartRecruitersCandidates(string? json, Source source, string slug, IContentParser parser)
+    {
+        using var document = Parse(json);
+        if (document?.RootElement is not { ValueKind: JsonValueKind.Object } root ||
+            Child(root, "content") is not { ValueKind: JsonValueKind.Array } rows) return null;
+        var result = new List<Candidate>();
+        foreach (var row in rows.EnumerateArray())
+        {
+            var id = Text(row, "id") ?? Text(row, "uuid");
+            var title = Text(row, "name");
+            if (id is null || title is null) continue;
+            var company = Text(Child(row, "company"), "name") ?? TitleCase(slug);
+            var location = JoinLocation(Child(row, "location"));
+            var remote = Child(Child(row, "location"), "remote") is { ValueKind: JsonValueKind.True } ? "remote" : null;
+            var url = $"https://jobs.smartrecruiters.com/{slug}/{id}";
+            var description = Text(row, "jobAd") is { } ad ? HtmlToText(ad, parser) : null;
+            result.Add(Build(source, JobPlatform.SmartRecruiters, id, title, company, location, remote, url, url,
+                Text(Child(row, "location"), "country"), description, Date(Text(row, "releasedDate"))));
+        }
+        return result;
+    }
+
+    /// <summary>Recruitee's careers feed: <c>{ offers: [...] }</c>.</summary>
+    public static IReadOnlyList<Candidate>? RecruiteeCandidates(string? json, Source source, string slug, IContentParser parser)
+    {
+        using var document = Parse(json);
+        if (document?.RootElement is not { ValueKind: JsonValueKind.Object } root ||
+            Child(root, "offers") is not { ValueKind: JsonValueKind.Array } offers) return null;
+        var result = new List<Candidate>();
+        foreach (var offer in offers.EnumerateArray())
+        {
+            var id = Text(offer, "id") ?? Text(offer, "slug");
+            var title = Text(offer, "title");
+            if (id is null || title is null) continue;
+            var url = HttpUrl(Text(offer, "careers_url"));
+            var description = Text(offer, "description") is { } html ? HtmlToText(html, parser) : null;
+            result.Add(Build(source, JobPlatform.Recruitee, id, title, Text(offer, "company_name") ?? TitleCase(slug),
+                Text(offer, "location"), Text(offer, "workplace_type"), url,
+                HttpUrl(Text(offer, "careers_apply_url")) ?? url, Text(offer, "country"), description,
+                Date(Text(offer, "published_at"))));
+        }
+        return result;
+    }
+
+    /// <summary>Workable's no-auth widget response (either an array or an object containing <c>jobs</c>/<c>results</c>).</summary>
+    public static IReadOnlyList<Candidate>? WorkableCandidates(string? json, Source source, string slug, IContentParser parser)
+    {
+        using var document = Parse(json);
+        if (document is null) return null;
+        var root = document.RootElement;
+        var rows = root.ValueKind == JsonValueKind.Array ? root : Child(root, "jobs") ?? Child(root, "results");
+        if (rows is not { ValueKind: JsonValueKind.Array }) return null;
+        var result = new List<Candidate>();
+        foreach (var row in rows.Value.EnumerateArray())
+        {
+            var id = Text(row, "shortcode") ?? Text(row, "id");
+            var title = Text(row, "title");
+            if (id is null || title is null) continue;
+            var location = Text(Child(row, "location"), "location_str") ?? Text(row, "location") ??
+                JoinParts(Text(row, "city"), Text(row, "state"), Text(row, "country"));
+            var url = HttpUrl(Text(row, "url")) ?? $"https://apply.workable.com/{slug}/j/{id}/";
+            var description = Text(row, "description") is { } html ? HtmlToText(html, parser) : null;
+            result.Add(Build(source, JobPlatform.Workable, id, title, TitleCase(slug), location,
+                Child(row, "telecommuting") is { ValueKind: JsonValueKind.True } ? "remote" : Text(row, "workplace_type"),
+                url, HttpUrl(Text(row, "application_url")) ?? url, Text(row, "country"), description,
+                Date(Text(row, "published_on"))));
+        }
+        return result;
+    }
+
+    public static IReadOnlyList<Candidate>? RemotiveCandidates(string? json, Source source, IContentParser parser)
+    {
+        using var document = Parse(json);
+        if (document?.RootElement is not { ValueKind: JsonValueKind.Object } root ||
+            Child(root, "jobs") is not { ValueKind: JsonValueKind.Array } jobs) return null;
+        return Aggregate(jobs, source, JobPlatform.Remotive, parser, "id", "title", "company_name",
+            "candidate_required_location", "url", "description", "publication_date");
+    }
+
+    public static IReadOnlyList<Candidate>? RemoteOkCandidates(string? json, Source source, IContentParser parser)
+    {
+        using var document = Parse(json);
+        if (document?.RootElement is not { ValueKind: JsonValueKind.Array } rows) return null;
+        return Aggregate(rows, source, JobPlatform.RemoteOk, parser, "id", "position", "company", "location", "url", "description", "date");
+    }
+
+    private static IReadOnlyList<Candidate> Aggregate(JsonElement rows, Source source, JobPlatform platform, IContentParser parser,
+        string idName, string titleName, string companyName, string locationName, string urlName, string descriptionName, string dateName)
+    {
+        var result = new List<Candidate>();
+        foreach (var row in rows.EnumerateArray())
+        {
+            var id = Text(row, idName);
+            var title = Text(row, titleName);
+            if (id is null || title is null) continue; // Remote OK's first element is legal metadata, not a job.
+            var url = HttpUrl(Text(row, urlName));
+            var description = Text(row, descriptionName) is { } html ? HtmlToText(html, parser) : null;
+            result.Add(Build(source, platform, id, title, Text(row, companyName) ?? string.Empty, Text(row, locationName),
+                null, url, url, null, description, Date(Text(row, dateName))));
+        }
+        return result;
+    }
+
     // ---------- Title pre-filter ----------
 
     /// <summary>
@@ -230,4 +358,18 @@ public static class BoardMapping
             DateTimeOffset.FromUnixTimeMilliseconds(value).UtcDateTime,
         _ => null
     };
+
+    private static string? JoinLocation(JsonElement? location)
+    {
+        if (location is not { ValueKind: JsonValueKind.Object } value) return null;
+        var parts = new[] { Text(value, "city"), Text(value, "region"), Text(value, "country") }
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return parts.Count == 0 ? null : string.Join(", ", parts);
+    }
+
+    private static string? JoinParts(params string?[] values)
+    {
+        var parts = values.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return parts.Count == 0 ? null : string.Join(", ", parts);
+    }
 }

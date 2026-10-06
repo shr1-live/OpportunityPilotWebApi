@@ -34,8 +34,57 @@ public sealed class JobBoardGatherer(IWebFetcher fetcher, IContentParser parser,
         SourceKind.Greenhouse => GreenhouseAsync(source, criteria, room, fetchesLeft, keepGoing, ct),
         SourceKind.Lever => LeverAsync(source, room, fetchesLeft, ct),
         SourceKind.Adzuna => AdzunaAsync(source, criteria, room, fetchesLeft, ct),
+        SourceKind.Ashby => SimpleBoardAsync(source, room, fetchesLeft, BoardIdentifiers.Ashby,
+            $"{Base(_limits.AshbyApiBase, ResearchOptions.DefaultAshbyApiBase)}/posting-api/job-board/{{0}}",
+            (json, slug) => BoardMapping.AshbyCandidates(json, source, slug, parser), ct),
+        SourceKind.SmartRecruiters => SimpleBoardAsync(source, room, fetchesLeft, BoardIdentifiers.SmartRecruiters,
+            $"{Base(_limits.SmartRecruitersApiBase, ResearchOptions.DefaultSmartRecruitersApiBase)}/v1/companies/{{0}}/postings?limit=100",
+            (json, slug) => BoardMapping.SmartRecruitersCandidates(json, source, slug, parser), ct),
+        SourceKind.Recruitee => SimpleBoardAsync(source, room, fetchesLeft, BoardIdentifiers.Recruitee,
+            $"https://{{0}}.{Host(_limits.RecruiteeHostSuffix, ResearchOptions.DefaultRecruiteeHostSuffix)}/api/offers/",
+            (json, slug) => BoardMapping.RecruiteeCandidates(json, source, slug, parser), ct),
+        SourceKind.Workable => SimpleBoardAsync(source, room, fetchesLeft, BoardIdentifiers.Workable,
+            $"{Base(_limits.WorkableApiBase, ResearchOptions.DefaultWorkableApiBase)}/api/v1/widget/accounts/{{0}}?details=true",
+            (json, slug) => BoardMapping.WorkableCandidates(json, source, slug, parser), ct),
+        SourceKind.Remotive => AggregateAsync(source, room, fetchesLeft,
+            $"{Base(_limits.RemotiveApiBase, ResearchOptions.DefaultRemotiveApiBase)}/api/remote-jobs",
+            json => BoardMapping.RemotiveCandidates(json, source, parser), ct),
+        SourceKind.RemoteOk => AggregateAsync(source, room, fetchesLeft,
+            $"{Base(_limits.RemoteOkApiBase, ResearchOptions.DefaultRemoteOkApiBase)}/api",
+            json => BoardMapping.RemoteOkCandidates(json, source, parser), ct),
         _ => throw new ArgumentOutOfRangeException(nameof(source), "Not a job-board source.")
     };
+
+    private Task<BoardGathered> AggregateAsync(Source source, int room, int fetchesLeft, string url,
+        Func<string?, IReadOnlyList<Candidate>?> map, CancellationToken ct) =>
+        ReadOneAsync(source, room, fetchesLeft, url, map, ct);
+
+    private Task<BoardGathered> SimpleBoardAsync(Source source, int room, int fetchesLeft,
+        Func<string?, string?> identify, string urlTemplate, Func<string?, string, IReadOnlyList<Candidate>?> map, CancellationToken ct)
+    {
+        var slug = identify(source.Url);
+        if (slug is null) return Task.FromResult(Failed(source, $"The {source.Kind} company identifier is not valid. Delete the source and add it again.", 0));
+        return ReadOneAsync(source, room, fetchesLeft, string.Format(System.Globalization.CultureInfo.InvariantCulture, urlTemplate, Uri.EscapeDataString(slug)),
+            json => map(json, slug), ct);
+    }
+
+    private async Task<BoardGathered> ReadOneAsync(Source source, int room, int fetchesLeft, string url,
+        Func<string?, IReadOnlyList<Candidate>?> map, CancellationToken ct)
+    {
+        if (fetchesLeft <= 0) return FetchLimitReached(source);
+        var response = await fetcher.FetchJsonAsync(url, ct);
+        if (!response.Ok) return Failed(source, response.StatusCode == 404
+            ? $"No public {source.Kind} jobs were found. Check the source identifier."
+            : response.FailureReason ?? $"{source.Kind} could not be read.", response.Requests);
+        var all = map(response.Content);
+        if (all is null) return Failed(source, $"{source.Kind} sent a response that could not be read.", response.Requests);
+        if (all.Count == 0) return new(SourceStatus.Skipped, $"The {source.Kind} source has no open jobs.", [], response.Requests,
+            $"{source.Label}: no open jobs.", EventLevel.Warning);
+        var items = all.Take(room).ToList();
+        var message = $"{source.Label}: {Count(all.Count, "job")} listed, {items.Count} read.";
+        if (items.Count < all.Count) message += $" Stopped at the run's limit of {_limits.EffectiveCandidates} candidates.";
+        return new(SourceStatus.Ok, null, items, response.Requests, message, items.Count < all.Count ? EventLevel.Warning : EventLevel.Info);
+    }
 
     private async Task<BoardGathered> GreenhouseAsync(Source source, CampaignCriteria criteria, int room, int fetchesLeft,
         Func<CancellationToken, Task<bool>> keepGoing, CancellationToken ct)
@@ -171,6 +220,9 @@ public sealed class JobBoardGatherer(IWebFetcher fetcher, IContentParser parser,
 
     private static string Base(string? configured, string fallback) =>
         (string.IsNullOrWhiteSpace(configured) ? fallback : configured.Trim()).TrimEnd('/');
+
+    private static string Host(string? configured, string fallback) =>
+        (string.IsNullOrWhiteSpace(configured) ? fallback : configured.Trim()).Trim().Trim('/');
 
     private static string Count(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
 }

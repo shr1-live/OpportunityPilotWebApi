@@ -11,5 +11,11 @@ public enum JobPlatform
     Other,
     Greenhouse,
     Lever,
-    Adzuna
+    Adzuna,
+    Ashby,
+    SmartRecruiters,
+    Recruitee,
+    Workable,
+    Remotive,
+    RemoteOk
 }
