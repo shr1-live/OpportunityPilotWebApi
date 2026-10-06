@@ -1,7 +1,8 @@
 # M4 + M5 contract: Gemini with rules fallback, outreach drafts and follow-ups
 
-> **Design spec for a slice — NOT BUILT YET** (status 2026-10-05: no code, entity, endpoint or migration from this file
-> exists). **[api-contracts.md](api-contracts.md) is authoritative for what exists.** When this slice is built, move its
+> **Design spec for the full slice — PARTIALLY BUILT** (status 2026-10-06: deterministic CoverNote drafts, persistence,
+> approval and desktop-agent handoff are implemented; Gemini, other channels, the cross-opportunity inbox, suppression,
+> activities and next actions are not). **[api-contracts.md](api-contracts.md) is authoritative for what exists.** As each part is built, move its
 > rules into [business-rules.md](business-rules.md), its tables into [db-schema.md](db-schema.md), its states into
 > [opportunity-lifecycle.md](opportunity-lifecycle.md), and close OQ-BE-006 in [open-questions.md](open-questions.md).
 

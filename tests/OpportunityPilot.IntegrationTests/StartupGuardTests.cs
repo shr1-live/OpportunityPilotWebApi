@@ -1,9 +1,13 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
 
 namespace OpportunityPilot.IntegrationTests;
 
@@ -30,6 +34,18 @@ public class StartupGuardTests
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", session!.Token);
         return client;
     }
+
+    private static string LegacySupabaseToken(string secret, string subject = "11111111-1111-1111-1111-111111111111") =>
+        new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
+        {
+            Issuer = "https://example.supabase.co/auth/v1",
+            Audience = "authenticated",
+            Subject = new ClaimsIdentity([new Claim("sub", subject)]),
+            Expires = DateTime.UtcNow.AddMinutes(5),
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret)),
+                SecurityAlgorithms.HmacSha256)
+        });
 
     [Fact]
     public void Dev_bypass_cannot_be_enabled_outside_development()
@@ -185,5 +201,36 @@ public class StartupGuardTests
         var caps = JsonDocument.Parse(await client.GetStringAsync("/api/v1/capabilities")).RootElement;
         Assert.False(caps.GetProperty("guestSignIn").GetBoolean());
         Assert.True(caps.GetProperty("temporaryStorage").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Legacy_hs256_tokens_require_the_explicit_secret_and_a_guid_subject()
+    {
+        const string secret = "test-only-legacy-secret-that-is-long-enough-1234567890";
+        var token = LegacySupabaseToken(secret);
+
+        using var withoutLegacy = new ProductionFactory(new()
+        {
+            ["ConnectionStrings:Main"] = "",
+            ["Auth:SupabaseUrl"] = "https://example.supabase.co"
+        });
+        var rejected = withoutLegacy.CreateClient();
+        rejected.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await rejected.GetAsync("/api/v1/overview")).StatusCode);
+
+        using var withLegacy = new ProductionFactory(new()
+        {
+            ["ConnectionStrings:Main"] = "",
+            ["Auth:SupabaseUrl"] = "https://example.supabase.co",
+            ["Auth:LegacyJwtSecret"] = secret
+        });
+        var accepted = withLegacy.CreateClient();
+        accepted.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        Assert.Equal(HttpStatusCode.OK, (await accepted.GetAsync("/api/v1/overview")).StatusCode);
+
+        var badSubject = withLegacy.CreateClient();
+        badSubject.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", LegacySupabaseToken(secret, "not-a-guid"));
+        Assert.Equal(HttpStatusCode.Unauthorized, (await badSubject.GetAsync("/api/v1/overview")).StatusCode);
     }
 }

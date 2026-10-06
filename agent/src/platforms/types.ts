@@ -13,6 +13,8 @@ export interface JobRef {
   description?: string
   /** Set when the job came from the user's shortlist; reported back so the opportunity is marked Applied. */
   opportunityId?: string
+  /** Exact approved text from OpportunityPilot. Never generated or changed by the agent. */
+  coverNote?: string
 }
 
 export interface Outcome {
@@ -27,6 +29,7 @@ export interface ApplyContext {
   followCompanies: boolean
   acceptTerms: boolean
   resumePath: string
+  coverNote?: string
 }
 
 export interface PlatformAdapter {

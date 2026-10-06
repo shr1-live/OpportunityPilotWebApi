@@ -5,6 +5,7 @@ using OpportunityPilot.Application.Common;
 using OpportunityPilot.Application.Research;
 using OpportunityPilot.Domain.Applications;
 using OpportunityPilot.Domain.Common;
+using OpportunityPilot.Domain.Drafts;
 using OpportunityPilot.Domain.Opportunities;
 using OpportunityPilot.Domain.Research;
 
@@ -117,10 +118,19 @@ public sealed class AgentResearchService(IAppDbContext db, ICurrentUser user, Ti
             .Select(a => (a.Platform.ToString(), a.ExternalJobId))
             .ToHashSet();
 
+        var opportunityIds = shortlisted.Select(o => o.Id).ToList();
+        var approvedNotes = (await db.OutreachDrafts
+                .Where(d => d.OwnerId == ownerId && opportunityIds.Contains(d.OpportunityId) &&
+                            d.Channel == DraftChannel.CoverNote && d.State == DraftState.Approved)
+                .ToListAsync(ct))
+            .Where(d => d.HasValidApproval())
+            .ToDictionary(d => d.OpportunityId, d => d.Body);
+
         return shortlisted
             .Where(o => !applied.Contains((o.Platform!.Value.ToString(), o.ExternalId!)))
             .Where(o => (o.ApplyUrl ?? o.Url) is not null)
-            .Select(o => new AgentShortlistItem(o.Id, o.CampaignId, o.Platform!.Value, o.ExternalId!, (o.ApplyUrl ?? o.Url)!, o.Title, o.Organization))
+            .Select(o => new AgentShortlistItem(o.Id, o.CampaignId, o.Platform!.Value, o.ExternalId!, (o.ApplyUrl ?? o.Url)!, o.Title,
+                o.Organization, approvedNotes.GetValueOrDefault(o.Id)))
             .ToList();
     }
 

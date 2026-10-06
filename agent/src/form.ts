@@ -140,7 +140,7 @@ export async function fillStep(
   page: Page,
   root: Locator,
   answers: Answers,
-  opts: { followCompanies: boolean; acceptTerms: boolean },
+  opts: { followCompanies: boolean; acceptTerms: boolean; coverNote?: string },
 ): Promise<FillResult> {
   const result: FillResult = { answered: [], unanswered: [] }
   for (const f of await discoverFields(root)) {
@@ -164,7 +164,7 @@ export async function fillStep(
       continue
     }
 
-    const answer = answerFor({ label: f.label, kind: f.kind, options: f.options }, answers)
+    const answer = answerFor({ label: f.label, kind: f.kind, options: f.options }, answers, opts.coverNote)
 
     if (f.kind === 'select') {
       const option = answer ? pickOption(f.options, answer) : undefined

@@ -266,7 +266,20 @@ Code: `Application/Agents/AgentResearchService.cs`
 
 Job opportunities with status Shortlisted, a platform and an external id, optionally one platform; best score first, max 200;
 URL is `applyUrl ?? url` (items with neither are left out). Excluded: any job the owner already has an **Applied** application
-for (same platform and external id).
+for (same platform and external id). `coverNote` is returned only when the opportunity has a CoverNote whose state,
+approved version and SHA-256 content hash all still match.
+
+### Cover notes
+
+Code: `Application/Drafts/DraftService.cs`, `Domain/Drafts/OutreachDraft.cs`
+
+- One CoverNote per opportunity. Creation is limited to Job opportunities and requires the campaign profile to be confirmed.
+- The deterministic template uses the sourced role title, verified organization/skill facts, confirmed campaign years,
+  and the confirmed profile's own offer/summary and availability text. Missing profile summary is shown as a placeholder.
+- Drafts start at version 1. A material recipient/subject/body edit increments the version and clears approval.
+- Approval stores the version and SHA-256 of `id|version|channel|recipient|subject|body`; a mismatch is reported as Draft.
+- No outbound delivery occurs. A valid approved CoverNote is exposed to the desktop agent, which fills it only into an
+  explicitly cover-letter-like free-text field. Unapproved, edited or revoked text is never returned to the agent.
 
 ### Reports
 

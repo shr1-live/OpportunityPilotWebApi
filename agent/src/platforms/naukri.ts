@@ -134,7 +134,7 @@ async function answerQuestion(page: Page, drawer: Locator, question: string, ctx
     const options = await radios.evaluateAll((els) =>
       els.map((r) => (r.id ? document.querySelector(`label[for="${CSS.escape(r.id)}"]`)?.textContent?.trim() : '') || (r as HTMLInputElement).value),
     )
-    const answer = answerFor({ label: question, kind: 'radio', options }, ctx.answers)
+    const answer = answerFor({ label: question, kind: 'radio', options }, ctx.answers, ctx.coverNote)
     const pick = answer ? pickOption(options, answer) : undefined
     if (!pick) return false
     const radio = radios.nth(options.indexOf(pick))
@@ -143,12 +143,12 @@ async function answerQuestion(page: Page, drawer: Locator, question: string, ctx
     else await radio.check({ force: true })
   } else if ((await chips.count()) > 0) {
     const options = (await chips.allInnerTexts()).map((t) => t.trim())
-    const answer = answerFor({ label: question, kind: 'radio', options }, ctx.answers)
+    const answer = answerFor({ label: question, kind: 'radio', options }, ctx.answers, ctx.coverNote)
     const pick = answer ? pickOption(options, answer) : undefined
     if (!pick) return false
     await chips.nth(options.indexOf(pick)).click()
   } else if ((await input.count()) > 0) {
-    const answer = answerFor({ label: question, kind: 'text' }, ctx.answers)
+    const answer = answerFor({ label: question, kind: 'text' }, ctx.answers, ctx.coverNote)
     if (answer === undefined) return false
     await input.click()
     await page.keyboard.type(answer, { delay: 30 })

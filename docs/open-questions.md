@@ -19,7 +19,7 @@ Audit date: 2026-10-05.
 | OQ-BE-003 | Supabase Data API exposure of schema `app` not verified | P1 | Shivanshu | Open |
 | OQ-BE-004 | Agent defaults answer questions the user never answered | P1 | Shivanshu | Closed 2026-10-05 — example config assumes nothing (`yesNo: ""`, `yearsOfExperience: null`); "I agree" boxes need `profile.acceptTermsCheckboxes` |
 | OQ-BE-005 | Fetching of the real public internet is unverified | P2 | Shivanshu | Open |
-| OQ-BE-006 | M4 + M5 (Gemini, outreach, follow-ups) not built | P2 | Claude | Open |
+| OQ-BE-006 | Remaining M4 + M5 AI, outreach and follow-ups not built | P2 | Claude | Open |
 | OQ-BE-007 | Gemini integration absent; model id and `Ai:Mode` unused | P2 | Shivanshu | Open |
 | OQ-BE-008 | Hard-coded deployment URLs disagree | P2 | Shivanshu | Open |
 | OQ-BE-009 | No account data deletion or export; no delete endpoints | P2 | Shivanshu | Open |
@@ -70,10 +70,10 @@ Audit date: 2026-10-05.
 - **Where** `Infrastructure/Research/SafeFetcher.cs`; `docs/IMPLEMENTATION_STATUS.md` (Not verified)
 - **What is needed** One manual run in Development against a few real public pages and feeds (TLS, real redirects, real HTML, charsets) and a note of the results. Tests use stubbed handlers and a loopback server only.
 
-### OQ-BE-006 — M4 + M5 (Gemini, outreach, follow-ups) not built
+### OQ-BE-006 — Remaining M4 + M5 AI, outreach and follow-ups not built
 - **Priority** P2 · **Owner** Claude · **Status** Open
-- **Where** `docs/M4_M5_CONTRACT.md` (spec only); no `ILlmClient`, OutreachDraft, Suppression, NextAction, UsageRecord or `AddOutreachAndAi` migration exists
-- **What is needed** Build against the contract (HANDOFF "NEXT"), then update api-contracts.md, db-schema.md, business-rules.md and the lifecycle doc.
+- **Where** `docs/M4_M5_CONTRACT.md`; CoverNote persistence, template generation, approval and agent handoff are built, but there is no `ILlmClient`, Suppression, NextAction, UsageRecord, other outreach channel or cross-opportunity draft inbox
+- **What is needed** Build the remaining contract slices, keeping the deterministic CoverNote path as the no-AI fallback.
 
 ### OQ-BE-007 — Gemini integration absent; model id and `Ai:Mode` unused
 - **Priority** P2 · **Owner** Shivanshu · **Status** Open
@@ -158,7 +158,7 @@ Audit date: 2026-10-05.
 ### OQ-BE-023 — M6–M8 capabilities not built (Gmail, other modes, Mongo, scheduler)
 - **Priority** P3 · **Owner** Shivanshu · **Status** Open
 - **Where** `Application/Capabilities/CapabilityService.cs:86-111`, `Application/Campaigns/CampaignCriteria.cs:72`
-- **What is needed** Gmail (M6), Partner/Investor/Freelance modes (M7), Mongo archive and a reliable scheduler (M8) are capability entries only. The 2026-10-05 product decisions in HANDOFF (Greenhouse/Lever/Adzuna sources, approval queue, Freelancer.com bids) are not reflected in any contract yet.
+- **What is needed** Gmail (M6), Partner/Investor/Freelance modes (M7), Mongo archive and a reliable scheduler (M8) are capability entries only. The first manual sales project/bid/approve endpoints and migrations now exist; Freelancer discovery/placement, tender feeds, proposal drafts, and Freelance mode remain unimplemented.
 
 ### OQ-BE-024 — InstaHyre exists in the API enum but not in the agent
 - **Priority** P3 · **Owner** Shivanshu · **Status** Open

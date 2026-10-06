@@ -82,13 +82,14 @@ export async function applyToShortlist(opts: ApplyOptions): Promise<RunSummary> 
       if (attempts >= limit) break
       let job = listed
       try {
-        job = { ...(await adapter.openJob(page, listed)), opportunityId: listed.opportunityId }
+        job = { ...(await adapter.openJob(page, listed)), opportunityId: listed.opportunityId, coverNote: listed.coverNote }
         const outcome = await adapter.apply(page, job, {
           submit: opts.submit,
           answers: config.answers,
           followCompanies: config.profile.followCompanies,
           acceptTerms: config.profile.acceptTermsCheckboxes,
           resumePath: config.profile.resumePath,
+          coverNote: listed.coverNote,
         })
         await record(job, outcome)
         consecutiveFailures = outcome.status === 'Failed' ? consecutiveFailures + 1 : 0

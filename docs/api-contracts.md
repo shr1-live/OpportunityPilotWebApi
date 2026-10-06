@@ -17,6 +17,11 @@ Envelope, naming and error rules: [conventions.md](conventions.md). Limits and r
 
 Owner identity is always the token's `sub`. Another owner's id answers **404**, never 403.
 
+Supabase access tokens must have the configured issuer and audience, a future expiry, a GUID `sub`, and a valid
+`RS256`, `ES256` or `EdDSA` signature from the project's JWKS. `HS256` is accepted only when the server-only
+`Auth__LegacyJwtSecret` is explicitly configured; that symmetric key is never offered to asymmetric tokens. Guest
+tokens use a separate issuer, audience, signing key and authentication scheme.
+
 ## Endpoints
 
 Status codes listed are the ones the code can produce besides 401 (missing or wrong credentials) and 429 (rate limit).
@@ -89,12 +94,42 @@ Query enums that fail to bind return 400 from model binding.
 | POST | `/api/v1/agent/campaigns/{id}/postings` | **agent key** | `AgentPostingsRequest`; body ≤4 MB | 200 `{ accepted, sourceId, jobId }` (`jobId` null unless `queueResearch`); 400 (not a Job campaign, field errors); 404; 409; 413 |
 | GET | `/api/v1/agent/shortlist` | **agent key** | query `platform?` (LinkedIn, Naukri, Other) | 200 `AgentShortlistItem[]`, best score first, max 200 |
 
+### Cover-note drafts
+
+Only deterministic `CoverNote` generation is implemented in this slice. It requires a Job opportunity whose campaign
+profile is confirmed. No message is sent; approval only makes the exact approved text available to the desktop agent.
+
+| Method | Path | Auth | Request | Response / errors |
+|---|---|---|---|---|
+| POST | `/api/v1/opportunities/{id}/drafts` | user | `{ channel: "CoverNote", recipient? }` | 201 `DraftDto`; 400 (not CoverNote, non-Job, unconfirmed profile); 404; 409 (one already exists) |
+| GET | `/api/v1/opportunities/{id}/drafts` | user | — | 200 `DraftDto[]`, newest first; 404 |
+| GET | `/api/v1/drafts/{id}` | user | — | 200 `DraftDto`; 404 |
+| PUT | `/api/v1/drafts/{id}` | user | `{ recipient?, subject?, body, expectedVersion }` | 200 `DraftDto`; material edits increment version and clear approval; 400; 404; 409 |
+| POST | `/api/v1/drafts/{id}/approve` | user | `{ version }` | 200 `DraftDto`; approval is bound to SHA-256 of exact content and version; 400; 404; 409 |
+| POST | `/api/v1/drafts/{id}/revoke-approval` | user | — | 200 `DraftDto`; 404; 409 |
+| DELETE | `/api/v1/drafts/{id}` | user | — | 204; 404 |
+
 ### Approval queue
 
 | Method | Path | Auth | Request | Response |
 |---|---|---|---|---|
 | GET | `/api/v1/approvals` | user | query `campaignId?`, `take` (1–200, default 100), `skip` | 200 `{ total, items: ApprovalItem[] }`, Suggested opportunities by score |
 | POST | `/api/v1/approvals/decide` | user | `{ approve?: Guid[], reject?: Guid[] }`, 1–200 distinct ids, no overlap | 200 `{ approved, rejected, skipped }`; approve → Shortlisted, reject → Dismissed; stale/foreign ids are skipped; 400 |
+
+### Sales pipeline (N5 first slice)
+
+The complete sales design is documented in [SALES_CONTRACT.md](SALES_CONTRACT.md). This first slice supports manually
+entered projects and versioned bid preparation/approval. Provider discovery, bid placement, tenders and sales drafts
+remain unavailable.
+
+| Method | Path | Auth | Request | Response / errors |
+|---|---|---|---|---|
+| GET | `/api/v1/sales/projects` | user | query `state?`, `source?`, `take` (1–200, default 50), `skip` | 200 `SalesProjectDto[]`, newest updated first |
+| POST | `/api/v1/sales/projects` | user | `CreateSalesProjectRequest` (`source` must be `Manual`) | 201 `SalesProjectDto`; 400; 409 duplicate provider id |
+| GET | `/api/v1/sales/projects/{id}` | user | — | 200 `SalesProjectDto`; 404 |
+| POST | `/api/v1/sales/projects/{id}/bid` | user | `CreateSalesBidRequest` | 200 project with the new Draft bid; 400; 404 |
+| PUT | `/api/v1/sales/bids/{id}` | user | `UpdateSalesBidRequest` with `expectedVersion` | 200 project; 400; 404; 409 stale version |
+| POST | `/api/v1/sales/bids/{id}/approve` | user | `{ version }` | 200 project; 404; 409 stale version |
 
 ## DTO shapes
 
@@ -126,8 +161,14 @@ JSON is camelCase and enums are strings. `?` marks nullable.
 | AgentKeyDto | `id, name, prefix, createdAt, lastUsedAt?` (CreatedAgentKeyDto adds `key`) |
 | AgentCampaignDto | `id, name, mode, criteria: CampaignCriteria` |
 | AgentPostingsRequest | `platform (LinkedIn or Naukri), items: { externalId, url, title, company, location?, description? }[] (1–100), queueResearch: bool` |
-| AgentShortlistItem | `opportunityId, campaignId, platform, externalId, url, title, organization` |
+| AgentShortlistItem | `opportunityId, campaignId, platform, externalId, url, title, organization, coverNote?`; `coverNote` is non-null only for a currently hash-valid approved CoverNote |
+| DraftDto | `id, opportunityId, channel, recipient?, recipientVerified, subject?, body, version, state, approvedVersion?, approvedAt?, source, fallbackReason?, claims[], sendReady, sendBlockers[], createdAt, updatedAt` |
 | ApprovalItem | `opportunityId, campaignId, campaignName, title, organization, location?, platform?, applyUrl?, score, coverage, outcomeReason?, appliesVia (Agent, You)` |
+| SalesProjectDto | `id, source, externalId?, title, buyer?, description?, url?, deadlineUtc?, state, version, bids[], createdAt, updatedAt` |
+| SalesBidDto | `id, projectId, amount, currency, deliveryDays, proposal, version, state, approvedVersion?, approvedAt?, hasValidApproval, createdAt, updatedAt` |
+| CreateSalesProjectRequest | `source (Manual in this slice), externalId?, title, buyer?, description?, url?, deadlineUtc?, evidenceJson?` |
+| CreateSalesBidRequest | `amount, currency, deliveryDays, proposal` |
+| UpdateSalesBidRequest | `amount, currency, deliveryDays, proposal, expectedVersion` |
 
 ## Planned, not built
 

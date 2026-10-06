@@ -12,6 +12,13 @@ const answers: Answers = {
 }
 
 describe('answerFor', () => {
+  it('uses only the approved cover note for cover-letter-like free-text fields', () => {
+    expect(answerFor({ label: 'Cover letter', kind: 'textarea' }, answers, 'Approved exact text')).toBe('Approved exact text')
+    expect(answerFor({ label: 'Why do you want to join us?', kind: 'textarea' }, answers, 'Approved exact text')).toBe('Approved exact text')
+    expect(answerFor({ label: 'Tell us about yourself', kind: 'textarea' }, answers, 'Approved exact text')).toBeUndefined()
+    expect(answerFor({ label: 'Cover letter', kind: 'textarea' }, answers)).toBeUndefined()
+  })
+
   it('uses the first matching rule, ignoring case and punctuation', () => {
     expect(answerFor({ label: 'What is your Notice Period?*', kind: 'text' }, answers)).toBe('30')
     expect(answerFor({ label: 'Expected CTC (in INR)', kind: 'number' }, answers)).toBe('1800000')

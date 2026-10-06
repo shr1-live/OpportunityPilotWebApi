@@ -15,4 +15,5 @@ public sealed record AgentPostingsRequest(JobPlatform Platform, IReadOnlyList<Ag
 public sealed record AgentPostingsResult(int Accepted, Guid SourceId, Guid? JobId);
 
 public sealed record AgentShortlistItem(
-    Guid OpportunityId, Guid CampaignId, JobPlatform Platform, string ExternalId, string Url, string Title, string Organization);
+    Guid OpportunityId, Guid CampaignId, JobPlatform Platform, string ExternalId, string Url, string Title, string Organization,
+    string? CoverNote);

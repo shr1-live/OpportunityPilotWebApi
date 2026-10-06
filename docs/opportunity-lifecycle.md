@@ -35,7 +35,8 @@ status, including moving an Applied opportunity back to New (see OQ-BE-011).
 | Desktop agent | only to **Applied** | `POST /api/v1/applications/report` with `status: Applied` and the opportunity's id → `MarkApplied` from any status; idempotent once Applied | `Applied`, detail `Applied on <platform> by the desktop agent.` |
 
 Only `Shortlisted` Job opportunities with a platform and external id are offered to the agent
-(`GET /api/v1/agent/shortlist`); one already reported Applied is no longer offered.
+(`GET /api/v1/agent/shortlist`); one already reported Applied is no longer offered. A cover note is included only when
+its exact current version is Approved and its approval hash still matches; editing or revoking immediately removes it.
 
 Every status change bumps `Version`. A user change racing a research save returns 409 to the user; the research run
 merges the user's change instead of overwriting it.

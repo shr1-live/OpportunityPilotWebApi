@@ -50,7 +50,7 @@ Environment variables use `__` for nesting (`ConnectionStrings__Main`).
 | `Database__Provider` | yes | `SqlServer` or `Postgres` (production default `Postgres`) |
 | `Auth__SupabaseUrl` | yes outside dev | `https://<ref>.supabase.co`, https only. Without it: demo mode, guest sign-in only. Tokens are validated against `{url}/auth/v1/.well-known/jwks.json` |
 | `Auth__Audience` | no | default `authenticated` |
-| `Auth__LegacyJwtSecret` | no | only for old Supabase projects still signing with HS256 |
+| `Auth__LegacyJwtSecret` | no | server-only; only for old Supabase projects still signing with HS256. Leave unset for asymmetric signing keys |
 | `Auth__DevBypass` | no | Development only |
 | `Auth__GuestSigningKey` | recommended | signs guest tokens (demo mode, and next to accounts): keeps guest sessions valid across restarts |
 | `Auth__AllowGuests` | no | default `true`: keep "Continue as guest" once Supabase sign-in is on; `false` requires an account |
@@ -79,7 +79,18 @@ step: `dotnet OpportunityPilot.Api.dll --migrate` applies pending migrations and
 2. **Database → Connect**: use the session pooler connection string for
    `ConnectionStrings__Main` with `Database__Provider=Postgres`.
 3. **Authentication → URL configuration**: set the site URL to the web app's
-   origin so confirmation emails link back to it.
+   origin so confirmation emails link back to it. Add the exact production
+   `/reset/new` URL to the allowed redirects; add localhost redirects only to the
+   development project.
+4. Keep email confirmation enabled. Set the Auth password minimum to at least 12
+   characters (matching the web app) and enable leaked-password protection when
+   the project plan supports it.
+5. Prefer an asymmetric signing key (`ES256` or `RS256`). The API reads the public
+   keys from `/auth/v1/.well-known/jwks.json`; no private key or service-role key is
+   needed. When rotating a key, wait at least 20 minutes before revoking the old
+   key so cached JWKS and already-issued short-lived access tokens can age out.
+6. Do not expose schema `app` through the Data API. If it must be exposed later,
+   enable and verify owner-scoped RLS policies first (OQ-BE-003).
 
 The browser only uses Supabase for sign-in; it never reads the database directly.
 
@@ -106,6 +117,11 @@ Older Supabase projects that still sign tokens with the shared HS256 secret (the
 JWKS endpoint returns no keys) also need `Auth__LegacyJwtSecret` (Project
 Settings → JWT keys → legacy secret). Symptom without it: sign-in succeeds, then
 the app immediately says the session expired.
+
+For an account-only production deployment, also set `Auth__AllowGuests=false`.
+If guest access remains enabled, set a random server-only `Auth__GuestSigningKey`
+of at least 32 characters so guest sessions survive Render restarts. Never put
+either secret in a `VITE_` variable.
 
 Free instances sleep when idle; the web app shows "API · starting" and retries
 with backoff rather than reporting a failure.
