@@ -327,7 +327,7 @@ Code: `Api/Auth/*`
 | Rule | Value |
 |---|---|
 | Supabase JWT | issuer `{SupabaseUrl}/auth/v1`, audience `Auth:Audience` (default `authenticated`), signed, lifetime checked, 1 minute clock skew; keys from `{SupabaseUrl}/auth/v1/.well-known/jwks.json` (cached 10 minutes, refreshed for an unknown key id at most every 30 s) plus `Auth:LegacyJwtSecret` (HS256) when set |
-| Guest token | HS256, issuer `opportunitypilot-guest`, audience `opportunitypilot`, random `sub` chosen by the server, 30 days; signing key random per process unless `Auth:GuestSigningKey` has ≥32 characters |
+| Guest token | Opaque `opg_` + 32 random bytes, 30 days; only its SHA-256 hash and random owner id are stored. A durable database keeps it valid across API restarts; in-memory data and sessions reset together |
 | Dev bypass | Development only (startup throws elsewhere); `X-Dev-User` ≤100 characters → stable owner id from SHA-256 of `dev:` + lower-cased name |
 | Owner id | the `sub` claim must be a non-empty GUID, otherwise 401 |
 

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OpportunityPilot.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using OpportunityPilot.Infrastructure.Persistence;
 namespace OpportunityPilot.Infrastructure.Persistence.Migrations.SqlServer
 {
     [DbContext(typeof(SqlServerAppDbContext))]
-    partial class SqlServerAppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006123942_AddPersistentGuestSessions")]
+    partial class AddPersistentGuestSessions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

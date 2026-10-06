@@ -52,7 +52,6 @@ Environment variables use `__` for nesting (`ConnectionStrings__Main`).
 | `Auth__Audience` | no | default `authenticated` |
 | `Auth__LegacyJwtSecret` | no | server-only; only for old Supabase projects still signing with HS256. Leave unset for asymmetric signing keys |
 | `Auth__DevBypass` | no | Development only |
-| `Auth__GuestSigningKey` | recommended | signs guest tokens (demo mode, and next to accounts): keeps guest sessions valid across restarts |
 | `Auth__AllowGuests` | no | default `true`: keep "Continue as guest" once Supabase sign-in is on; `false` requires an account |
 | `Cors__AllowedOrigins__0` | yes for a browser | the web app's origin, e.g. `https://app.example.com`; add `__1`, `__2`… for more |
 | `Cors__AllowedOriginPatterns__0` | no | https origin with one `*` for a single hostname fragment (letters, digits, hyphens — no dots), for hosts that give each deployment its own address. Default allows this project's Vercel deployments: `https://opportunity-pilot-webapp-*-vsr6.vercel.app` |
@@ -119,9 +118,9 @@ Settings → JWT keys → legacy secret). Symptom without it: sign-in succeeds, 
 the app immediately says the session expired.
 
 For an account-only production deployment, also set `Auth__AllowGuests=false`.
-If guest access remains enabled, set a random server-only `Auth__GuestSigningKey`
-of at least 32 characters so guest sessions survive Render restarts. Never put
-either secret in a `VITE_` variable.
+Guest access otherwise needs no signing key or identity provider: opaque session
+tokens are stored only as SHA-256 hashes and survive restarts whenever the main
+database is durable. Never put `Auth__LegacyJwtSecret` in a `VITE_` variable.
 
 Free instances sleep when idle; the web app shows "API · starting" and retries
 with backoff rather than reporting a failure.

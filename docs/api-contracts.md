@@ -20,7 +20,8 @@ Owner identity is always the token's `sub`. Another owner's id answers **404**, 
 Supabase access tokens must have the configured issuer and audience, a future expiry, a GUID `sub`, and a valid
 `RS256`, `ES256` or `EdDSA` signature from the project's JWKS. `HS256` is accepted only when the server-only
 `Auth__LegacyJwtSecret` is explicitly configured; that symmetric key is never offered to asymmetric tokens. Guest
-tokens use a separate issuer, audience, signing key and authentication scheme.
+credentials are separate opaque `opg_…` bearer tokens; only SHA-256 hashes are persisted and their scheme never
+accepts a Supabase JWT.
 
 ## Endpoints
 

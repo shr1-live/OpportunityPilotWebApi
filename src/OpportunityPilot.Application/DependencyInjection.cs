@@ -3,6 +3,7 @@ using OpportunityPilot.Application.Agents;
 using OpportunityPilot.Application.Analytics;
 using OpportunityPilot.Application.Applications;
 using OpportunityPilot.Application.Approvals;
+using OpportunityPilot.Application.Auth;
 using OpportunityPilot.Application.Campaigns;
 using OpportunityPilot.Application.Capabilities;
 using OpportunityPilot.Application.Drafts;
@@ -24,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<ProfileService>();
         services.AddScoped<ApplicationService>();
         services.AddScoped<AgentKeyService>();
+        services.AddScoped<GuestSessionService>();
         services.AddScoped<CampaignService>();
         services.AddScoped<SourceService>();
         services.AddScoped<ImportService>();

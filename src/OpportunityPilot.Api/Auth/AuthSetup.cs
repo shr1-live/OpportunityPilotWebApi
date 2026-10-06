@@ -35,9 +35,9 @@ public static class AuthSetup
             setup.AuthMissing("Auth__SupabaseUrl is not set, so sign-in is guest-only.");
         }
 
-        // Guests get random server-signed identities: always in demo mode, and next to real accounts unless
+        // Guests use opaque, hashed database sessions: always in demo mode, and next to real accounts unless
         // Auth:AllowGuests is false. Never with the local dev bypass.
-        var guests = new GuestTokens(enabled: (!supabaseConfigured || auth.AllowGuests) && !devBypass, auth.GuestSigningKey);
+        var guests = new GuestAccess(Enabled: (!supabaseConfigured || auth.AllowGuests) && !devBypass);
         setup.GuestsEnabled = guests.Enabled;
         builder.Services.AddSingleton(guests);
 
@@ -45,16 +45,13 @@ public static class AuthSetup
         var authBuilder = builder.Services.AddAuthentication(
             supabaseConfigured ? JwtBearerDefaults.AuthenticationScheme
             : devBypass ? DevBypassAuthenticationHandler.SchemeName
-            : GuestTokens.SchemeName);
+            : GuestAuthenticationHandler.SchemeName);
 
         if (guests.Enabled)
         {
-            authBuilder.AddJwtBearer(GuestTokens.SchemeName, o =>
-            {
-                o.MapInboundClaims = false;
-                o.TokenValidationParameters = guests.ValidationParameters();
-            });
-            schemes.Add(GuestTokens.SchemeName);
+            authBuilder.AddScheme<AuthenticationSchemeOptions, GuestAuthenticationHandler>(
+                GuestAuthenticationHandler.SchemeName, null);
+            schemes.Add(GuestAuthenticationHandler.SchemeName);
         }
 
         if (supabaseConfigured)

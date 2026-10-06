@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OpportunityPilot.Application.Abstractions;
 using OpportunityPilot.Domain.Agents;
 using OpportunityPilot.Domain.Applications;
+using OpportunityPilot.Domain.Auth;
 using OpportunityPilot.Domain.Campaigns;
 using OpportunityPilot.Domain.Drafts;
 using OpportunityPilot.Domain.Opportunities;
@@ -23,6 +24,7 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<JobApplication> JobApplications => Set<JobApplication>();
     public DbSet<AgentKey> AgentKeys => Set<AgentKey>();
+    public DbSet<GuestSession> GuestSessions => Set<GuestSession>();
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<Source> Sources => Set<Source>();
     public DbSet<SourceItem> SourceItems => Set<SourceItem>();
@@ -80,6 +82,16 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
             e.Property(k => k.Prefix).HasMaxLength(12).IsRequired();
             e.HasIndex(k => k.KeyHash).IsUnique();
             e.HasIndex(k => k.OwnerId);
+        });
+
+        modelBuilder.Entity<GuestSession>(e =>
+        {
+            e.ToTable("guest_sessions");
+            e.HasKey(s => s.Id);
+            e.Property(s => s.Id).ValueGeneratedNever();
+            e.Property(s => s.TokenHash).HasMaxLength(64).IsRequired();
+            e.HasIndex(s => s.TokenHash).IsUnique();
+            e.HasIndex(s => s.ExpiresAt);
         });
 
         modelBuilder.Entity<Campaign>(e =>
