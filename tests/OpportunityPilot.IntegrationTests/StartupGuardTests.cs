@@ -156,12 +156,28 @@ public class StartupGuardTests
     }
 
     [Fact]
-    public async Task Guest_sign_in_is_off_once_supabase_is_configured()
+    public async Task Guests_stay_available_next_to_accounts_by_default()
     {
         using var factory = new ProductionFactory(new()
         {
             ["ConnectionStrings:Main"] = "",
             ["Auth:SupabaseUrl"] = "https://example.supabase.co"
+        });
+        var guest = await GuestClient(factory);
+
+        Assert.Equal(HttpStatusCode.OK, (await guest.GetAsync("/api/v1/overview")).StatusCode);
+        var caps = JsonDocument.Parse(await guest.GetStringAsync("/api/v1/capabilities")).RootElement;
+        Assert.True(caps.GetProperty("guestSignIn").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Guest_sign_in_is_off_when_accounts_are_on_and_guests_are_disallowed()
+    {
+        using var factory = new ProductionFactory(new()
+        {
+            ["ConnectionStrings:Main"] = "",
+            ["Auth:SupabaseUrl"] = "https://example.supabase.co",
+            ["Auth:AllowGuests"] = "false"
         });
         var client = factory.CreateClient();
 

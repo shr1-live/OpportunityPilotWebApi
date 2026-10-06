@@ -22,7 +22,7 @@ public enum CapabilityStatus
 public sealed record CapabilityDto(string Key, string Name, string Category, CapabilityStatus Status, string Detail, string[] Can, string[] Cannot);
 
 /// <param name="SetupRequired">Plain-language list of missing configuration; empty when the deployment is complete.</param>
-/// <param name="GuestSignIn">Demo mode: no sign-in provider, so visitors continue as random guests.</param>
+/// <param name="GuestSignIn">"Continue as guest" is offered (demo mode, or next to accounts when allowed).</param>
 /// <param name="TemporaryStorage">Demo mode: no database, so data is kept in memory until the server restarts.</param>
 public sealed record CapabilitiesDto(
     string Environment, string DatabaseProvider, string AiMode,
@@ -136,6 +136,6 @@ public sealed class CapabilityService(
             environment,
             setup.DatabaseConfigured ? database.Value.Provider : "In-memory (temporary)",
             geminiKeyPresent ? "Gemini (key present)" : "Rules",
-            setup.Missing, !setup.AuthConfigured, !setup.DatabaseConfigured, items);
+            setup.Missing, setup.GuestsEnabled, !setup.DatabaseConfigured, items);
     }
 }

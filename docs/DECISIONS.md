@@ -53,3 +53,9 @@ opportunity id moves it to Applied. Agent keys work only on the agent endpoints 
 Without a connection string the API uses the EF InMemory store; the processor and rules run unchanged, because claiming
 relies on concurrency tokens rather than raw SQL. Unique indexes are not enforced there, so services check for
 duplicates themselves. Data still disappears on restart, and capabilities say so.
+
+## 2026-10-06 — Guests stay available next to real accounts
+
+**Decision:** "Continue as guest" is offered even when Supabase sign-in is configured (`Auth:AllowGuests`, default `true`). Each guest is a random, server-signed identity with its own isolated data; set `Auth__AllowGuests=false` to require an account.
+**Why:** design round 3 (`AuthSignIn`) keeps guest access for demos next to email/Google sign-in, and the user asked for the full design to be implemented.
+**Consequence:** set `Auth__GuestSigningKey` so guest sessions survive restarts. Guest data is never merged into an account.
