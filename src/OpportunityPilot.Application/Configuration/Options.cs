@@ -25,6 +25,8 @@ public sealed class AiOptions
     public bool AllowPaidUsage { get; set; }
     public int MaxCallsPerRun { get; set; } = 12;
     public int MaxOutputTokens { get; set; } = 1500;
+    public int DailyCallLimit { get; set; } = 200;
+    public int TimeoutSeconds { get; set; } = 20;
 }
 
 /// <summary>

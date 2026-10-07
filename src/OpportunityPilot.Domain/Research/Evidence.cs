@@ -10,7 +10,7 @@ namespace OpportunityPilot.Domain.Research;
 /// </summary>
 public class Evidence : IOwned
 {
-    public const int MaxExcerptLength = 2000;
+    public const int MaxExcerptLength = 8000;
     public const int MaxUrlLength = 1000;
     public const string RulesMethod = "Rules";
 

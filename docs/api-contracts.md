@@ -102,12 +102,21 @@ profile is confirmed. No message is sent; approval only makes the exact approved
 
 | Method | Path | Auth | Request | Response / errors |
 |---|---|---|---|---|
-| POST | `/api/v1/opportunities/{id}/drafts` | user | `{ channel: "CoverNote", recipient? }` | 201 `DraftDto`; 400 (not CoverNote, non-Job, unconfirmed profile); 404; 409 (one already exists) |
+| POST | `/api/v1/opportunities/{id}/drafts` | user | `{ channel: Email|CoverNote|LinkedInMessage|ContactForm, recipient? }` | 201 `DraftDto`; confirmed profile required; CoverNote is Job-only; 404/409 |
 | GET | `/api/v1/opportunities/{id}/drafts` | user | — | 200 `DraftDto[]`, newest first; 404 |
 | GET | `/api/v1/drafts/{id}` | user | — | 200 `DraftDto`; 404 |
 | PUT | `/api/v1/drafts/{id}` | user | `{ recipient?, subject?, body, expectedVersion }` | 200 `DraftDto`; material edits increment version and clear approval; 400; 404; 409 |
 | POST | `/api/v1/drafts/{id}/approve` | user | `{ version }` | 200 `DraftDto`; approval is bound to SHA-256 of exact content and version; 400; 404; 409 |
 | POST | `/api/v1/drafts/{id}/revoke-approval` | user | — | 200 `DraftDto`; 404; 409 |
+| GET | `/api/v1/drafts` | user | query `state?`, `channel?`, `campaignId?`, `take` (1–200), `skip` | cross-opportunity `DraftPageDto`; items include campaign identity and recipient verification state |
+| POST | `/api/v1/drafts/batch-approve` | user | `{ items: [{ id, version }] }` | independent exact-version results; blocked/stale items are skipped with reasons |
+| GET/POST/DELETE | `/api/v1/suppressions[/{id}]` | user | recipient/reason on POST | owner suppression list |
+| GET/POST | `/api/v1/opportunities/{id}/activities` | user | `kind, detail, occurredAt?` on POST | activity history; observed stages update status |
+| GET/POST | `/api/v1/opportunities/{id}/next-actions` | user | next-action fields on POST | opportunity reminders |
+| GET/PATCH | `/api/v1/next-actions[/{id}]` | user | `state?`, `dueAt?` on PATCH | owner due-date list and state changes |
+| POST | `/api/v1/goal-previews` | user | `{ profileId, goal, mode? }` | Gemini when configured, validated deterministic fallback otherwise |
+| GET | `/api/v1/ai/status` | user | — | provider/model/fallback status |
+| GET/DELETE | `/api/v1/account-data/export`, `/api/v1/account-data` | user | `{ confirm: true }` on DELETE | portable JSON export or permanent owned-data deletion |
 | DELETE | `/api/v1/drafts/{id}` | user | — | 204; 404 |
 
 ### Approval queue
@@ -126,11 +135,13 @@ remain unavailable.
 | Method | Path | Auth | Request | Response / errors |
 |---|---|---|---|---|
 | GET | `/api/v1/sales/projects` | user | query `state?`, `source?`, `take` (1–200, default 50), `skip` | 200 `SalesProjectDto[]`, newest updated first |
-| POST | `/api/v1/sales/projects` | user | `CreateSalesProjectRequest` (`source` must be `Manual`) | 201 `SalesProjectDto`; 400; 409 duplicate provider id |
+| POST | `/api/v1/sales/projects` | user | `CreateSalesProjectRequest`; non-manual sources require `externalId` | 201 `SalesProjectDto`; 400; 409 duplicate provider id |
 | GET | `/api/v1/sales/projects/{id}` | user | — | 200 `SalesProjectDto`; 404 |
+| POST | `/api/v1/sales/bids/batch-approve` | user | `{ items: [{ id, version }] }` | exact-version per-item results |
+| POST | `/api/v1/sales/projects/{id}/handoff` | user | — | marks manual tender/provider handoff |
 | POST | `/api/v1/sales/projects/{id}/bid` | user | `CreateSalesBidRequest` | 200 project with the new Draft bid; 400; 404 |
 | PUT | `/api/v1/sales/bids/{id}` | user | `UpdateSalesBidRequest` with `expectedVersion` | 200 project; 400; 404; 409 stale version |
-| POST | `/api/v1/sales/bids/{id}/approve` | user | `{ version }` | 200 project; 404; 409 stale version |
+| POST | `/api/v1/sales/bids/{id}/approve` | user | `{ version }` | 200 project; 400 while `[placeholders]` remain; 404; 409 stale version |
 
 ## DTO shapes
 
@@ -164,6 +175,7 @@ JSON is camelCase and enums are strings. `?` marks nullable.
 | AgentPostingsRequest | `platform (LinkedIn or Naukri), items: { externalId, url, title, company, location?, description? }[] (1–100), queueResearch: bool` |
 | AgentShortlistItem | `opportunityId, campaignId, platform, externalId, url, title, organization, coverNote?`; `coverNote` is non-null only for a currently hash-valid approved CoverNote |
 | DraftDto | `id, opportunityId, channel, recipient?, recipientVerified, subject?, body, version, state, approvedVersion?, approvedAt?, source, fallbackReason?, claims[], sendReady, sendBlockers[], createdAt, updatedAt` |
+| DraftListItemDto | `id, opportunityId, campaignId, campaignName, opportunityTitle, organization, channel, recipient?, recipientVerified, state, version, updatedAt` |
 | ApprovalItem | `opportunityId, campaignId, campaignName, title, organization, location?, platform?, applyUrl?, score, coverage, outcomeReason?, appliesVia (Agent, You)` |
 | SalesProjectDto | `id, source, externalId?, title, buyer?, description?, url?, deadlineUtc?, state, version, bids[], createdAt, updatedAt` |
 | SalesBidDto | `id, projectId, amount, currency, deliveryDays, proposal, version, state, approvedVersion?, approvedAt?, hasValidApproval, createdAt, updatedAt` |
@@ -177,5 +189,5 @@ Nothing below exists in the code; do not call it or document it as available.
 
 | Source | Endpoints |
 |---|---|
-| [M4_M5_CONTRACT.md](M4_M5_CONTRACT.md) | goal previews, opportunity AI summary, drafts, suppressions, activities, next actions, `/api/v1/ai/status` |
+| [M4_M5_CONTRACT.md](M4_M5_CONTRACT.md) | opportunity AI summary and persisted Gemini usage remain; goal previews, drafts, suppressions, activities, next actions and AI status are built |
 | Implementation plan §16 | `POST /api/v1/research-jobs/{id}/resume`, AI exchanges, Gmail integration, sending |

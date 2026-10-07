@@ -1,7 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 
-export type Platform = 'LinkedIn' | 'Naukri'
+export type Platform = 'LinkedIn' | 'Naukri' | 'Instahyre'
 export type Status = 'Applied' | 'DryRun' | 'NeedsManual' | 'Skipped' | 'Failed'
 
 export interface ApplicationRecord {

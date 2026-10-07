@@ -1,8 +1,8 @@
 namespace OpportunityPilot.Application.Configuration;
 
 /// <summary>
-/// What is missing from this deployment's configuration. The API starts anyway, refuses the affected
-/// requests with 503 "Setup required", and reports the gaps through /api/v1/capabilities.
+/// What is missing from this deployment's configuration. The API starts in a bounded demo mode where possible
+/// (in-memory storage and/or guest access) and reports every gap through /api/v1/capabilities.
 /// </summary>
 public sealed class SetupState
 {

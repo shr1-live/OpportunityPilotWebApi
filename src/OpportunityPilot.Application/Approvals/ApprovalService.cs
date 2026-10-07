@@ -49,6 +49,24 @@ public sealed class ApprovalService(IAppDbContext db, ICurrentUser user, TimePro
 
     public async Task<int> CountAsync(CancellationToken ct) => await Suggested.CountAsync(ct);
 
+    public async Task<DecideApprovalsResult> DecideAllAsync(DecideAllApprovalsRequest request, CancellationToken ct)
+    {
+        var query = Suggested;
+        if (request.CampaignId is { } campaignId)
+        {
+            if (!await db.Campaigns.AnyAsync(c => c.Id == campaignId && c.OwnerId == user.OwnerId, ct))
+                throw new NotFoundException("Campaign not found.");
+            query = query.Where(x => x.CampaignId == campaignId);
+        }
+        var rows = await query.ToListAsync(ct);
+        var now = clock.GetUtcNow().UtcDateTime;
+        foreach (var row in rows)
+            if (row.DecideSuggestion(request.Approve, now) is { } activity) db.Activities.Add(activity);
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException) { throw new ConflictException("Some opportunities changed while the batch was being approved. Reload and try again."); }
+        return request.Approve ? new(rows.Count, 0, 0) : new(0, rows.Count, 0);
+    }
+
     /// <summary>
     /// Approves and rejects in one save. Ids that are not the caller's, unknown, or no longer Suggested are counted as
     /// skipped rather than failing the batch, so a stale screen never blocks the rest of the decisions.
@@ -90,9 +108,9 @@ public sealed class ApprovalService(IAppDbContext db, ICurrentUser user, TimePro
         }
     }
 
-    /// <summary>LinkedIn and Naukri are applied to by the desktop agent; every other source through its apply URL by the user.</summary>
+    /// <summary>Supported signed-in platforms are applied to by the desktop agent; every other source through its apply URL by the user.</summary>
     public static AppliesVia AppliesViaFor(JobPlatform? platform) =>
-        platform is JobPlatform.LinkedIn or JobPlatform.Naukri ? AppliesVia.Agent : AppliesVia.You;
+        platform is JobPlatform.LinkedIn or JobPlatform.Naukri or JobPlatform.Instahyre ? AppliesVia.Agent : AppliesVia.You;
 
     /// <summary>Duplicate ids within one list count once; an empty id is skipped like any unknown id.</summary>
     public static (HashSet<Guid> Approve, HashSet<Guid> Reject) Validate(DecideApprovalsRequest? request)

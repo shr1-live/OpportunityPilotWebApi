@@ -6,6 +6,7 @@ import { openBrowser } from './browser.ts'
 import { CONFIG_PATH, DATA_DIR, loadConfig, writeExampleConfig } from './config.ts'
 import { linkedIn } from './platforms/linkedin.ts'
 import { naukri } from './platforms/naukri.ts'
+import { instahyre } from './platforms/instahyre.ts'
 import type { PlatformAdapter } from './platforms/types.ts'
 import { applyToShortlist } from './run.ts'
 import { Store } from './store.ts'
@@ -13,12 +14,12 @@ import { Store } from './store.ts'
 const HELP = `OpportunityPilot agent — research input and applications from your own logged-in browser.
 
   npm run agent -- init                      create config.json (answers, limits, agent key)
-  npm run agent -- login <linkedin|naukri>   log in once in the browser window that opens
+  npm run agent -- login <linkedin|naukri|instahyre>   log in once in the browser window that opens
   npm run agent -- campaigns                 list your Job campaigns and their ids
-  npm run agent -- collect <linkedin|naukri> --campaign <id>
+  npm run agent -- collect <linkedin|naukri|instahyre> --campaign <id>
                                              search with the campaign's criteria and send the postings
                                              to it for research (nothing is applied to)
-  npm run agent -- apply <linkedin|naukri>   dry run over the jobs YOU shortlisted after research
+  npm run agent -- apply <linkedin|naukri|instahyre>   dry run over the jobs YOU shortlisted after research
         --submit      send real applications (needs "iUnderstandAccountRisk": true)
         --limit N     at most N applications this run
         --headless    no visible window (not recommended)
@@ -26,13 +27,14 @@ const HELP = `OpportunityPilot agent — research input and applications from yo
   npm run agent -- status                    summary of the local log
 `
 
-const RISK = `Unofficial automation: LinkedIn and Naukri terms prohibit automated use and may restrict
+const RISK = `Unofficial automation: job platforms may prohibit automated use and may restrict
 your account. Keep the limits in config.json low. The agent stops at any security check.`
 
 function adapterFor(name: string | undefined): PlatformAdapter {
   if (name === 'linkedin') return linkedIn()
   if (name === 'naukri') return naukri()
-  throw new Error(`Choose a platform: linkedin or naukri (got "${name ?? ''}").`)
+  if (name === 'instahyre') return instahyre()
+  throw new Error(`Choose a platform: linkedin, naukri or instahyre (got "${name ?? ''}").`)
 }
 
 const store = () => new Store(join(DATA_DIR, 'applications.jsonl'))

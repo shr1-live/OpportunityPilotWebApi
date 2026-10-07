@@ -30,7 +30,7 @@ public static class CampaignWeights
     public static IReadOnlyDictionary<string, int> Defaults(OpportunityMode mode) => mode switch
     {
         OpportunityMode.Job => JobDefaults,
-        OpportunityMode.Customer => CustomerDefaults,
+        OpportunityMode.Customer or OpportunityMode.Partner or OpportunityMode.Investor or OpportunityMode.Freelance => CustomerDefaults,
         _ => new Dictionary<string, int>()
     };
 

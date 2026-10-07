@@ -3,9 +3,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpportunityPilot.Application.Abstractions;
+using OpportunityPilot.Application.Ai;
 using OpportunityPilot.Application.Configuration;
 using OpportunityPilot.Application.Research;
 using OpportunityPilot.Infrastructure.Persistence;
+using OpportunityPilot.Infrastructure.Ai;
 using OpportunityPilot.Infrastructure.Research;
 
 namespace OpportunityPilot.Infrastructure;
@@ -15,6 +17,11 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration, SetupState setup)
     {
         services.AddResearchInfrastructure(configuration);
+        services.AddHttpClient<ILlmClient, GeminiLlmClient>(c =>
+        {
+            c.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
+            c.Timeout = Timeout.InfiniteTimeSpan;
+        });
         return services.AddPersistence(configuration, setup);
     }
 

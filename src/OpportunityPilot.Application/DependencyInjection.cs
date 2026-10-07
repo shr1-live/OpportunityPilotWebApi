@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using OpportunityPilot.Application.Agents;
+using OpportunityPilot.Application.Accounts;
+using OpportunityPilot.Application.Ai;
 using OpportunityPilot.Application.Analytics;
 using OpportunityPilot.Application.Applications;
 using OpportunityPilot.Application.Approvals;
@@ -10,6 +12,7 @@ using OpportunityPilot.Application.Drafts;
 using OpportunityPilot.Application.Sales;
 using OpportunityPilot.Application.Imports;
 using OpportunityPilot.Application.Opportunities;
+using OpportunityPilot.Application.Outreach;
 using OpportunityPilot.Application.Profiles;
 using OpportunityPilot.Application.Research;
 using OpportunityPilot.Application.Research.Boards;
@@ -23,6 +26,8 @@ public static class DependencyInjection
     {
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<ProfileService>();
+        services.AddScoped<AccountDataService>();
+        services.AddScoped<AiService>();
         services.AddScoped<ApplicationService>();
         services.AddScoped<AgentKeyService>();
         services.AddScoped<GuestSessionService>();
@@ -35,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<ApprovalService>();
         services.AddScoped<AnalyticsService>();
         services.AddScoped<DraftService>();
+        services.AddScoped<OutreachService>();
         services.AddScoped<SalesService>();
         services.AddScoped<JobBoardGatherer>();
         services.AddScoped<IResearchRunner, ResearchRunner>();

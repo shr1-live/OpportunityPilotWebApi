@@ -50,7 +50,12 @@ public sealed class OpportunityService(IAppDbContext db, ICurrentUser user, Time
         if (request is null || !Enum.IsDefined(request.Status))
             throw new RequestValidationException(new Dictionary<string, string[]> { ["status"] = ["Unknown status."] });
         var opportunity = await FindOwnedAsync(id, ct);
-        var activity = opportunity.ChangeStatus(request.Status, clock.GetUtcNow().UtcDateTime);
+        Activity? activity;
+        try { activity = opportunity.ChangeStatus(request.Status, clock.GetUtcNow().UtcDateTime); }
+        catch (InvalidOperationException ex)
+        {
+            throw new RequestValidationException(new Dictionary<string, string[]> { ["status"] = [ex.Message] });
+        }
         if (activity is not null)
         {
             db.Activities.Add(activity);

@@ -5,6 +5,7 @@ using OpportunityPilot.Domain.Auth;
 using OpportunityPilot.Domain.Campaigns;
 using OpportunityPilot.Domain.Drafts;
 using OpportunityPilot.Domain.Opportunities;
+using OpportunityPilot.Domain.Outreach;
 using OpportunityPilot.Domain.Profiles;
 using OpportunityPilot.Domain.Research;
 using OpportunityPilot.Domain.Sales;
@@ -29,6 +30,8 @@ public interface IAppDbContext
     DbSet<OpportunityEvidence> OpportunityEvidence { get; }
     DbSet<Activity> Activities { get; }
     DbSet<OutreachDraft> OutreachDrafts { get; }
+    DbSet<Suppression> Suppressions { get; }
+    DbSet<NextAction> NextActions { get; }
     DbSet<SalesProject> SalesProjects { get; }
     DbSet<SalesBid> SalesBids { get; }
 

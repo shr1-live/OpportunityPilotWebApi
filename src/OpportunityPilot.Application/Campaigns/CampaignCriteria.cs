@@ -82,7 +82,7 @@ public sealed record CampaignCriteria
         };
     }
 
-    public static bool IsSupportedMode(OpportunityMode mode) => mode is OpportunityMode.Job or OpportunityMode.Customer;
+    public static bool IsSupportedMode(OpportunityMode mode) => Enum.IsDefined(mode);
 
     private static List<string> List(IReadOnlyList<string>? values, string key, Dictionary<string, string[]> errors)
     {

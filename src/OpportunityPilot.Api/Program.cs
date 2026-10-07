@@ -30,7 +30,11 @@ builder.Services.AddInfrastructure(builder.Configuration, setup);
 builder.AddOpportunityPilotAuth(setup);
 
 builder.Services.AddControllers()
-    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+    .AddJsonOptions(o =>
+    {
+        o.AllowInputFormatterExceptionMessages = false;
+        o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 builder.Services.AddOpenApi();
 
 builder.Services.AddProblemDetails(o => o.CustomizeProblemDetails = ctx =>
@@ -62,7 +66,9 @@ builder.Services.AddRateLimiter(o =>
 
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
-    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // Render terminates TLS, so the forwarded scheme is needed. Do not trust client-supplied X-Forwarded-For
+    // without a stable published proxy range; anonymous rate limiting uses the actual peer address instead.
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
     o.KnownIPNetworks.Clear();
     o.KnownProxies.Clear();
 });

@@ -32,8 +32,9 @@ public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvid
     public async Task<SalesProjectDto> CreateProjectAsync(CreateSalesProjectRequest request, CancellationToken ct)
     {
         if (request is null) throw Invalid("body", "Request body is required.");
-        if (request.Source != SalesProjectSource.Manual)
-            throw Invalid("source", "Only manually entered sales projects are available until a provider is configured.");
+        if (!Enum.IsDefined(request.Source)) throw Invalid("source", "Unknown project source.");
+        if (request.Source != SalesProjectSource.Manual && string.IsNullOrWhiteSpace(request.ExternalId))
+            throw Invalid("externalId", "Imported provider and tender projects require an external id.");
         if (string.IsNullOrWhiteSpace(request.Title)) throw Invalid("title", "Title is required.");
         SalesProject project;
         try
@@ -79,12 +80,39 @@ public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvid
     {
         if (request is null) throw Invalid("version", "Version is required.");
         var bid = await FindBidAsync(bidId, ct);
+        if (ContainsUnresolvedPlaceholder(bid.Proposal))
+            throw Invalid("proposal", "Replace every [placeholder] before approving this proposal.");
         try { bid.Approve(request.Version, Now); }
         catch (InvalidOperationException ex) { throw new ConflictException(ex.Message); }
         var project = await FindProjectAsync(bid.ProjectId, ct);
         project.ChangeState(SalesProjectState.BidApproved, Now);
         await db.SaveChangesAsync(ct);
         return await GetProjectAsync(project.Id, ct);
+    }
+
+    public async Task<IReadOnlyList<BatchApproveSalesBidResult>> BatchApproveBidsAsync(BatchApproveSalesBidsRequest request, CancellationToken ct)
+    {
+        if (request?.Items is null || request.Items.Count == 0) throw Invalid("items", "At least one bid is required.");
+        if (request.Items.Count > 200) throw Invalid("items", "At most 200 bids can be approved at once.");
+        var results = new List<BatchApproveSalesBidResult>();
+        foreach (var item in request.Items)
+        {
+            try { results.Add(new(item.Id, true, null, await ApproveBidAsync(item.Id, new(item.Version), ct))); }
+            catch (Exception ex) when (ex is NotFoundException or ConflictException or RequestValidationException)
+            {
+                db.ChangeTracker.Clear();
+                results.Add(new(item.Id, false, ex.Message, null));
+            }
+        }
+        return results;
+    }
+
+    public async Task<SalesProjectDto> HandoffAsync(Guid projectId, CancellationToken ct)
+    {
+        var project = await FindProjectAsync(projectId, ct);
+        project.ChangeState(SalesProjectState.ManualHandoff, Now);
+        await db.SaveChangesAsync(ct);
+        return await GetProjectAsync(projectId, ct);
     }
 
     private IQueryable<SalesProject> OwnedProjects => db.SalesProjects.Where(p => p.OwnerId == user.OwnerId);
@@ -97,6 +125,12 @@ public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvid
         ?? throw new NotFoundException("Sales bid not found.");
 
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
+
+    private static bool ContainsUnresolvedPlaceholder(string value)
+    {
+        var open = value.IndexOf('[');
+        return open >= 0 && value.IndexOf(']', open + 1) > open + 1;
+    }
 
     private static SalesProjectDto ToDto(SalesProject project, IEnumerable<SalesBid> bids) =>
         new(project.Id, project.Source, project.ExternalId, project.Title, project.Buyer, project.Description, project.Url,

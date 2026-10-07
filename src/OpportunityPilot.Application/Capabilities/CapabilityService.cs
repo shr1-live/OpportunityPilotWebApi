@@ -60,16 +60,16 @@ public sealed class CapabilityService(
                     ["Continue as a guest"], ["Create accounts", "Sign in from another device"]),
 
             new("gemini", "Gemini API", "AI",
-                geminiKeyPresent ? CapabilityStatus.Configured : CapabilityStatus.NotConfigured,
+                geminiKeyPresent ? CapabilityStatus.Ready : CapabilityStatus.NotConfigured,
                 geminiKeyPresent
-                    ? $"Server key present for {a.GeminiModel}. Live calls arrive in milestone M4 and are unverified; rules/templates mode applies until then."
+                    ? $"Server key present for {a.GeminiModel}. Goal parsing uses Gemini with validated rules fallback; live provider verification is still required."
                     : "No server-side key. Rules/templates mode applies. The key is set in server configuration and is never returned to the browser.",
-                [], ["Parse goals", "Extract facts", "Summarise matches", "Draft outreach"]),
+                geminiKeyPresent ? ["Parse campaign goals with rules fallback"] : [], ["Extract facts with AI", "Summarise matches with AI"]),
 
             new("rules", "Rules and templates", "AI", CapabilityStatus.Ready,
                 "Deterministic extraction and transparent scoring for Job and Customer campaigns.",
-                ["Extract skills, experience range, location and work mode", "Score candidates with a per-criterion breakdown, coverage and gaps"],
-                ["Understand needs beyond the keywords you configure", "Score Partner, Investor or Freelance campaigns yet", "Fill draft templates (M5)"]),
+                ["Extract skills, experience range, location and work mode", "Score every campaign mode with a per-criterion breakdown, coverage and gaps", "Fill reviewed outreach templates"],
+                ["Understand needs beyond configured terms"]),
 
             new("csv-import", "CSV and pasted text", "Sources", CapabilityStatus.Ready,
                 "Import with preview and row-level errors.",
@@ -126,9 +126,9 @@ public sealed class CapabilityService(
                 ["Search jobs with your filters", "Apply and answer the recruiter questionnaire from your saved answers", "Record each application here"],
                 ["Apply on company websites", "Answer questions your saved answers do not cover"]),
 
-            new("instahyre", "InstaHyre", "Platforms", CapabilityStatus.ManualHandoff,
-                "Not supported by the agent yet.",
-                ["Open the real application link"], ["Apply for you"]),
+            new("instahyre", "InstaHyre", "Platforms", CapabilityStatus.LocalAgent,
+                "Uses your own logged-in browser. The adapter stops before unknown forms or security checks and requires live selector verification.",
+                ["Collect personalised opportunities", "Dry-run or apply only to your shortlist"], ["Bypass security checks", "Invent form answers"]),
 
             new("mongo-archive", "MongoDB research archive", "Optional",
                 f.MongoArchiveEnabled ? CapabilityStatus.NotBuilt : CapabilityStatus.Disabled,
@@ -137,6 +137,9 @@ public sealed class CapabilityService(
             new("scheduler", "Scheduled research", "Optional", CapabilityStatus.NotConfigured,
                 "Schedule setup required. Unattended runs are never claimed until a trigger is verified.",
                 [], ["Run research while the app is closed"])
+            ,new("notifications", "Follow-up notifications", "Optional", CapabilityStatus.ManualHandoff,
+                "Due follow-ups are shown inside the app; no email or push delivery is claimed.",
+                ["Show due and overdue next actions"], ["Deliver reminders outside the app"])
         };
 
         return new CapabilitiesDto(

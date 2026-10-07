@@ -32,3 +32,4 @@ public sealed record DecideApprovalsRequest(IReadOnlyList<Guid>? Approve, IReadO
 
 /// <param name="Skipped">Ids that are not the caller's, do not exist, or are no longer Suggested. Not errors.</param>
 public sealed record DecideApprovalsResult(int Approved, int Rejected, int Skipped);
+public sealed record DecideAllApprovalsRequest(bool Approve, Guid? CampaignId);
