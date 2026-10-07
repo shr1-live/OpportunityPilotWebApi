@@ -18,6 +18,8 @@ request, InMail or LinkedIn message requires action-time confirmation from the o
 3. Capture only fields required by the product contract: provider job id/URL, title, summary, skills, budget/rate,
    experience level, client verification/summary, published time and proposal/Connects metadata when visible.
 4. Import the selected record as source-linked evidence; deduplicate by provider id and canonical URL.
+   Store the visible Connects requirement and, when the user supplies it, the balance observed at the same time.
+   Research, review and drafting remain available when the balance is unknown or insufficient.
 5. Generate a proposal draft from an approved Sales/Services profile and source evidence.
 6. Bind approval to exact job, proposal text, rate, milestones, answers, attachments and visible Connects cost.
 7. Open the provider handoff. Stop before the final Upwork submission button and request explicit confirmation.
@@ -42,5 +44,5 @@ agent is not reused for Sales connection requests, InMail or messages.
 
 | Date | Provider | Read-only result | External action | Product follow-up |
 |---|---|---|---|---|
-| 2026-10-07 | Upwork | Login page reached; the in-app browser is not signed in | None | Assisted import, provider-bound approval, handoff and explicit placement confirmation implemented; sign-in is needed for real visible-field verification |
+| 2026-10-07 | Upwork | Login page reached in the in-app browser; owner screenshot supplied one $50 fixed-price, Intermediate job requiring 8 Connects | None | Owner-scoped research queue, Connects snapshot/status, shortlist/dismiss and bid promotion implemented; signed-in verification still needs the owner session |
 | 2026-10-07 | LinkedIn | Auth wall reached; the in-app browser is not signed in | None | Existing LinkedIn draft/copy path is being tightened to approved content only; sign-in is needed for profile/deep-link verification |

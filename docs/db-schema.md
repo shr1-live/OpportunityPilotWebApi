@@ -297,12 +297,41 @@ In-app reminders only; no notification delivery is implied.
 | TimeZone | required IANA/browser zone, 100 |
 | State | Open, Done, Cancelled |
 
+### upwork_opportunities — `Domain/Sales/UpworkOpportunity.cs`
+
+Owner-scoped Upwork research and decision queue. It stores visible job facts and the Connects snapshot without claiming
+a proposal was submitted. Unique `(OwnerId, ProviderJobId)` makes repeated assisted/API imports idempotent.
+
+| Column | Type | Notes |
+|---|---|---|
+| Id, OwnerId | uuid | |
+| ProviderJobId | string(200) | stable Upwork job reference |
+| Title | string(300) | |
+| Url | string(1000) | provider URL |
+| Summary | string(8000), null | visible job summary |
+| Location | string(200), null | |
+| BudgetType | string(32) | Unknown, FixedPrice or Hourly |
+| BudgetMin, BudgetMax | decimal(18,2), null | visible range/value only |
+| Currency | string(3), null | |
+| ExperienceLevel | string(100), null | |
+| ConnectsRequired, AvailableConnectsAtReview | int, null | non-negative snapshot; required value may later change |
+| PaymentVerified | bool, null | visible client signal |
+| PostedAt | time, null | |
+| ObservedAt | time | when facts were observed/imported |
+| EvidenceJson | json | additional visible evidence; never credentials/cookies |
+| State | string(32) | Saved, Shortlisted, Dismissed or Promoted |
+| SalesProjectId | uuid, null | FK → sales_projects, SetNull |
+| Version | int | concurrency token |
+| CreatedAt, UpdatedAt | time | |
+
+Indexes: unique `(OwnerId, ProviderJobId)`; `(OwnerId, State, ObservedAt)`; `SalesProjectId`.
+
 ### sales_projects — `Domain/Sales/SalesProject.cs`
 
 | Column | Type | Notes |
 |---|---|---|
 | Id, OwnerId | uuid | |
-| Source | string(32) | `Freelancer`, `TenderFeed`, `PublicUrl` or `Manual` |
+| Source | string(32) | `Upwork`, `Freelancer`, `TenderFeed`, `PublicUrl` or `Manual` |
 | ExternalId | string(200), null | Provider id; unique per owner/source when present |
 | Title | string(300) | |
 | Buyer | string(300), null | |
@@ -315,6 +344,25 @@ In-app reminders only; no notification delivery is implied.
 | CreatedAt, UpdatedAt | time | |
 
 Indexes: unique `(OwnerId, Source, ExternalId)` when `ExternalId` is present; `(OwnerId, UpdatedAt)`.
+
+### wellfound_jobs — `Domain/Wellfound/WellfoundJob.cs`
+
+Shared normalized store for Candidate discovery imports/demo records and recruiter-owned jobs. It contains provider id,
+scope, title/company, location/work mode, salary/currency, equity range, experience/employment, industry/funding/company
+size, visa signal, posted/apply data, summary, skills/evidence JSON, match score, state, explicit `IsDemo`, optimistic
+version and timestamps. Unique `(OwnerId, ProviderJobId)`; queue index `(OwnerId, Scope, State, PostedAt)`.
+
+### wellfound_applications — `Domain/Wellfound/WellfoundApplication.cs`
+
+Recruiter-visible applications linked to `wellfound_jobs` (Cascade): stable provider application id, candidate display
+name, optional fit score, lifecycle state, evidence JSON, explicit demo marker, version and timestamps. Unique
+`(OwnerId, ProviderApplicationId)` and queue index `(OwnerId, State, UpdatedAt)`.
+
+### wellfound_activities — `Domain/Wellfound/WellfoundApplication.cs`
+
+Immutable audit rows for imports, local job/application decisions and provider-confirmed sync observations. Optional job
+and application FKs use Restrict; `ProviderConfirmed` prevents demo/local actions from being reported as Wellfound
+actions. Indexed by `(OwnerId, OccurredAt)`.
 
 ### sales_bids — `Domain/Sales/SalesBid.cs`
 
@@ -380,6 +428,9 @@ Indexes: unique `TokenHash` for authentication lookup; `ExpiresAt` for bounded c
 | research_jobs | research_events | Cascade |
 | opportunities | opportunity_evidence, activities, outreach_drafts, next_actions | Cascade |
 | sales_projects | sales_bids | Cascade |
+| sales_projects | upwork_opportunities | SetNull |
+| wellfound_jobs | wellfound_applications | Cascade |
+| wellfound_jobs / wellfound_applications | wellfound_activities | Restrict |
 | staffing_accounts | staffing_contacts, staffing_deals | Cascade |
 | staffing_contacts | staffing_deals | Restrict |
 | staffing_deals | staffing_deal_activities | Cascade |
@@ -394,7 +445,7 @@ No endpoint deletes profiles, campaigns or opportunities today (see [open-questi
 
 | Concern | SqlServer (`SqlServerAppDbContext`, local LocalDB) | Postgres (`PostgresAppDbContext`, Supabase and tests) | InMemory (`InMemoryAppDbContext`, demo mode) |
 |---|---|---|---|
-| JSON columns | `nvarchar(max)` | `jsonb` (11 mapped properties across research, drafts, and sales: StructuredDataJson, CriteriaJson, WeightsJson, RowsJson, CountsJson, BreakdownJson, FactsJson, GapsJson, ClaimsJson, EvidenceJson) | text |
+| JSON columns | `nvarchar(max)` | `jsonb` (research, draft, sales, Upwork and Wellfound evidence/skills JSON properties) | text |
 | Strings > 4000 | `nvarchar(max)` (Source.Text, SourceItem.Description) | `character varying(n)` | — |
 | DateTime | `datetime2` + UTC converter | `timestamp with time zone` | — |
 | Filtered unique indexes | `[ExternalId] IS NOT NULL`, `[State] IN (N'Queued', N'Running')` | `"ExternalId" IS NOT NULL`, `"State" IN ('Queued', 'Running')` | **not enforced** |
@@ -416,5 +467,6 @@ Both sets must contain the same logical migrations in the same order.
 | 7 | AddPersistentGuestSessions | `20261006123942_AddPersistentGuestSessions` | `20261006123947_AddPersistentGuestSessions` | guest_sessions |
 | 8 | AddOutreachFollowUps | `20261006182426_AddOutreachFollowUps` | `20261006182652_AddOutreachFollowUps` | suppressions, next_actions, evidence excerpt 8000 |
 | 9 | AddAutomationSnapshotsAndStaffingCrm | `20261007053856_AddAutomationSnapshotsAndStaffingCrm` | `20261007053903_AddAutomationSnapshotsAndStaffingCrm` | profile_versions, campaign_schedules, research input snapshots, staffing accounts/contacts/deals/activities |
+| 10 | AddProviderResearchQueues | `20261007103650_AddProviderResearchQueues` | `20261007103644_AddProviderResearchQueues` | upwork_opportunities, wellfound_jobs, wellfound_applications, wellfound_activities |
 
 Persisted AI usage records from [M4_M5_CONTRACT.md](M4_M5_CONTRACT.md) remain unbuilt; suppressions and next actions are built.

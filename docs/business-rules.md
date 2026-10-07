@@ -284,6 +284,23 @@ Code: `Application/Drafts/DraftService.cs`, `Domain/Drafts/OutreachDraft.cs`
 - No outbound delivery occurs. A valid approved CoverNote is exposed to the desktop agent, which fills it only into an
   explicitly cover-letter-like free-text field. Unapproved, edited or revoked text is never returned to the agent.
 
+### Upwork research and Connects
+
+- Research/import, deduplication, review and proposal drafting never require a paid Upwork plan or an available Connects balance.
+- The queue stores only visible facts supplied by the user or an approved Upwork API/MCP integration. It never scrapes authenticated pages and never stores passwords, cookies or OAuth tokens.
+- `connectsStatus` is `Unknown` unless both required and available Connects were observed together; otherwise it is `Sufficient` or `Insufficient` by direct comparison.
+- Required Connects are a timestamped snapshot and may change on Upwork. Recheck immediately before submission.
+- Only a human-shortlisted item can become a sales project. Insufficient Connects does not prevent drafting.
+- Any real MCP submission requires a separate explicit confirmation at action time.
+
+### Wellfound shared integration
+
+- Demo records are persisted with `IsDemo=true`, displayed as Demo in the UI and never counted as provider-confirmed activity.
+- Candidate filters operate on stored/imported records only. The Recruit MCP is not represented as a global public-job feed.
+- Recruit and Reach use separate OAuth issuers/resources and least-privilege read scopes. Passwords, browser cookies and manually copied access tokens are never accepted.
+- Live application or candidate write tools remain disabled until OAuth is connected, the exact current provider record is shown and the user confirms the action.
+- Local job states and demo applicant decisions update KPIs immediately and create immutable activities. A provider-confirmed activity is written only after a successful provider re-read/receipt.
+
 ### Reports
 
 Code: `Application/Applications/ApplicationService.cs`

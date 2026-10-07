@@ -11,6 +11,7 @@ using OpportunityPilot.Domain.Profiles;
 using OpportunityPilot.Domain.Research;
 using OpportunityPilot.Domain.Sales;
 using OpportunityPilot.Domain.Staffing;
+using OpportunityPilot.Domain.Wellfound;
 
 namespace OpportunityPilot.Application.Abstractions;
 
@@ -37,11 +38,15 @@ public interface IAppDbContext
     DbSet<NextAction> NextActions { get; }
     DbSet<SalesProject> SalesProjects { get; }
     DbSet<SalesBid> SalesBids { get; }
+    DbSet<UpworkOpportunity> UpworkOpportunities { get; }
     DbSet<CampaignSchedule> CampaignSchedules { get; }
     DbSet<StaffingAccount> StaffingAccounts { get; }
     DbSet<StaffingContact> StaffingContacts { get; }
     DbSet<StaffingDeal> StaffingDeals { get; }
     DbSet<StaffingDealActivity> StaffingDealActivities { get; }
+    DbSet<WellfoundJob> WellfoundJobs { get; }
+    DbSet<WellfoundApplication> WellfoundApplications { get; }
+    DbSet<WellfoundActivity> WellfoundActivities { get; }
 
     /// <summary>The research runner clears tracked state before recording a failure, so a half-applied batch is not saved.</summary>
     Microsoft.EntityFrameworkCore.ChangeTracking.ChangeTracker ChangeTracker { get; }

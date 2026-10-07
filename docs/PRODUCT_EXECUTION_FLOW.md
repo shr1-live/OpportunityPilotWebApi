@@ -32,6 +32,8 @@ flowchart LR
   approval -->|manual path| handoff["Copy/open/manual confirmation"]
   gateway --> providers["Official email, calendar, marketplace or signature APIs"]
   api <--> agent["Local visible-browser job agent"]
+  api <--> wfRecruit["Wellfound Recruit MCP · OAuth"]
+  api <--> wfReach["Wellfound Reach MCP · OAuth"]
   agent --> jobSites["LinkedIn, Naukri, InstaHyre job application pages"]
   providers --> receipts["Provider receipt / confirmed outcome"]
   handoff --> receipts
@@ -138,6 +140,8 @@ event is stored.
 | Candidate LinkedIn/Naukri/InstaHyre apply | Local visible-browser adapters exist | First real selector validation and user login |
 | Sales LinkedIn | Draft + manual copy/open/send policy | Approved LinkedIn product/partner access for any API execution |
 | Upwork/Freelancer bid | Draft, approval model and manual/API boundary | Approved provider API/MCP credentials and scope |
+| Wellfound Recruit | Official MCP identified; connector not yet configured | Eligible Recruit Pro company, assigned Pro seat, recruiter permission and OAuth |
+| Wellfound Reach | Official separate MCP identified; connector not yet configured | Reach organization membership, role permission and OAuth |
 | Email | Internal exact-version drafts | Gmail or Microsoft OAuth connection |
 | Calendar | Planned approved meeting workflow | Google or Microsoft OAuth connection |
 | Signature | Planned contract lifecycle | Approved e-signature provider connection |

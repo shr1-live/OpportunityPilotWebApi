@@ -43,6 +43,7 @@ Audit date: 2026-10-05.
 | OQ-BE-027 | Agent README config table is broken | P3 | Claude | Closed 2026-10-05 — table repaired, new setting documented |
 | OQ-BE-028 | Tooling not pinned: no dotnet-ef manifest, no formatter config | P3 | Claude | Closed 2026-10-07 — tool manifest and editorconfig added |
 | OQ-BE-029 | Sales discovery/provider accounts are not selected or connected | P1 | Shivanshu | Open |
+| OQ-BE-030 | Wellfound Recruit/Reach live OAuth is not authorized | P1 | Shivanshu | Open |
 
 ## Entries
 
@@ -194,3 +195,10 @@ Audit date: 2026-10-05.
   scraping/browser automation is not an option; LinkedIn remains manual/assisted unless an official approved product
   explicitly grants the required read or action capability. Do not run credit-consuming enrichment without explicit
   approval.
+
+### OQ-BE-030 — Wellfound Recruit/Reach live OAuth is not authorized
+- **Priority** P1 · **Owner** Shivanshu · **Status** Open
+- **Where** `Application/Wellfound`, `/api/v1/wellfound/status`, `TASKS.md` W1/W6
+- **What is needed** Complete Recruit Pro/Reach account setup and authorize each remote MCP separately. Then enumerate
+  the granted tools, verify pagination and read-only sync against the test company before enabling any live write tool.
+  Current UI/API use explicitly labelled persisted demo data and do not claim provider connectivity.

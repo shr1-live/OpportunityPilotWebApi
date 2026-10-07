@@ -143,3 +143,17 @@ The forward path is `New → Qualified → Shortlisted → OutreachApproved → 
 - Each real transition writes an immutable `StageChanged` activity.
 - `Contacted` means an external action was provider-confirmed or manually confirmed; drafting/copying alone must never
   advance the stage when execution gateways are added.
+
+## Upwork opportunity queue
+
+`Saved → Shortlisted → Promoted` is the normal path. A human may move Saved or Shortlisted items to `Dismissed`, and
+may restore them before promotion. Only Shortlisted items can be promoted. `Promoted` links the row to a sales project;
+it does not claim that a proposal was placed. Placement remains a separately approved, provider-confirmed bid transition.
+
+## Wellfound job and application states
+
+Candidate/demo jobs use `New`, `Saved`, `Applied`, `Interviewing`, `Offered` and `Rejected`. These are owner-tracked
+states, not provider claims. Recruiter applications use `New`, `Reviewing`, `Shortlisted`, `Interviewing`, `Offered`,
+`Hired` and `Rejected`. Demo application decisions are reversible local simulations. Live accept/reject transitions
+will be executed only through the MCP action gateway with current-state display, explicit confirmation and a provider
+re-read; an uncertain provider result does not advance the stored state.

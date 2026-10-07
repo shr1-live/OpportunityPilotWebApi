@@ -5,6 +5,7 @@ using OpportunityPilot.Domain.Opportunities;
 using OpportunityPilot.Domain.Profiles;
 using OpportunityPilot.Domain.Research;
 using OpportunityPilot.Domain.Sales;
+using OpportunityPilot.Domain.Wellfound;
 
 namespace OpportunityPilot.Infrastructure.Persistence;
 
@@ -54,6 +55,10 @@ public sealed class PostgresAppDbContext(DbContextOptions<PostgresAppDbContext> 
         modelBuilder.Entity<OutreachDraft>().Property(d => d.ClaimsJson).HasColumnType("jsonb");
         modelBuilder.Entity<SalesProject>().Property(p => p.EvidenceJson).HasColumnType("jsonb");
         modelBuilder.Entity<SalesBid>().Property(b => b.ClaimsJson).HasColumnType("jsonb");
+        modelBuilder.Entity<UpworkOpportunity>().Property(x => x.EvidenceJson).HasColumnType("jsonb");
+        modelBuilder.Entity<WellfoundJob>().Property(x => x.SkillsJson).HasColumnType("jsonb");
+        modelBuilder.Entity<WellfoundJob>().Property(x => x.EvidenceJson).HasColumnType("jsonb");
+        modelBuilder.Entity<WellfoundApplication>().Property(x => x.EvidenceJson).HasColumnType("jsonb");
         modelBuilder.Entity<SourceItem>().HasIndex(i => new { i.SourceId, i.ExternalId }).HasFilter("\"ExternalId\" IS NOT NULL");
         // At most one queued-or-running job per campaign, so two quick clicks cannot start two runs.
         modelBuilder.Entity<ResearchJob>().HasIndex(j => j.CampaignId, "UX_research_jobs_active_campaign")
