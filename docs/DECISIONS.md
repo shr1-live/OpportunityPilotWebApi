@@ -69,3 +69,14 @@ restarts when the main database is durable.
 **Consequence:** guest credentials are now opaque 256-bit `opg_…` tokens. The database stores only SHA-256 hashes,
 random owner ids and expiry times; no plaintext credential, Supabase Auth project or manually configured guest
 signing key is required. In pure in-memory demo mode, guest sessions reset together with the data they protect.
+
+## 2026-10-07 — Indeed stays an official search handoff until partner approval
+
+**Decision:** OpportunityPilot may build a user-controlled link to the official Indeed search experience, but it does
+not scrape Indeed, copy search results into its database, store Indeed cookies, or claim an application/message was
+sent. In-app listings or employer/candidate actions require Indeed's written approval and the exact applicable partner
+API credentials.
+
+**Why:** Indeed's current public partner documentation exposes approved ATS/employer job and candidate workflows, not
+an unrestricted public job-search feed. Its developer agreement requires approval and restricts scraping/database
+copies. A truthful handoff gives Candidate and Sales users useful filters today without fabricating integration depth.

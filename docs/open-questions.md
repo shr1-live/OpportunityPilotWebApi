@@ -44,6 +44,7 @@ Audit date: 2026-10-05.
 | OQ-BE-028 | Tooling not pinned: no dotnet-ef manifest, no formatter config | P3 | Claude | Closed 2026-10-07 — tool manifest and editorconfig added |
 | OQ-BE-029 | Sales discovery/provider accounts are not selected or connected | P1 | Shivanshu | Open |
 | OQ-BE-030 | Wellfound Recruit/Reach live OAuth is not authorized | P1 | Shivanshu | Open |
+| OQ-BE-031 | Indeed listing/application API is not approved | P1 | Shivanshu | Open |
 
 ## Entries
 
@@ -203,3 +204,11 @@ Audit date: 2026-10-05.
   the granted tools, verify pagination and read-only sync against the test company before enabling any live write tool.
   Anonymous public job discovery is implemented separately and does not require this OAuth. Private recruiter jobs,
   applicants and any provider-side decision remain unavailable until authorization.
+
+### OQ-BE-031 — Indeed listing/application API is not approved
+- **Priority** P1 · **Owner** Shivanshu · **Status** Open
+- **Where** Web `src/features/wellfound/IndeedSearchPanel.tsx`; Indeed Partner Developer Agreement and API guides
+- **What is needed** Submit the intended Candidate/Sales use case to Indeed and obtain written integration approval plus
+  the applicable partner credentials. The documented Job Sync and Candidate APIs serve approved employer/ATS flows,
+  not an unrestricted public-search feed. Until approval exists, keep Indeed as an official search handoff and do not
+  scrape, copy listings, store account cookies, or claim provider-side applications/messages.

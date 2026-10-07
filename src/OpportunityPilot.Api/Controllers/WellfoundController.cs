@@ -14,11 +14,15 @@ public sealed class WellfoundController(WellfoundService service) : ControllerBa
     [HttpGet("jobs")]
     public async Task<ActionResult<IReadOnlyList<WellfoundJobDto>>> Jobs(
         [FromQuery] string workspace = "Candidate", [FromQuery] string? keyword = null,
-        [FromQuery] string? location = null, [FromQuery] bool remoteOnly = false,
+        [FromQuery] string? company = null, [FromQuery] string? location = null,
+        [FromQuery] string? techStack = null, [FromQuery] string? workMode = null,
         [FromQuery] decimal? minSalary = null, [FromQuery] bool equityOnly = false,
-        [FromQuery] string? fundingStage = null, [FromQuery] int take = 100,
-        CancellationToken ct = default) => Ok(await service.JobsAsync(workspace, keyword, location, remoteOnly,
-            minSalary, equityOnly, fundingStage, take, ct));
+        [FromQuery] string? fundingStage = null, [FromQuery] string? industry = null,
+        [FromQuery] string? employmentType = null, [FromQuery] int? postedWithinDays = null,
+        [FromQuery] WellfoundJobState? state = null, [FromQuery] string sort = "newest",
+        [FromQuery] int take = 100, CancellationToken ct = default) =>
+        Ok(await service.JobsAsync(workspace, keyword, company, location, techStack, workMode,
+            minSalary, equityOnly, fundingStage, industry, employmentType, postedWithinDays, state, sort, take, ct));
 
     [HttpPatch("jobs/{id:guid}/state")]
     public async Task<ActionResult<WellfoundJobDto>> ChangeJobState(

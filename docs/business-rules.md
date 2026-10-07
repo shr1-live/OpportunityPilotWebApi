@@ -298,6 +298,11 @@ Code: `Application/Drafts/DraftService.cs`, `Domain/Drafts/OutreachDraft.cs`
 - Public discovery reads only the anonymous `https://wellfound.com/jobs` page through the SSRF-safe bounded fetcher: no login, cookies, credentials or browser session are used.
 - At most 100 recognizable cards are imported per refresh. Each row keeps the numeric Wellfound job id, exact job URL, observed timestamp and raw public-card evidence; missing fields stay null.
 - A public refresh removes legacy demo jobs/applicants for that owner. Candidate filters and Sales hiring signals operate on the stored public observations.
+- Wellfound discovery filters are owner-scoped and conjunctive: each supplied field must match. Comma-separated
+  `techStack` terms are capped at 12 and every term must occur in the stored title, summary or skills JSON. An unknown
+  provider fact does not pass a filter that requires that fact. `postedWithinDays` is clamped to 1–365.
+- Sort values are bounded to newest (default), salary, company or match; an unknown sort falls back to newest. Result
+  count remains capped at 200.
 - The Recruit MCP is not represented as a global public-job feed: recruiter-owned jobs and applicants remain OAuth-only.
 - Recruit and Reach use separate OAuth issuers/resources and least-privilege read scopes. Passwords, browser cookies and manually copied access tokens are never accepted.
 - Live application or candidate write tools remain disabled until OAuth is connected, the exact current provider record is shown and the user confirms the action.
