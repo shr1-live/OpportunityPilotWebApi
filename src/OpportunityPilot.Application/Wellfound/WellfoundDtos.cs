@@ -27,3 +27,4 @@ public sealed record WellfoundKpisDto(
 public sealed record ChangeWellfoundJobStateRequest(WellfoundJobState State, int ExpectedVersion);
 public sealed record ChangeWellfoundApplicationStateRequest(WellfoundApplicationState State, int ExpectedVersion, bool Confirmed);
 public sealed record LoadWellfoundDemoResult(int JobsAdded, int ApplicationsAdded);
+public sealed record SyncWellfoundPublicResult(int Observed, int Added, int Updated, int DemoRowsRemoved, DateTime ObservedAt);

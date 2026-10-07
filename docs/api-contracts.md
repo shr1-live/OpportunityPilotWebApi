@@ -166,13 +166,14 @@ create a calendar event or claim that an external action occurred.
 
 ### Wellfound shared workspace
 
-These endpoints work with clearly labelled demo rows now and the same normalized tables after live MCP OAuth. Demo
-decisions are local only and never claim an external Wellfound action.
+These endpoints import the anonymous public Wellfound jobs landing page into owner-scoped normalized rows. Recruiter
+jobs and applications remain a separate OAuth/MCP capability. Public observations never claim an authenticated provider action.
 
 | Method | Path | Auth | Request | Response / errors |
 |---|---|---|---|---|
 | GET | `/api/v1/wellfound/status` | user | — | official Recruit/Reach MCP endpoints, read scopes and truthful connection mode |
-| POST | `/api/v1/wellfound/demo/load` | user | — | idempotently loads bounded Candidate jobs, recruiter-owned jobs, applicants and import activity |
+| POST | `/api/v1/wellfound/public/sync` | user | — | safely fetches `https://wellfound.com/jobs`, imports up to 100 current public cards, removes legacy demo rows and returns observed/added/updated counts |
+| POST | `/api/v1/wellfound/demo/load` | user | — | legacy diagnostic seed endpoint; not exposed in the production UI and replaced by public sync during the next visit |
 | GET | `/api/v1/wellfound/jobs` | user | `workspace=Candidate|Sales`, `keyword?`, `location?`, `remoteOnly`, `minSalary?`, `equityOnly`, `fundingStage?`, `take` | filtered `WellfoundJobDto[]`; Candidate returns discovery roles, Sales returns discovery hiring signals plus recruiter-owned roles |
 | PATCH | `/api/v1/wellfound/jobs/{id}/state` | user | `{ state, expectedVersion }` | records owner decision plus local audit; 404/409 |
 | GET | `/api/v1/wellfound/applications` | user | `state?` | recruiter application list |
