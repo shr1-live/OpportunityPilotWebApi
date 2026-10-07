@@ -14,13 +14,18 @@ public class ResearchJob : IOwned
 
     private ResearchJob() { }
 
-    public ResearchJob(Guid ownerId, Guid campaignId, DateTime utcNow)
+    public ResearchJob(Guid ownerId, Guid campaignId, DateTime utcNow, int campaignVersion = 0, int profileVersion = 0,
+        string? profileSnapshotJson = null, string? criteriaSnapshotJson = null)
     {
         if (ownerId == Guid.Empty) throw new ArgumentException("Owner is required.", nameof(ownerId));
         if (campaignId == Guid.Empty) throw new ArgumentException("Campaign is required.", nameof(campaignId));
         Id = Guid.NewGuid();
         OwnerId = ownerId;
         CampaignId = campaignId;
+        CampaignVersion = campaignVersion;
+        ProfileVersion = profileVersion;
+        ProfileSnapshotJson = string.IsNullOrWhiteSpace(profileSnapshotJson) ? "{}" : profileSnapshotJson;
+        CriteriaSnapshotJson = string.IsNullOrWhiteSpace(criteriaSnapshotJson) ? "{}" : criteriaSnapshotJson;
         State = ResearchJobState.Queued;
         Stage = ResearchStage.Prepare;
         CreatedAt = utcNow;
@@ -30,6 +35,10 @@ public class ResearchJob : IOwned
     public Guid Id { get; private set; }
     public Guid OwnerId { get; private set; }
     public Guid CampaignId { get; private set; }
+    public int CampaignVersion { get; private set; }
+    public int ProfileVersion { get; private set; }
+    public string ProfileSnapshotJson { get; private set; } = "{}";
+    public string CriteriaSnapshotJson { get; private set; } = "{}";
     public ResearchJobState State { get; private set; }
     public ResearchStage Stage { get; private set; }
     public string CountsJson { get; private set; } = "{}";

@@ -6,10 +6,12 @@ using OpportunityPilot.Application.Analytics;
 using OpportunityPilot.Application.Applications;
 using OpportunityPilot.Application.Approvals;
 using OpportunityPilot.Application.Auth;
+using OpportunityPilot.Application.Automation;
 using OpportunityPilot.Application.Campaigns;
 using OpportunityPilot.Application.Capabilities;
 using OpportunityPilot.Application.Drafts;
 using OpportunityPilot.Application.Sales;
+using OpportunityPilot.Application.Staffing;
 using OpportunityPilot.Application.Imports;
 using OpportunityPilot.Application.Opportunities;
 using OpportunityPilot.Application.Outreach;
@@ -17,6 +19,7 @@ using OpportunityPilot.Application.Profiles;
 using OpportunityPilot.Application.Research;
 using OpportunityPilot.Application.Research.Boards;
 using OpportunityPilot.Application.Sources;
+using OpportunityPilot.Application.Wellfound;
 
 namespace OpportunityPilot.Application;
 
@@ -42,6 +45,10 @@ public static class DependencyInjection
         services.AddScoped<DraftService>();
         services.AddScoped<OutreachService>();
         services.AddScoped<SalesService>();
+        services.AddScoped<UpworkOpportunityService>();
+        services.AddScoped<ScheduleService>();
+        services.AddScoped<StaffingService>();
+        services.AddScoped<WellfoundService>();
         services.AddScoped<JobBoardGatherer>();
         services.AddScoped<IResearchRunner, ResearchRunner>();
         services.AddSingleton<CapabilityService>();

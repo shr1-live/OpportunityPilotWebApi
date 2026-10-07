@@ -15,6 +15,10 @@ public sealed record ProfileDto(
     DateTime CreatedAt,
     DateTime UpdatedAt);
 
+public sealed record ProfileVersionDto(
+    Guid Id, Guid ProfileId, ProfileType Type, string Name, JsonElement Data, int Version,
+    DateTime? ConfirmedAt, DateTime CreatedAt);
+
 public sealed record CreateProfileRequest(ProfileType Type, string Name, JsonElement? Data, bool Confirmed);
 
 /// <summary>ExpectedVersion must match the stored version, otherwise the edit is rejected with 409.</summary>

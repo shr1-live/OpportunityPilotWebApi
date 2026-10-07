@@ -25,11 +25,21 @@ public sealed class ProfileService(IAppDbContext db, ICurrentUser user, TimeProv
     public async Task<ProfileDto> GetAsync(Guid id, CancellationToken ct) =>
         ToDto(await FindOwnedAsync(id, ct));
 
+    public async Task<IReadOnlyList<ProfileVersionDto>> VersionsAsync(Guid id, CancellationToken ct)
+    {
+        var profile = await FindOwnedAsync(id, ct);
+        var versions = await db.ProfileVersions.Where(v => v.ProfileId == id && v.OwnerId == user.OwnerId)
+            .OrderByDescending(v => v.Version).ToListAsync(ct);
+        if (versions.Count == 0) return [ToVersionDto(new ProfileVersion(profile, profile.UpdatedAt))];
+        return versions.Select(ToVersionDto).ToList();
+    }
+
     public async Task<ProfileDto> CreateAsync(CreateProfileRequest request, CancellationToken ct)
     {
         var data = Validate(request.Name, request.Data, typeIsDefined: Enum.IsDefined(request.Type));
         var profile = new Profile(user.OwnerId, request.Type, request.Name, data, request.Confirmed, clock.GetUtcNow().UtcDateTime);
         db.Profiles.Add(profile);
+        db.ProfileVersions.Add(new ProfileVersion(profile, profile.UpdatedAt));
         await db.SaveChangesAsync(ct);
         return ToDto(profile);
     }
@@ -42,6 +52,7 @@ public sealed class ProfileService(IAppDbContext db, ICurrentUser user, TimeProv
             throw new ConflictException($"Profile was changed elsewhere (now version {profile.Version}). Reload before saving.");
 
         profile.Update(request.Name, data, request.Confirmed, clock.GetUtcNow().UtcDateTime);
+        db.ProfileVersions.Add(new ProfileVersion(profile, profile.UpdatedAt));
         try
         {
             await db.SaveChangesAsync(ct);
@@ -84,5 +95,12 @@ public sealed class ProfileService(IAppDbContext db, ICurrentUser user, TimeProv
     {
         using var doc = JsonDocument.Parse(p.StructuredDataJson);
         return new ProfileDto(p.Id, p.Type, p.Name, doc.RootElement.Clone(), p.Version, p.ConfirmedAt, p.CreatedAt, p.UpdatedAt);
+    }
+
+    private static ProfileVersionDto ToVersionDto(ProfileVersion version)
+    {
+        using var doc = JsonDocument.Parse(version.StructuredDataJson);
+        return new(version.Id, version.ProfileId, version.Type, version.Name, doc.RootElement.Clone(), version.Version,
+            version.ConfirmedAt, version.CreatedAt);
     }
 }

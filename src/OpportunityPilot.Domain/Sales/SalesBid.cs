@@ -78,37 +78,43 @@ public sealed class SalesBid : IOwned
         UpdatedAt = utcNow;
     }
 
-    public void Approve(int version, DateTime utcNow)
+    public void Approve(int version, string providerContext, DateTime utcNow)
     {
         if (version != Version) throw new InvalidOperationException("The bid version is stale.");
         State = SalesBidState.Approved;
         ApprovedVersion = Version;
         ApprovedAt = utcNow;
-        ApprovedHash = ContentHash();
+        ApprovedHash = ContentHash(providerContext);
         UpdatedAt = utcNow;
     }
 
-    public void MarkPlaced(DateTime utcNow)
+    public void Approve(int version, DateTime utcNow) => Approve(version, string.Empty, utcNow);
+
+    public void MarkPlaced(string providerContext, DateTime utcNow)
     {
-        if (!HasValidApproval()) throw new InvalidOperationException("Only the approved bid version can be placed.");
         if (State == SalesBidState.Placed) return;
+        if (!HasValidApproval(providerContext)) throw new InvalidOperationException("Only the approved bid version can be placed.");
         State = SalesBidState.Placed;
         UpdatedAt = utcNow;
     }
 
-    public bool HasValidApproval()
+    public void MarkPlaced(DateTime utcNow) => MarkPlaced(string.Empty, utcNow);
+
+    public bool HasValidApproval(string providerContext)
     {
         if (State != SalesBidState.Approved || ApprovedVersion != Version || ApprovedHash?.Length != HashLength) return false;
         try
         {
-            return CryptographicOperations.FixedTimeEquals(Convert.FromHexString(ApprovedHash), Convert.FromHexString(ContentHash()));
+            return CryptographicOperations.FixedTimeEquals(Convert.FromHexString(ApprovedHash), Convert.FromHexString(ContentHash(providerContext)));
         }
         catch (FormatException) { return false; }
     }
 
-    private string ContentHash()
+    public bool HasValidApproval() => HasValidApproval(string.Empty);
+
+    private string ContentHash(string providerContext)
     {
-        var canonical = $"{Id:D}|{Version}|{Amount:0.############################}|{Currency}|{DeliveryDays}|{Proposal}";
+        var canonical = $"{Id:D}|{Version}|{Amount:0.############################}|{Currency}|{DeliveryDays}|{Proposal}|{providerContext}";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
     }
 

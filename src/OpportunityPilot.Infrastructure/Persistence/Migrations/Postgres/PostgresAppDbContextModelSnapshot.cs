@@ -159,6 +159,63 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.Postgres
                     b.ToTable("guest_sessions", "app");
                 });
 
+            modelBuilder.Entity("OpportunityPilot.Domain.Automation.CampaignSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("CadenceMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("CampaignId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastQueuedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastSafeError")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("NextRunAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Paused")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CampaignId");
+
+                    b.HasIndex("OwnerId", "CampaignId")
+                        .IsUnique();
+
+                    b.HasIndex("Paused", "NextRunAt");
+
+                    b.ToTable("campaign_schedules", "app");
+                });
+
             modelBuilder.Entity("OpportunityPilot.Domain.Campaigns.Campaign", b =>
                 {
                     b.Property<Guid>("Id")
@@ -579,6 +636,50 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.Postgres
                     b.ToTable("profiles", "app");
                 });
 
+            modelBuilder.Entity("OpportunityPilot.Domain.Profiles.ProfileVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("StructuredDataJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProfileId");
+
+                    b.HasIndex("OwnerId", "ProfileId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("profile_versions", "app");
+                });
+
             modelBuilder.Entity("OpportunityPilot.Domain.Research.Evidence", b =>
                 {
                     b.Property<Guid>("Id")
@@ -702,6 +803,9 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.Postgres
                     b.Property<Guid>("CampaignId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("CampaignVersion")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("CancelRequested")
                         .HasColumnType("boolean");
 
@@ -712,6 +816,12 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.Postgres
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CriteriaSnapshotJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("{}");
+
                     b.Property<DateTime?>("FinishedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -720,6 +830,15 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.Postgres
 
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ProfileSnapshotJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("{}");
+
+                    b.Property<int>("ProfileVersion")
+                        .HasColumnType("integer");
 
                     b.Property<string>("SafeError")
                         .HasMaxLength(500)
@@ -1017,6 +1136,564 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.Postgres
                     b.ToTable("sales_projects", "app");
                 });
 
+            modelBuilder.Entity("OpportunityPilot.Domain.Sales.UpworkOpportunity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("AvailableConnectsAtReview")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("BudgetMax")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("BudgetMin")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("BudgetType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int?>("ConnectsRequired")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("ExperienceLevel")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("ObservedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool?>("PaymentVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("PostedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProviderJobId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("SalesProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Summary")
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SalesProjectId");
+
+                    b.HasIndex("OwnerId", "ProviderJobId")
+                        .IsUnique();
+
+                    b.HasIndex("OwnerId", "State", "ObservedAt");
+
+                    b.ToTable("upwork_opportunities", "app");
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Staffing.StaffingAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Domain")
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)");
+
+                    b.Property<string>("Industry")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("SourceReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId", "Domain");
+
+                    b.HasIndex("OwnerId", "UpdatedAt");
+
+                    b.ToTable("staffing_accounts", "app");
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Staffing.StaffingContact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<bool>("EmailVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Evidence")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("LinkedInUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("OwnerId", "AccountId", "Name");
+
+                    b.ToTable("staffing_contacts", "app");
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Staffing.StaffingDeal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ContactId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<decimal?>("EstimatedValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("ExternalReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("NextAction")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("NextActionAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("StageBeforeHold")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("ContactId");
+
+                    b.HasIndex("OwnerId", "Source", "ExternalReference");
+
+                    b.HasIndex("OwnerId", "Stage", "UpdatedAt");
+
+                    b.ToTable("staffing_deals", "app");
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Staffing.StaffingDealActivity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DealId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Detail")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DealId");
+
+                    b.HasIndex("OwnerId", "DealId", "OccurredAt");
+
+                    b.ToTable("staffing_deal_activities", "app");
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Wellfound.WellfoundActivity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ApplicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Detail")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid?>("JobId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("ProviderConfirmed")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationId");
+
+                    b.HasIndex("JobId");
+
+                    b.HasIndex("OwnerId", "OccurredAt");
+
+                    b.ToTable("wellfound_activities", "app");
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Wellfound.WellfoundApplication", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CandidateName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<int?>("FitScore")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsDemo")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("JobId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProviderApplicationId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("JobId");
+
+                    b.HasIndex("OwnerId", "ProviderApplicationId")
+                        .IsUnique();
+
+                    b.HasIndex("OwnerId", "State", "UpdatedAt");
+
+                    b.ToTable("wellfound_applications", "app");
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Wellfound.WellfoundJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ApplyUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("CompanyLogoUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<string>("EmployeeCount")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("EmploymentType")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal?>("EquityMax")
+                        .HasPrecision(8, 4)
+                        .HasColumnType("numeric(8,4)");
+
+                    b.Property<decimal?>("EquityMin")
+                        .HasPrecision(8, 4)
+                        .HasColumnType("numeric(8,4)");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("ExperienceLevel")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("FundingStage")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Industry")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsDemo")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int?>("MatchScore")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("PostedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProviderJobId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("RemoteType")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal?>("SalaryMax")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("SalaryMin")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("SkillsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Summary")
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.Property<bool?>("VisaSponsorship")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId", "ProviderJobId")
+                        .IsUnique();
+
+                    b.HasIndex("OwnerId", "Scope", "State", "PostedAt");
+
+                    b.ToTable("wellfound_jobs", "app");
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Automation.CampaignSchedule", b =>
+                {
+                    b.HasOne("OpportunityPilot.Domain.Campaigns.Campaign", null)
+                        .WithMany()
+                        .HasForeignKey("CampaignId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("OpportunityPilot.Domain.Campaigns.Campaign", b =>
                 {
                     b.HasOne("OpportunityPilot.Domain.Profiles.Profile", null)
@@ -1073,6 +1750,15 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.Postgres
                     b.HasOne("OpportunityPilot.Domain.Opportunities.Opportunity", null)
                         .WithMany()
                         .HasForeignKey("OpportunityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Profiles.ProfileVersion", b =>
+                {
+                    b.HasOne("OpportunityPilot.Domain.Profiles.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -1136,6 +1822,68 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.Postgres
                     b.HasOne("OpportunityPilot.Domain.Sales.SalesProject", null)
                         .WithMany()
                         .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Sales.UpworkOpportunity", b =>
+                {
+                    b.HasOne("OpportunityPilot.Domain.Sales.SalesProject", null)
+                        .WithMany()
+                        .HasForeignKey("SalesProjectId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Staffing.StaffingContact", b =>
+                {
+                    b.HasOne("OpportunityPilot.Domain.Staffing.StaffingAccount", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Staffing.StaffingDeal", b =>
+                {
+                    b.HasOne("OpportunityPilot.Domain.Staffing.StaffingAccount", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OpportunityPilot.Domain.Staffing.StaffingContact", null)
+                        .WithMany()
+                        .HasForeignKey("ContactId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Staffing.StaffingDealActivity", b =>
+                {
+                    b.HasOne("OpportunityPilot.Domain.Staffing.StaffingDeal", null)
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Wellfound.WellfoundActivity", b =>
+                {
+                    b.HasOne("OpportunityPilot.Domain.Wellfound.WellfoundApplication", null)
+                        .WithMany()
+                        .HasForeignKey("ApplicationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("OpportunityPilot.Domain.Wellfound.WellfoundJob", null)
+                        .WithMany()
+                        .HasForeignKey("JobId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Wellfound.WellfoundApplication", b =>
+                {
+                    b.HasOne("OpportunityPilot.Domain.Wellfound.WellfoundJob", null)
+                        .WithMany()
+                        .HasForeignKey("JobId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

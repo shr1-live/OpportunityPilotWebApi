@@ -27,6 +27,7 @@ public sealed record ResearchCounts(
 }
 
 public sealed record ResearchEventDto(DateTime At, ResearchStage Stage, EventLevel Level, string Message);
+public sealed record ResearchInputSnapshotDto(int CampaignVersion, int ProfileVersion, JsonElement Profile, JsonElement Criteria);
 
 /// <param name="Events">Latest 100, newest first. Omitted from lists.</param>
 public sealed record ResearchJobDto(
@@ -39,6 +40,7 @@ public sealed record ResearchJobDto(
     DateTime? FinishedAt,
     string? SafeError,
     ResearchCounts Counts,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ResearchInputSnapshotDto? Inputs,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<ResearchEventDto>? Events);
 
 public sealed record QueuedResearchDto(Guid JobId);

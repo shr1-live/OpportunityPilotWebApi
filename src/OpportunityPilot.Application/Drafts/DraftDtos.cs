@@ -5,7 +5,8 @@ namespace OpportunityPilot.Application.Drafts;
 public sealed record DraftClaimDto(string Text, string Basis, Guid? EvidenceId);
 
 public sealed record DraftDto(
-    Guid Id, Guid OpportunityId, DraftChannel Channel, string? Recipient, bool RecipientVerified, string? Subject,
+    Guid Id, Guid OpportunityId, DraftChannel Channel, string? Recipient, bool RecipientVerified,
+    string RecipientSource, Guid? RecipientEvidenceId, string? Subject,
     string Body, int Version, DraftState State, int? ApprovedVersion, DateTime? ApprovedAt, DraftSource Source,
     string? FallbackReason, IReadOnlyList<DraftClaimDto> Claims, bool SendReady, IReadOnlyList<string> SendBlockers,
     DateTime CreatedAt, DateTime UpdatedAt);
@@ -15,7 +16,8 @@ public sealed record UpdateDraftRequest(string? Recipient, string? Subject, stri
 public sealed record ApproveDraftRequest(int Version);
 public sealed record DraftListItemDto(
     Guid Id, Guid OpportunityId, Guid CampaignId, string CampaignName, string OpportunityTitle, string Organization,
-    DraftChannel Channel, string? Recipient, bool RecipientVerified, DraftState State, int Version, DateTime UpdatedAt);
+    DraftChannel Channel, string? Recipient, bool RecipientVerified, string RecipientSource, Guid? RecipientEvidenceId,
+    DraftState State, int Version, DateTime UpdatedAt);
 public sealed record DraftPageDto(int Total, IReadOnlyList<DraftListItemDto> Items);
 public sealed record BatchApproveDraftItem(Guid Id, int Version);
 public sealed record BatchApproveDraftRequest(IReadOnlyList<BatchApproveDraftItem> Items);

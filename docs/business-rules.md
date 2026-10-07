@@ -284,6 +284,23 @@ Code: `Application/Drafts/DraftService.cs`, `Domain/Drafts/OutreachDraft.cs`
 - No outbound delivery occurs. A valid approved CoverNote is exposed to the desktop agent, which fills it only into an
   explicitly cover-letter-like free-text field. Unapproved, edited or revoked text is never returned to the agent.
 
+### Upwork research and Connects
+
+- Research/import, deduplication, review and proposal drafting never require a paid Upwork plan or an available Connects balance.
+- The queue stores only visible facts supplied by the user or an approved Upwork API/MCP integration. It never scrapes authenticated pages and never stores passwords, cookies or OAuth tokens.
+- `connectsStatus` is `Unknown` unless both required and available Connects were observed together; otherwise it is `Sufficient` or `Insufficient` by direct comparison.
+- Required Connects are a timestamped snapshot and may change on Upwork. Recheck immediately before submission.
+- Only a human-shortlisted item can become a sales project. Insufficient Connects does not prevent drafting.
+- Any real MCP submission requires a separate explicit confirmation at action time.
+
+### Wellfound shared integration
+
+- Demo records are persisted with `IsDemo=true`, displayed as Demo in the UI and never counted as provider-confirmed activity.
+- Candidate filters operate on stored/imported records only. The Recruit MCP is not represented as a global public-job feed.
+- Recruit and Reach use separate OAuth issuers/resources and least-privilege read scopes. Passwords, browser cookies and manually copied access tokens are never accepted.
+- Live application or candidate write tools remain disabled until OAuth is connected, the exact current provider record is shown and the user confirms the action.
+- Local job states and demo applicant decisions update KPIs immediately and create immutable activities. A provider-confirmed activity is written only after a successful provider re-read/receipt.
+
 ### Reports
 
 Code: `Application/Applications/ApplicationService.cs`
@@ -309,6 +326,22 @@ Code: `Application/Applications/ApplicationService.cs`
 | Form answers come only from `config.json` rules; uncovered required fields → NeedsManual. Defaults exist for experience years and Yes/No questions (see OQ-BE-004) | `agent/src/answers.ts`, `agent/src/form.ts` |
 | Naukri dry run stops before Apply (Naukri submits on the first click) | `agent/src/platforms/naukri.ts` |
 | Results are kept in `.data/applications.jsonl` and reported one by one; after the first failed report the run stops syncing and `sync` re-uploads later in batches of 100 | `agent/src/run.ts`, `agent/src/cli.ts` |
+
+## Staffing CRM foundation
+
+- Every account, contact, deal and activity is filtered by the authenticated owner's id; cross-owner access is 404.
+- Account domains are trimmed/lower-cased. The service rejects a second owned account with the same supplied domain;
+  multiple accounts without a domain are permitted.
+- Contacts belong to the selected owned account. `EmailVerified` can be true only when an email is stored and does not
+  assert deliverability beyond the supplied evidence.
+- Estimated value cannot be negative. Currency, when supplied, is upper-cased and limited to a three-letter code.
+- Deal updates and stage moves require the current `expectedVersion`; stale changes return 409.
+- Deal stages follow the forward lifecycle in `opportunity-lifecycle.md`; terminal deals cannot reopen and an on-hold
+  deal may resume only to its remembered prior stage.
+- Creation, details changes, stage changes and notes create immutable activities. Notes are limited to 2000 characters.
+- The foundation records no provider success. A later provider gateway must supply a receipt or explicit manual
+  confirmation before moving a deal to an externally acted stage such as Contacted.
+- LinkedIn URLs and source references are user/provider evidence only. The server does not fetch or scrape LinkedIn.
 
 ## Demo mode
 

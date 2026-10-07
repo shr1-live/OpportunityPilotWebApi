@@ -4,7 +4,7 @@ namespace OpportunityPilot.Application.Sales;
 
 public sealed record SalesProjectDto(
     Guid Id, SalesProjectSource Source, string? ExternalId, string Title, string? Buyer, string? Description,
-    string? Url, DateTime? DeadlineUtc, SalesProjectState State, int Version, IReadOnlyList<SalesBidDto> Bids,
+    string? Url, DateTime? DeadlineUtc, string EvidenceJson, SalesProjectState State, int Version, IReadOnlyList<SalesBidDto> Bids,
     DateTime CreatedAt, DateTime UpdatedAt);
 
 public sealed record SalesBidDto(
@@ -23,6 +23,7 @@ public sealed record UpdateSalesBidRequest(
     decimal Amount, string Currency, int DeliveryDays, string Proposal, int ExpectedVersion);
 
 public sealed record ApproveSalesBidRequest(int Version);
+public sealed record ConfirmSalesBidPlacementRequest(int Version, bool Confirmed);
 public sealed record BatchApproveSalesBidItem(Guid Id, int Version);
 public sealed record BatchApproveSalesBidsRequest(IReadOnlyList<BatchApproveSalesBidItem> Items);
 public sealed record BatchApproveSalesBidResult(Guid Id, bool Approved, string? Reason, SalesProjectDto? Project);

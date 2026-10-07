@@ -25,7 +25,11 @@ public sealed class AccountDataService(IAppDbContext db, ICurrentUser user, Time
             suppressions = await db.Suppressions.Where(x => x.OwnerId == owner).ToListAsync(ct),
             applications = await db.JobApplications.Where(x => x.OwnerId == owner).ToListAsync(ct),
             salesProjects = await db.SalesProjects.Where(x => x.OwnerId == owner).ToListAsync(ct),
-            salesBids = await db.SalesBids.Where(x => x.OwnerId == owner).ToListAsync(ct)
+            salesBids = await db.SalesBids.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            upworkOpportunities = await db.UpworkOpportunities.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            wellfoundJobs = await db.WellfoundJobs.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            wellfoundApplications = await db.WellfoundApplications.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            wellfoundActivities = await db.WellfoundActivities.Where(x => x.OwnerId == owner).ToListAsync(ct)
         };
     }
 
@@ -33,6 +37,10 @@ public sealed class AccountDataService(IAppDbContext db, ICurrentUser user, Time
     {
         if (request?.Confirm != true) throw new RequestValidationException(new Dictionary<string, string[]> { ["confirm"] = ["Set confirm to true to permanently delete account data."] });
         var owner = user.OwnerId;
+        db.WellfoundActivities.RemoveRange(await db.WellfoundActivities.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.WellfoundApplications.RemoveRange(await db.WellfoundApplications.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.WellfoundJobs.RemoveRange(await db.WellfoundJobs.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.UpworkOpportunities.RemoveRange(await db.UpworkOpportunities.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.SalesProjects.RemoveRange(await db.SalesProjects.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.JobApplications.RemoveRange(await db.JobApplications.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.AgentKeys.RemoveRange(await db.AgentKeys.Where(x => x.OwnerId == owner).ToListAsync(ct));

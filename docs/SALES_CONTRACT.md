@@ -1,8 +1,9 @@
 # Sales pipeline contract (N5)
 
-Status: **review workflow implemented**. Owner-scoped project/tender import, deterministic validation, versioned
-bid approval, batch approval, manual tender handoff, provider migrations, and Sales UI are wired. Official Freelancer
-discovery/placement remains credential-dependent; no external bid is claimed as placed by this build.
+Status: **review and assisted-provider workflow implemented**. Owner-scoped project/tender import, deterministic
+validation, versioned bid approval, batch approval, approved-bid handoff, explicit manual-placement confirmation,
+provider migrations, and Sales UI are wired. Official Upwork/Freelancer discovery and placement remain
+credential-dependent; no external bid is claimed as placed without the user's explicit confirmation.
 
 This contract covers the first sales slice after the Candidate phase. The app is a sales assistant: it finds
 projects and tenders, prepares proposals and bids, and waits for explicit approval before any external action.
@@ -11,10 +12,11 @@ projects and tenders, prepares proposals and bids, and waits for explicit approv
 
 1. Sales data is owner-scoped. A user's projects, tenders, bids, proposals, credentials and activities are never
    visible to another user.
-2. Freelancer.com is the first bid-placement integration. Credentials remain server-side; they are never sent to
-   the browser or desktop agent.
-3. A bid is never placed without approval of the exact current version. Editing amount, delivery time or proposal
-   text clears approval and increments the version.
+2. Upwork and Freelancer.com are provider targets. Credentials remain with an official server-side connector or in
+   the user's own provider browser session; they are never copied into OpportunityPilot or the desktop agent.
+3. A bid is never placed without approval of the exact current version. The approval hash binds amount, delivery,
+   proposal text, provider id/URL and provider evidence such as visible Connects cost. Editing bid content clears
+   approval; changing bound provider context invalidates it.
 4. Bid amount and delivery time are user-provided inputs. The system must not invent prices, dates, case studies,
    contacts, certifications or capabilities.
 5. Tender/RFP submissions remain a manual handoff because digital signatures and portal-specific requirements cannot
@@ -46,7 +48,8 @@ Every generated claim must cite an evidence id or a confirmed profile claim. Unk
 | POST | `/api/v1/sales/projects/{id}/bid` | Create a bid from user-supplied amount, delivery and draft text |
 | PUT | `/api/v1/sales/bids/{id}` | Edit the current bid version; clears approval |
 | POST | `/api/v1/sales/bids/{id}/approve` | Approve the exact bid version |
-| POST | `/api/v1/sales/bids/{id}/place` | Place an approved Freelancer bid using server-side credentials |
+| POST | `/api/v1/sales/bids/{id}/handoff` | Prepare manual copy/open handoff for one approved exact bid |
+| POST | `/api/v1/sales/bids/{id}/confirm-placement` | Record explicit manual placement confirmation; never submits externally |
 | GET | `/api/v1/sales/drafts` | List proposal/email drafts across projects and tenders |
 | POST | `/api/v1/sales/drafts/batch-approve` | Approve eligible current versions independently |
 | POST | `/api/v1/sales/tenders/{id}/handoff` | Record that the tender was handed to the user for manual submission |
@@ -59,6 +62,7 @@ versions. External calls are idempotent by provider and external id; retries mus
 The domain implements owner-scoped project/bid objects, deterministic validation and versioned bid approval in
 `Domain/Sales`; SQL Server and Postgres migrations create their tables. The API accepts manual or explicitly sourced
 projects (provider imports require an external id), exposes listing/detail, bid create/edit/exact-version approval,
-`POST /api/v1/sales/bids/batch-approve`, and `POST /api/v1/sales/projects/{id}/handoff`. All five campaign modes are
-available. Freelancer discovery/placement and Gmail sending remain unavailable until their server-side credentials
-and live verification exist.
+`POST /api/v1/sales/bids/batch-approve`, `POST /api/v1/sales/bids/{id}/handoff`, and explicit placement confirmation.
+The Sales UI accepts a source-linked Upwork assisted import including visible Connects, budget and experience-level
+facts, then provides copy/open/manual-confirmation controls. All five campaign modes are available. Official provider
+discovery/placement and Gmail sending remain unavailable until approved credentials and live verification exist.

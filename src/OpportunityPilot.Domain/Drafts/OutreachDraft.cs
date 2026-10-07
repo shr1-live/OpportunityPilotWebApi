@@ -77,14 +77,15 @@ public sealed class OutreachDraft : IOwned
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
 
-    public void Update(string? recipient, string? subject, string body, DateTime utcNow)
+    public void Update(string? recipient, bool recipientVerified, string? subject, string body, DateTime utcNow)
     {
         var nextRecipient = Guard.Optional(recipient, MaxRecipientLength, nameof(recipient));
         var nextSubject = Guard.Optional(subject, MaxSubjectLength, nameof(subject));
         var nextBody = RequiredBody(body);
-        if (Recipient == nextRecipient && Subject == nextSubject && Body == nextBody) return;
+        if (Recipient == nextRecipient && RecipientVerified == recipientVerified && Subject == nextSubject && Body == nextBody) return;
 
         Recipient = nextRecipient;
+        RecipientVerified = recipientVerified;
         Subject = nextSubject;
         Body = nextBody;
         Version++;
@@ -125,7 +126,7 @@ public sealed class OutreachDraft : IOwned
 
     private string ContentHash()
     {
-        var canonical = $"{Id:D}|{Version}|{Channel}|{Recipient ?? string.Empty}|{Subject ?? string.Empty}|{Body}";
+        var canonical = $"{Id:D}|{Version}|{Channel}|{Recipient ?? string.Empty}|{RecipientVerified}|{Subject ?? string.Empty}|{Body}";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
     }
 

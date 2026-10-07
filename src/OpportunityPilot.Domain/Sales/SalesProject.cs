@@ -4,6 +4,7 @@ namespace OpportunityPilot.Domain.Sales;
 
 public enum SalesProjectSource
 {
+    Upwork,
     Freelancer,
     TenderFeed,
     PublicUrl,
@@ -82,4 +83,7 @@ public sealed class SalesProject : IOwned
         Version++;
         UpdatedAt = utcNow;
     }
+
+    /// <summary>Stable provider context included in the bid approval hash.</summary>
+    public string ApprovalContext() => $"{Source}|{ExternalId ?? string.Empty}|{Url ?? string.Empty}|{EvidenceJson}";
 }

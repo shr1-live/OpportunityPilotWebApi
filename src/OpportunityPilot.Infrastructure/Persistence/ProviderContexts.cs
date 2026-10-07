@@ -5,6 +5,7 @@ using OpportunityPilot.Domain.Opportunities;
 using OpportunityPilot.Domain.Profiles;
 using OpportunityPilot.Domain.Research;
 using OpportunityPilot.Domain.Sales;
+using OpportunityPilot.Domain.Wellfound;
 
 namespace OpportunityPilot.Infrastructure.Persistence;
 
@@ -35,6 +36,7 @@ public sealed class PostgresAppDbContext(DbContextOptions<PostgresAppDbContext> 
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<Profile>().Property(p => p.StructuredDataJson).HasColumnType("jsonb");
+        modelBuilder.Entity<ProfileVersion>().Property(p => p.StructuredDataJson).HasColumnType("jsonb");
         modelBuilder.Entity<Campaign>(e =>
         {
             e.Property(c => c.CriteriaJson).HasColumnType("jsonb");
@@ -42,6 +44,8 @@ public sealed class PostgresAppDbContext(DbContextOptions<PostgresAppDbContext> 
         });
         modelBuilder.Entity<ImportBatch>().Property(b => b.RowsJson).HasColumnType("jsonb");
         modelBuilder.Entity<ResearchJob>().Property(j => j.CountsJson).HasColumnType("jsonb");
+        modelBuilder.Entity<ResearchJob>().Property(j => j.ProfileSnapshotJson).HasColumnType("jsonb");
+        modelBuilder.Entity<ResearchJob>().Property(j => j.CriteriaSnapshotJson).HasColumnType("jsonb");
         modelBuilder.Entity<Opportunity>(e =>
         {
             e.Property(o => o.BreakdownJson).HasColumnType("jsonb");
@@ -51,6 +55,10 @@ public sealed class PostgresAppDbContext(DbContextOptions<PostgresAppDbContext> 
         modelBuilder.Entity<OutreachDraft>().Property(d => d.ClaimsJson).HasColumnType("jsonb");
         modelBuilder.Entity<SalesProject>().Property(p => p.EvidenceJson).HasColumnType("jsonb");
         modelBuilder.Entity<SalesBid>().Property(b => b.ClaimsJson).HasColumnType("jsonb");
+        modelBuilder.Entity<UpworkOpportunity>().Property(x => x.EvidenceJson).HasColumnType("jsonb");
+        modelBuilder.Entity<WellfoundJob>().Property(x => x.SkillsJson).HasColumnType("jsonb");
+        modelBuilder.Entity<WellfoundJob>().Property(x => x.EvidenceJson).HasColumnType("jsonb");
+        modelBuilder.Entity<WellfoundApplication>().Property(x => x.EvidenceJson).HasColumnType("jsonb");
         modelBuilder.Entity<SourceItem>().HasIndex(i => new { i.SourceId, i.ExternalId }).HasFilter("\"ExternalId\" IS NOT NULL");
         // At most one queued-or-running job per campaign, so two quick clicks cannot start two runs.
         modelBuilder.Entity<ResearchJob>().HasIndex(j => j.CampaignId, "UX_research_jobs_active_campaign")

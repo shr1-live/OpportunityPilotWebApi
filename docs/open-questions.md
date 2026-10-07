@@ -42,6 +42,8 @@ Audit date: 2026-10-05.
 | OQ-BE-026 | Stale code comments describe removed behaviour | P3 | Claude | Closed 2026-10-07 |
 | OQ-BE-027 | Agent README config table is broken | P3 | Claude | Closed 2026-10-05 — table repaired, new setting documented |
 | OQ-BE-028 | Tooling not pinned: no dotnet-ef manifest, no formatter config | P3 | Claude | Closed 2026-10-07 — tool manifest and editorconfig added |
+| OQ-BE-029 | Sales discovery/provider accounts are not selected or connected | P1 | Shivanshu | Open |
+| OQ-BE-030 | Wellfound Recruit/Reach live OAuth is not authorized | P1 | Shivanshu | Open |
 
 ## Entries
 
@@ -184,3 +186,19 @@ Audit date: 2026-10-05.
 - **Priority** P3 · **Owner** Claude · **Status** Closed 2026-10-07
 - **Where** repository root (no `.config/dotnet-tools.json`, no `.editorconfig`)
 - **What is needed** Pin `dotnet-ef` 10.x in a local tool manifest so migration commands are reproducible, and add an `.editorconfig` matching the current style.
+
+### OQ-BE-029 — Sales discovery/provider accounts are not selected or connected
+- **Priority** P1 · **Owner** Shivanshu · **Status** Open
+- **Where** `docs/STAFFING_SALES_INTEGRATION_PLAN.md`; tasks X3/X5/X7/X12
+- **What is needed** Connect or provide approved accounts/scopes for Upwork MCP/API, the selected sales-intelligence
+  provider, Gmail or Microsoft email, Google or Outlook Calendar, and an optional e-signature provider. LinkedIn
+  scraping/browser automation is not an option; LinkedIn remains manual/assisted unless an official approved product
+  explicitly grants the required read or action capability. Do not run credit-consuming enrichment without explicit
+  approval.
+
+### OQ-BE-030 — Wellfound Recruit/Reach live OAuth is not authorized
+- **Priority** P1 · **Owner** Shivanshu · **Status** Open
+- **Where** `Application/Wellfound`, `/api/v1/wellfound/status`, `TASKS.md` W1/W6
+- **What is needed** Complete Recruit Pro/Reach account setup and authorize each remote MCP separately. Then enumerate
+  the granted tools, verify pagination and read-only sync against the test company before enabling any live write tool.
+  Current UI/API use explicitly labelled persisted demo data and do not claim provider connectivity.
