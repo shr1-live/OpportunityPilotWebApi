@@ -198,7 +198,8 @@ Audit date: 2026-10-05.
 
 ### OQ-BE-030 — Wellfound Recruit/Reach live OAuth is not authorized
 - **Priority** P1 · **Owner** Shivanshu · **Status** Open
-- **Where** `Application/Wellfound`, `/api/v1/wellfound/status`, `TASKS.md` W1/W6
+- **Where** `Application/Wellfound`, `/api/v1/wellfound/status`, `TASKS.md` W1/W7
 - **What is needed** Complete Recruit Pro/Reach account setup and authorize each remote MCP separately. Then enumerate
   the granted tools, verify pagination and read-only sync against the test company before enabling any live write tool.
-  Current UI/API use explicitly labelled persisted demo data and do not claim provider connectivity.
+  Anonymous public job discovery is implemented separately and does not require this OAuth. Private recruiter jobs,
+  applicants and any provider-side decision remain unavailable until authorization.

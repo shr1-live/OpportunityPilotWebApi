@@ -6,6 +6,7 @@ using OpportunityPilot.Application.Abstractions;
 using OpportunityPilot.Application.Ai;
 using OpportunityPilot.Application.Configuration;
 using OpportunityPilot.Application.Research;
+using OpportunityPilot.Application.Wellfound;
 using OpportunityPilot.Infrastructure.Persistence;
 using OpportunityPilot.Infrastructure.Ai;
 using OpportunityPilot.Infrastructure.Research;
@@ -33,6 +34,7 @@ public static class DependencyInjection
         services.TryAddSingleton<IFetchAddressPolicy, StrictFetchAddressPolicy>();
         services.AddSingleton<FetchConcurrency>();
         services.AddSingleton<IContentParser, ContentParser>();
+        services.AddScoped<IWellfoundPublicJobReader, WellfoundPublicJobReader>();
         services.AddHttpClient<IWebFetcher, SafeFetcher>(SafeFetcher.ClientName, c => c.Timeout = Timeout.InfiniteTimeSpan)
             .ConfigurePrimaryHttpMessageHandler(sp => SafeFetcher.CreateHandler(sp.GetRequiredService<IFetchAddressPolicy>()))
             .SetHandlerLifetime(TimeSpan.FromMinutes(5));

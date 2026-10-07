@@ -85,6 +85,19 @@ public sealed class WellfoundJob : IOwned
         Version++; UpdatedAt = utcNow;
     }
 
+    public void RefreshPublic(string title, string companyName, string applyUrl, string? location, string? remoteType,
+        decimal? salaryMin, decimal? salaryMax, string? currency, decimal? equityMin, decimal? equityMax,
+        DateTime? postedAt, string evidenceJson, DateTime utcNow)
+    {
+        if (IsDemo || Scope != WellfoundJobScope.CandidateDiscovery)
+            throw new InvalidOperationException("Only public discovery jobs can be refreshed from the public page.");
+        Title = Guard.Required(title, MaxNameLength, nameof(title));
+        CompanyName = Guard.Required(companyName, MaxNameLength, nameof(companyName));
+        ApplyUrl = Guard.Required(applyUrl, MaxUrlLength, nameof(applyUrl));
+        SetDetails(location, remoteType, salaryMin, salaryMax, currency, equityMin, equityMax,
+            null, null, null, null, null, null, postedAt, null, "[]", evidenceJson, null, utcNow);
+    }
+
     public void ChangeState(WellfoundJobState state, int expectedVersion, DateTime utcNow)
     {
         if (Version != expectedVersion) throw new InvalidOperationException($"Job was changed elsewhere (now version {Version}). Reload before saving.");

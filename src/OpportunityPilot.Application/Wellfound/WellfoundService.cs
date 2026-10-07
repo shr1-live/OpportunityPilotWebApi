@@ -6,14 +6,59 @@ using OpportunityPilot.Domain.Wellfound;
 
 namespace OpportunityPilot.Application.Wellfound;
 
-public sealed class WellfoundService(IAppDbContext db, ICurrentUser user, TimeProvider clock)
+public sealed class WellfoundService(IAppDbContext db, ICurrentUser user, TimeProvider clock, IWellfoundPublicJobReader publicReader)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public WellfoundStatusDto Status() => new(
-        "DemoReady", false, false, "https://wellfound.com/api/mcp", "https://reach.wellfound.com/mcp",
+        "PublicReady", false, false, "https://wellfound.com/api/mcp", "https://reach.wellfound.com/mcp",
         ["applications:read"], ["projects:read", "agents:read", "candidates:read", "company_lists:read"],
-        "Interactive demo data is available. Live MCP sync waits for your Wellfound Pro/Reach OAuth authorization.");
+        "Public job discovery is available without an account. Recruiter-owned jobs and applicants still require Wellfound Recruit/Reach OAuth.");
+
+    public async Task<SyncWellfoundPublicResult> SyncPublicAsync(CancellationToken ct)
+    {
+        var result = await publicReader.ReadAsync(ct);
+        if (!result.Ok) throw new ConflictException(result.FailureReason ?? "Wellfound public job import failed.");
+
+        var demoJobs = await db.WellfoundJobs.Where(x => x.OwnerId == user.OwnerId && x.IsDemo).ToListAsync(ct);
+        var demoJobIds = demoJobs.Select(x => x.Id).ToArray();
+        var demoApps = await db.WellfoundApplications.Where(x => x.OwnerId == user.OwnerId && x.IsDemo).ToListAsync(ct);
+        var demoAppIds = demoApps.Select(x => x.Id).ToArray();
+        var demoActivities = await db.WellfoundActivities.Where(x => x.OwnerId == user.OwnerId &&
+            ((x.JobId != null && demoJobIds.Contains(x.JobId.Value)) ||
+             (x.ApplicationId != null && demoAppIds.Contains(x.ApplicationId.Value)) ||
+             x.Detail.Contains("labelled Wellfound demo"))).ToListAsync(ct);
+        db.WellfoundActivities.RemoveRange(demoActivities);
+        db.WellfoundApplications.RemoveRange(demoApps);
+        db.WellfoundJobs.RemoveRange(demoJobs);
+
+        var providerIds = result.Jobs.Select(x => x.ProviderJobId).ToArray();
+        var existing = await db.WellfoundJobs.Where(x => x.OwnerId == user.OwnerId && !x.IsDemo &&
+            x.Scope == WellfoundJobScope.CandidateDiscovery && providerIds.Contains(x.ProviderJobId))
+            .ToDictionaryAsync(x => x.ProviderJobId, StringComparer.OrdinalIgnoreCase, ct);
+        var added = 0;
+        var updated = 0;
+        foreach (var source in result.Jobs)
+        {
+            if (!existing.TryGetValue(source.ProviderJobId, out var job))
+            {
+                job = new WellfoundJob(user.OwnerId, source.ProviderJobId, WellfoundJobScope.CandidateDiscovery,
+                    source.Title, source.CompanyName, source.ApplyUrl, false, result.ObservedAt);
+                db.WellfoundJobs.Add(job);
+                added++;
+            }
+            else updated++;
+            job.RefreshPublic(source.Title, source.CompanyName, source.ApplyUrl, source.Location, source.RemoteType,
+                source.SalaryMin, source.SalaryMax, source.Currency, source.EquityMin, source.EquityMax,
+                source.PostedAt, source.EvidenceJson, result.ObservedAt);
+        }
+
+        db.WellfoundActivities.Add(new(user.OwnerId, WellfoundActivityKind.SyncObserved,
+            $"Observed {result.Jobs.Count} current public Wellfound job cards; {added} added and {updated} refreshed. No authenticated account data was used.",
+            result.ObservedAt));
+        await db.SaveChangesAsync(ct);
+        return new(result.Jobs.Count, added, updated, demoJobs.Count + demoApps.Count, result.ObservedAt);
+    }
 
     public async Task<IReadOnlyList<WellfoundJobDto>> JobsAsync(string workspace, string? keyword, string? location,
         bool remoteOnly, decimal? minSalary, bool equityOnly, string? fundingStage, int take, CancellationToken ct)

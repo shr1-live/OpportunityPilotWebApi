@@ -47,4 +47,8 @@ public sealed class WellfoundController(WellfoundService service) : ControllerBa
     [HttpPost("demo/load")]
     public async Task<ActionResult<LoadWellfoundDemoResult>> LoadDemo(CancellationToken ct) =>
         Ok(await service.LoadDemoAsync(ct));
+
+    [HttpPost("public/sync")]
+    public async Task<ActionResult<SyncWellfoundPublicResult>> SyncPublic(CancellationToken ct) =>
+        Ok(await service.SyncPublicAsync(ct));
 }

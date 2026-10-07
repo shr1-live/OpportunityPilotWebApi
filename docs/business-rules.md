@@ -295,11 +295,13 @@ Code: `Application/Drafts/DraftService.cs`, `Domain/Drafts/OutreachDraft.cs`
 
 ### Wellfound shared integration
 
-- Demo records are persisted with `IsDemo=true`, displayed as Demo in the UI and never counted as provider-confirmed activity.
-- Candidate filters operate on stored/imported records only. The Recruit MCP is not represented as a global public-job feed.
+- Public discovery reads only the anonymous `https://wellfound.com/jobs` page through the SSRF-safe bounded fetcher: no login, cookies, credentials or browser session are used.
+- At most 100 recognizable cards are imported per refresh. Each row keeps the numeric Wellfound job id, exact job URL, observed timestamp and raw public-card evidence; missing fields stay null.
+- A public refresh removes legacy demo jobs/applicants for that owner. Candidate filters and Sales hiring signals operate on the stored public observations.
+- The Recruit MCP is not represented as a global public-job feed: recruiter-owned jobs and applicants remain OAuth-only.
 - Recruit and Reach use separate OAuth issuers/resources and least-privilege read scopes. Passwords, browser cookies and manually copied access tokens are never accepted.
 - Live application or candidate write tools remain disabled until OAuth is connected, the exact current provider record is shown and the user confirms the action.
-- Local job states and demo applicant decisions update KPIs immediately and create immutable activities. A provider-confirmed activity is written only after a successful provider re-read/receipt.
+- Local Save/Applied decisions on public jobs update KPIs immediately and create immutable activities. A provider-confirmed activity is written only after a successful OAuth provider re-read/receipt.
 
 ### Reports
 
