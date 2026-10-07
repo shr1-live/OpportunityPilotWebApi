@@ -131,9 +131,9 @@ public class ResearchDomainTests
     [Fact]
     public void Evidence_hash_is_the_sha256_of_the_stored_excerpt()
     {
-        var long_ = new string('x', 5000);
+        var long_ = new string('x', 10000);
         var e = new Evidence(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, T0, long_, Evidence.RulesMethod);
-        Assert.Equal(2000, e.Excerpt.Length);
+        Assert.Equal(Evidence.MaxExcerptLength, e.Excerpt.Length);
         Assert.Equal(64, e.ContentHash.Length);
         Assert.Equal(Evidence.HashOf(long_), e.ContentHash);
         Assert.NotEqual(Evidence.HashOf("a"), Evidence.HashOf("b"));

@@ -40,6 +40,10 @@ public sealed class SalesController(SalesService sales) : ControllerBase
     public async Task<ActionResult<IReadOnlyList<BatchApproveSalesBidResult>>> BatchApprove(BatchApproveSalesBidsRequest request, CancellationToken ct) =>
         Ok(await sales.BatchApproveBidsAsync(request, ct));
 
-    [HttpPost("projects/{id:guid}/handoff")]
+    [HttpPost("bids/{id:guid}/handoff")]
     public async Task<ActionResult<SalesProjectDto>> Handoff(Guid id, CancellationToken ct) => Ok(await sales.HandoffAsync(id, ct));
+
+    [HttpPost("bids/{id:guid}/confirm-placement")]
+    public async Task<ActionResult<SalesProjectDto>> ConfirmPlacement(Guid id, ConfirmSalesBidPlacementRequest request, CancellationToken ct) =>
+        Ok(await sales.ConfirmPlacementAsync(id, request, ct));
 }

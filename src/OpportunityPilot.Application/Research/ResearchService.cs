@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OpportunityPilot.Application.Abstractions;
 using OpportunityPilot.Application.Common;
@@ -34,7 +35,12 @@ public sealed class ResearchService(IAppDbContext db, ICurrentUser user, TimePro
                 ["campaign"] = ["Add at least one source before running research."]
             });
 
-        var job = new ResearchJob(ownerId, campaignId, now);
+        var campaign = await db.Campaigns.FirstOrDefaultAsync(c => c.Id == campaignId && c.OwnerId == ownerId, ct)
+            ?? throw new NotFoundException("Campaign not found.");
+        var profile = await db.Profiles.FirstOrDefaultAsync(p => p.Id == campaign.ProfileId && p.OwnerId == ownerId, ct)
+            ?? throw new NotFoundException("Campaign profile not found.");
+        var job = new ResearchJob(ownerId, campaignId, now, campaign.Version, profile.Version,
+            profile.StructuredDataJson, campaign.CriteriaJson);
         db.ResearchJobs.Add(job);
         try
         {
@@ -58,13 +64,13 @@ public sealed class ResearchService(IAppDbContext db, ICurrentUser user, TimePro
             .OrderByDescending(j => j.CreatedAt).ThenBy(j => j.Id)
             .Take(MaxListedJobs)
             .ToListAsync(ct);
-        return jobs.Select(j => ToDto(j, null)).ToList();
+        return jobs.Select(j => ToDto(j, null, includeInputs: false)).ToList();
     }
 
     public async Task<ResearchJobDto> GetAsync(Guid id, CancellationToken ct)
     {
         var job = await FindOwnedAsync(id, ct);
-        return ToDto(job, await EventsAsync(job.Id, ct));
+        return ToDto(job, await EventsAsync(job.Id, ct), includeInputs: true);
     }
 
     public async Task<ResearchJobDto> CancelAsync(Guid id, CancellationToken ct)
@@ -72,11 +78,11 @@ public sealed class ResearchService(IAppDbContext db, ICurrentUser user, TimePro
         for (var attempt = 0; ; attempt++)
         {
             var job = await FindOwnedAsync(id, ct);
-            if (!job.RequestCancel(clock.GetUtcNow().UtcDateTime)) return ToDto(job, await EventsAsync(job.Id, ct));
+            if (!job.RequestCancel(clock.GetUtcNow().UtcDateTime)) return ToDto(job, await EventsAsync(job.Id, ct), includeInputs: true);
             try
             {
                 await db.SaveChangesAsync(ct);
-                return ToDto(job, await EventsAsync(job.Id, ct));
+                return ToDto(job, await EventsAsync(job.Id, ct), includeInputs: true);
             }
             catch (DbUpdateConcurrencyException) when (attempt < 2)
             {
@@ -109,7 +115,14 @@ public sealed class ResearchService(IAppDbContext db, ICurrentUser user, TimePro
             .Select(e => new ResearchEventDto(e.At, e.Stage, e.Level, e.Message))
             .ToListAsync(ct);
 
-    private static ResearchJobDto ToDto(ResearchJob j, IReadOnlyList<ResearchEventDto>? events) =>
+    private static ResearchJobDto ToDto(ResearchJob j, IReadOnlyList<ResearchEventDto>? events, bool includeInputs) =>
         new(j.Id, j.CampaignId, j.State, j.Stage, j.CreatedAt, j.StartedAt, j.FinishedAt, j.SafeError,
-            ResearchCounts.FromJson(j.CountsJson), events);
+            ResearchCounts.FromJson(j.CountsJson), includeInputs ? Inputs(j) : null, events);
+
+    private static ResearchInputSnapshotDto Inputs(ResearchJob job)
+    {
+        using var profile = JsonDocument.Parse(job.ProfileSnapshotJson);
+        using var criteria = JsonDocument.Parse(job.CriteriaSnapshotJson);
+        return new(job.CampaignVersion, job.ProfileVersion, profile.RootElement.Clone(), criteria.RootElement.Clone());
+    }
 }

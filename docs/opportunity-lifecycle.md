@@ -128,3 +128,18 @@ Values: `Applied`, `DryRun`, `NeedsManual`, `Skipped`, `Failed`. One row per (ow
 | Applied | DryRun, NeedsManual, Skipped, Failed | **status, detail and `occurredAt` are kept**; only the job description (URL, title, company, location) refreshes |
 
 A submitted application cannot be undone, so `Applied` is never downgraded.
+
+## Staffing deal lifecycle
+
+Code: `Domain/Staffing/StaffingDeal.cs`.
+
+The forward path is `New → Qualified → Shortlisted → OutreachApproved → Contacted → Replied → MeetingScheduled →`
+`RequirementConfirmed → CandidatesSubmitted → Interviewing → Offer → Contracting → Won`.
+
+- Every active stage may move to `Lost`, `Disqualified` or `OnHold`.
+- `Won`, `Lost` and `Disqualified` are terminal.
+- `OnHold` remembers the preceding stage and may resume only to that stage.
+- A repeated stage is a no-op.
+- Each real transition writes an immutable `StageChanged` activity.
+- `Contacted` means an external action was provider-confirmed or manually confirmed; drafting/copying alone must never
+  advance the stage when execution gateways are added.

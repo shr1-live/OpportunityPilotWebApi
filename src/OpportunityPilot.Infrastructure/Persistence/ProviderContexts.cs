@@ -35,6 +35,7 @@ public sealed class PostgresAppDbContext(DbContextOptions<PostgresAppDbContext> 
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<Profile>().Property(p => p.StructuredDataJson).HasColumnType("jsonb");
+        modelBuilder.Entity<ProfileVersion>().Property(p => p.StructuredDataJson).HasColumnType("jsonb");
         modelBuilder.Entity<Campaign>(e =>
         {
             e.Property(c => c.CriteriaJson).HasColumnType("jsonb");
@@ -42,6 +43,8 @@ public sealed class PostgresAppDbContext(DbContextOptions<PostgresAppDbContext> 
         });
         modelBuilder.Entity<ImportBatch>().Property(b => b.RowsJson).HasColumnType("jsonb");
         modelBuilder.Entity<ResearchJob>().Property(j => j.CountsJson).HasColumnType("jsonb");
+        modelBuilder.Entity<ResearchJob>().Property(j => j.ProfileSnapshotJson).HasColumnType("jsonb");
+        modelBuilder.Entity<ResearchJob>().Property(j => j.CriteriaSnapshotJson).HasColumnType("jsonb");
         modelBuilder.Entity<Opportunity>(e =>
         {
             e.Property(o => o.BreakdownJson).HasColumnType("jsonb");

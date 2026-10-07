@@ -39,7 +39,8 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
             ? GenerateCoverNote(opportunity, campaign.CriteriaJson, profile.StructuredDataJson)
             : GenerateOutreach(opportunity, profile.StructuredDataJson, request.Channel);
         var now = clock.GetUtcNow().UtcDateTime;
-        var draft = new OutreachDraft(ownerId, opportunity.Id, request.Channel, request.Recipient, false, null,
+        var recipientEvidence = RecipientEvidence(request.Recipient, opportunity.FactsJson);
+        var draft = new OutreachDraft(ownerId, opportunity.Id, request.Channel, request.Recipient, recipientEvidence is not null, null,
             generated.Body, DraftSource.Template, JsonSerializer.Serialize(generated.Claims, Json), now);
         db.OutreachDrafts.Add(draft);
         try
@@ -50,7 +51,7 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         {
             throw new ConflictException($"This opportunity already has a {ChannelName(request.Channel)} draft. Reload to see it.");
         }
-        return ToDto(draft);
+        return ToDto(draft, opportunity.FactsJson);
     }
 
     public async Task<IReadOnlyList<DraftDto>> ListForOpportunityAsync(Guid opportunityId, CancellationToken ct)
@@ -58,7 +59,9 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         await EnsureOpportunityAsync(opportunityId, ct);
         var rows = await Owned.Where(d => d.OpportunityId == opportunityId)
             .OrderByDescending(d => d.UpdatedAt).ThenBy(d => d.Id).ToListAsync(ct);
-        return rows.Select(ToDto).ToList();
+        var facts = await db.Opportunities.Where(o => o.Id == opportunityId && o.OwnerId == user.OwnerId)
+            .Select(o => o.FactsJson).SingleAsync(ct);
+        return rows.Select(d => ToDto(d, facts)).ToList();
     }
 
     public async Task<DraftPageDto> ListAsync(DraftState? state, DraftChannel? channel, Guid? campaignId, int take, int skip, CancellationToken ct)
@@ -73,17 +76,22 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
                      join campaign in db.Campaigns on opportunity.CampaignId equals campaign.Id
                      where opportunity.OwnerId == user.OwnerId && campaign.OwnerId == user.OwnerId
                          && (campaignId == null || campaign.Id == campaignId)
-                     select new { draft, opportunity.Title, opportunity.Organization, CampaignId = campaign.Id, CampaignName = campaign.Name };
+                     select new { draft, opportunity.Title, opportunity.Organization, opportunity.FactsJson, CampaignId = campaign.Id, CampaignName = campaign.Name };
         var total = await joined.CountAsync(ct);
         var rows = await joined.OrderByDescending(x => x.draft.UpdatedAt).ThenBy(x => x.draft.Id)
             .Skip(skip).Take(take).ToListAsync(ct);
         return new DraftPageDto(total, rows.Select(x => new DraftListItemDto(
             x.draft.Id, x.draft.OpportunityId, x.CampaignId, x.CampaignName, x.Title, x.Organization,
             x.draft.Channel, x.draft.Recipient, x.draft.RecipientVerified,
+            x.draft.RecipientVerified ? "Evidence" : "UserEntered", RecipientEvidence(x.draft.Recipient, x.FactsJson),
             x.draft.HasValidApproval() ? DraftState.Approved : DraftState.Draft, x.draft.Version, x.draft.UpdatedAt)).ToList());
     }
 
-    public async Task<DraftDto> GetAsync(Guid id, CancellationToken ct) => ToDto(await FindAsync(id, ct));
+    public async Task<DraftDto> GetAsync(Guid id, CancellationToken ct)
+    {
+        var draft = await FindAsync(id, ct);
+        return ToDto(draft, await OpportunityFactsAsync(draft.OpportunityId, ct));
+    }
 
     public async Task<DraftDto> UpdateAsync(Guid id, UpdateDraftRequest request, CancellationToken ct)
     {
@@ -102,12 +110,13 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         await EnsureNotSuppressedAsync(request.Recipient, ct);
         try
         {
-            draft.Update(request.Recipient, request.Subject, request.Body, clock.GetUtcNow().UtcDateTime);
+            var verified = RecipientEvidence(request.Recipient, await OpportunityFactsAsync(draft.OpportunityId, ct)) is not null;
+            draft.Update(request.Recipient, verified, request.Subject, request.Body, clock.GetUtcNow().UtcDateTime);
             await db.SaveChangesAsync(ct);
         }
         catch (ArgumentException ex) { throw Invalid("body", ex.Message); }
         catch (DbUpdateConcurrencyException) { throw new ConflictException("Draft was changed elsewhere. Reload before saving."); }
-        return ToDto(draft);
+        return ToDto(draft, await OpportunityFactsAsync(draft.OpportunityId, ct));
     }
 
     public async Task<DraftDto> ApproveAsync(Guid id, ApproveDraftRequest request, CancellationToken ct)
@@ -125,7 +134,7 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         }
         catch (InvalidOperationException ex) { throw Invalid("draft", ex.Message); }
         catch (DbUpdateConcurrencyException) { throw new ConflictException("Draft was changed elsewhere. Reload before approving."); }
-        return ToDto(draft);
+        return ToDto(draft, await OpportunityFactsAsync(draft.OpportunityId, ct));
     }
 
     public async Task<IReadOnlyList<BatchApproveDraftResult>> BatchApproveAsync(BatchApproveDraftRequest request, CancellationToken ct)
@@ -155,7 +164,7 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         draft.RevokeApproval(clock.GetUtcNow().UtcDateTime);
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateConcurrencyException) { throw new ConflictException("Draft was changed elsewhere. Reload and try again."); }
-        return ToDto(draft);
+        return ToDto(draft, await OpportunityFactsAsync(draft.OpportunityId, ct));
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
@@ -177,7 +186,7 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
             throw new NotFoundException("Opportunity not found.");
     }
 
-    public static DraftDto ToDto(OutreachDraft draft)
+    public static DraftDto ToDto(OutreachDraft draft, string? factsJson = null)
     {
         var validApproval = draft.HasValidApproval();
         var state = validApproval ? DraftState.Approved : DraftState.Draft;
@@ -188,8 +197,9 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         if (ContainsUnresolvedPlaceholder(draft.Body) || ContainsUnresolvedPlaceholder(draft.Subject))
             blockers.Add("Replace every [placeholder] before approval.");
         if (!validApproval) blockers.Add("Approve this exact draft before the agent can use it.");
+        var evidenceId = RecipientEvidence(draft.Recipient, factsJson);
         return new DraftDto(draft.Id, draft.OpportunityId, draft.Channel, draft.Recipient, draft.RecipientVerified,
-            draft.Subject, draft.Body, draft.Version, state, validApproval ? draft.ApprovedVersion : null,
+            draft.RecipientVerified ? "Evidence" : "UserEntered", evidenceId, draft.Subject, draft.Body, draft.Version, state, validApproval ? draft.ApprovedVersion : null,
             validApproval ? draft.ApprovedAt : null, draft.Source, null, Claims(draft.ClaimsJson),
             false, blockers, draft.CreatedAt, draft.UpdatedAt);
     }
@@ -294,6 +304,20 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         var normalized = Domain.Outreach.Suppression.Normalize(recipient);
         if (await db.Suppressions.AnyAsync(x => x.OwnerId == user.OwnerId && x.NormalizedRecipient == normalized, ct))
             throw Invalid("recipient", "Recipient is on your suppression list.");
+    }
+
+    private async Task<string> OpportunityFactsAsync(Guid opportunityId, CancellationToken ct) =>
+        await db.Opportunities.Where(o => o.Id == opportunityId && o.OwnerId == user.OwnerId)
+            .Select(o => o.FactsJson).SingleAsync(ct);
+
+    private static Guid? RecipientEvidence(string? recipient, string? factsJson)
+    {
+        if (string.IsNullOrWhiteSpace(recipient) || string.IsNullOrWhiteSpace(factsJson)) return null;
+        var normalized = Domain.Outreach.Suppression.Normalize(recipient).Replace("mailto:", string.Empty, StringComparison.OrdinalIgnoreCase);
+        var facts = Deserialize<List<FactRow>>(factsJson) ?? [];
+        var match = facts.FirstOrDefault(f => !f.IsInference && !string.IsNullOrWhiteSpace(f.EvidenceId) &&
+            f.Value.Replace("mailto:", string.Empty, StringComparison.OrdinalIgnoreCase).Contains(normalized, StringComparison.OrdinalIgnoreCase));
+        return Guid.TryParse(match?.EvidenceId, out var id) ? id : null;
     }
 
     private static bool ContainsUnresolvedPlaceholder(string? value)

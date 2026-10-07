@@ -310,6 +310,22 @@ Code: `Application/Applications/ApplicationService.cs`
 | Naukri dry run stops before Apply (Naukri submits on the first click) | `agent/src/platforms/naukri.ts` |
 | Results are kept in `.data/applications.jsonl` and reported one by one; after the first failed report the run stops syncing and `sync` re-uploads later in batches of 100 | `agent/src/run.ts`, `agent/src/cli.ts` |
 
+## Staffing CRM foundation
+
+- Every account, contact, deal and activity is filtered by the authenticated owner's id; cross-owner access is 404.
+- Account domains are trimmed/lower-cased. The service rejects a second owned account with the same supplied domain;
+  multiple accounts without a domain are permitted.
+- Contacts belong to the selected owned account. `EmailVerified` can be true only when an email is stored and does not
+  assert deliverability beyond the supplied evidence.
+- Estimated value cannot be negative. Currency, when supplied, is upper-cased and limited to a three-letter code.
+- Deal updates and stage moves require the current `expectedVersion`; stale changes return 409.
+- Deal stages follow the forward lifecycle in `opportunity-lifecycle.md`; terminal deals cannot reopen and an on-hold
+  deal may resume only to its remembered prior stage.
+- Creation, details changes, stage changes and notes create immutable activities. Notes are limited to 2000 characters.
+- The foundation records no provider success. A later provider gateway must supply a receipt or explicit manual
+  confirmation before moving a deal to an externally acted stage such as Contacted.
+- LinkedIn URLs and source references are user/provider evidence only. The server does not fetch or scrape LinkedIn.
+
 ## Demo mode
 
 Code: `Infrastructure/DependencyInjection.cs`, `Api/Auth/AuthSetup.cs`

@@ -82,9 +82,9 @@ public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvid
         var bid = await FindBidAsync(bidId, ct);
         if (ContainsUnresolvedPlaceholder(bid.Proposal))
             throw Invalid("proposal", "Replace every [placeholder] before approving this proposal.");
-        try { bid.Approve(request.Version, Now); }
-        catch (InvalidOperationException ex) { throw new ConflictException(ex.Message); }
         var project = await FindProjectAsync(bid.ProjectId, ct);
+        try { bid.Approve(request.Version, project.ApprovalContext(), Now); }
+        catch (InvalidOperationException ex) { throw new ConflictException(ex.Message); }
         project.ChangeState(SalesProjectState.BidApproved, Now);
         await db.SaveChangesAsync(ct);
         return await GetProjectAsync(project.Id, ct);
@@ -107,12 +107,30 @@ public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvid
         return results;
     }
 
-    public async Task<SalesProjectDto> HandoffAsync(Guid projectId, CancellationToken ct)
+    public async Task<SalesProjectDto> HandoffAsync(Guid bidId, CancellationToken ct)
     {
-        var project = await FindProjectAsync(projectId, ct);
+        var bid = await FindBidAsync(bidId, ct);
+        var project = await FindProjectAsync(bid.ProjectId, ct);
+        if (!bid.HasValidApproval(project.ApprovalContext()))
+            throw Invalid("bid", "Approve this exact bid version before starting a provider handoff.");
         project.ChangeState(SalesProjectState.ManualHandoff, Now);
         await db.SaveChangesAsync(ct);
-        return await GetProjectAsync(projectId, ct);
+        return await GetProjectAsync(project.Id, ct);
+    }
+
+    public async Task<SalesProjectDto> ConfirmPlacementAsync(Guid bidId, ConfirmSalesBidPlacementRequest request, CancellationToken ct)
+    {
+        if (request is null || !request.Confirmed)
+            throw Invalid("confirmed", "Explicit confirmation is required after the proposal was submitted on the provider.");
+        var bid = await FindBidAsync(bidId, ct);
+        if (request.Version != bid.Version)
+            throw new ConflictException($"Bid was changed elsewhere (now version {bid.Version}). Reload before confirming placement.");
+        var project = await FindProjectAsync(bid.ProjectId, ct);
+        try { bid.MarkPlaced(project.ApprovalContext(), Now); }
+        catch (InvalidOperationException ex) { throw Invalid("bid", ex.Message); }
+        project.ChangeState(SalesProjectState.BidPlaced, Now);
+        await db.SaveChangesAsync(ct);
+        return await GetProjectAsync(project.Id, ct);
     }
 
     private IQueryable<SalesProject> OwnedProjects => db.SalesProjects.Where(p => p.OwnerId == user.OwnerId);
@@ -134,12 +152,14 @@ public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvid
 
     private static SalesProjectDto ToDto(SalesProject project, IEnumerable<SalesBid> bids) =>
         new(project.Id, project.Source, project.ExternalId, project.Title, project.Buyer, project.Description, project.Url,
-            project.DeadlineUtc, project.State, project.Version, bids.Select(ToDto).ToList(), project.CreatedAt, project.UpdatedAt);
+            project.DeadlineUtc, project.EvidenceJson, project.State, project.Version,
+            bids.Select(bid => ToDto(bid, project.ApprovalContext())).ToList(), project.CreatedAt, project.UpdatedAt);
 
-    private static SalesBidDto ToDto(SalesBid bid) =>
+    private static SalesBidDto ToDto(SalesBid bid, string providerContext) =>
         new(bid.Id, bid.ProjectId, bid.Amount, bid.Currency, bid.DeliveryDays, bid.Proposal, bid.Version, bid.State,
-            bid.HasValidApproval() ? bid.ApprovedVersion : null, bid.HasValidApproval() ? bid.ApprovedAt : null,
-            bid.HasValidApproval(), bid.CreatedAt, bid.UpdatedAt);
+            bid.HasValidApproval(providerContext) ? bid.ApprovedVersion : null,
+            bid.HasValidApproval(providerContext) ? bid.ApprovedAt : null,
+            bid.HasValidApproval(providerContext), bid.CreatedAt, bid.UpdatedAt);
 
     private static RequestValidationException Invalid(string field, string message) =>
         new(new Dictionary<string, string[]> { [field] = [message] });

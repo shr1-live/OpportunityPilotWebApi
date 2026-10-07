@@ -38,6 +38,11 @@ Type notation below: `uuid`, `string(n)` (Postgres `character varying(n)` / SqlS
 
 Indexes: `(OwnerId, UpdatedAt)`.
 
+### profile_versions — `Domain/Profiles/ProfileVersion.cs`
+
+Immutable readable snapshots of an owned profile: profile id/version, type, name, structured JSON, confirmation time and
+creation time. Unique `(OwnerId, ProfileId, Version)`; profile FK cascades.
+
 ### job_applications — `Domain/Applications/JobApplication.cs`
 
 | Column | Type | Notes |
@@ -85,6 +90,12 @@ Indexes: unique `KeyHash`; `OwnerId`.
 | CreatedAt, UpdatedAt | time | |
 
 Indexes: `(OwnerId, CreatedAt)`; `ProfileId`.
+
+### campaign_schedules — `Domain/Automation/CampaignSchedule.cs`
+
+One owner-scoped schedule per campaign with time zone, cadence minutes, next run, pause flag, lease, last queued time,
+safe error, timestamps and concurrency version. Unique `(OwnerId, CampaignId)` and processor index
+`(Paused, NextRunAt)`; campaign FK cascades.
 
 ### sources — `Domain/Research/Source.cs`
 
@@ -147,6 +158,8 @@ Indexes: `(OwnerId, CreatedAt)`; `CampaignId`.
 | State | string(32) | `ResearchJobState` |
 | Stage | string(32) | `ResearchStage` |
 | CountsJson | json | `ResearchCounts`, camelCase |
+| ProfileVersion, CampaignVersion | int | exact input versions captured when queued |
+| ProfileSnapshotJson, CriteriaSnapshotJson | json | reproducible bounded inputs captured when queued |
 | Attempts | int | number of claims |
 | LeaseUntil | time, null | |
 | CancelRequested | bool | |
@@ -322,6 +335,32 @@ Indexes: unique `(OwnerId, Source, ExternalId)` when `ExternalId` is present; `(
 
 Indexes: `(OwnerId, ProjectId, UpdatedAt)`; `ProjectId`.
 
+### staffing_accounts — `Domain/Staffing/StaffingAccount.cs`
+
+Owner-scoped prospective or active client companies. Name is required; domain is normalized lower-case when supplied.
+Source records whether the identity came from Manual, Import, PublicWeb, SalesIntelligence, Upwork, Freelancer, Tender
+or Referral. Optional industry, location and source reference remain attributable to that source. `Version` is a
+concurrency token. Indexes: `(OwnerId, UpdatedAt)` and `(OwnerId, Domain)`.
+
+### staffing_contacts — `Domain/Staffing/StaffingContact.cs`
+
+Owner-scoped buyers/stakeholders linked to `staffing_accounts` (Cascade). Stores name, optional title/email/LinkedIn URL,
+an evidence/source note and explicit `EmailVerified`; no provider identity is invented. `Version` is a concurrency token.
+Index: `(OwnerId, AccountId, Name)`.
+
+### staffing_deals — `Domain/Staffing/StaffingDeal.cs`
+
+Commercial staffing opportunities linked to an account (Cascade) and optional contact (Restrict). Stores source,
+external reference, estimated value/currency, enforced `StaffingDealStage`, optional pre-hold stage, next action/due time,
+timestamps and concurrency `Version`. Indexes: `(OwnerId, Stage, UpdatedAt)` and
+`(OwnerId, Source, ExternalReference)`.
+
+### staffing_deal_activities — `Domain/Staffing/StaffingDealActivity.cs`
+
+Immutable owner-scoped deal facts: Created, StageChanged, DetailsChanged, NoteAdded, ManualActionConfirmed or
+ProviderReceiptRecorded. Detail is required and limited to 2000 characters; deal FK cascades. Index:
+`(OwnerId, DealId, OccurredAt)`.
+
 ### guest_sessions — `Domain/Auth/GuestSession.cs`
 
 | Column | Type | Notes |
@@ -341,8 +380,13 @@ Indexes: unique `TokenHash` for authentication lookup; `ExpiresAt` for bounded c
 | research_jobs | research_events | Cascade |
 | opportunities | opportunity_evidence, activities, outreach_drafts, next_actions | Cascade |
 | sales_projects | sales_bids | Cascade |
+| staffing_accounts | staffing_contacts, staffing_deals | Cascade |
+| staffing_contacts | staffing_deals | Restrict |
+| staffing_deals | staffing_deal_activities | Cascade |
 | evidence | opportunity_evidence | Restrict |
 | profiles | campaigns | Restrict |
+| profiles | profile_versions | Cascade |
+| campaigns | campaign_schedules | Cascade |
 
 No endpoint deletes profiles, campaigns or opportunities today (see [open-questions.md](open-questions.md)).
 
@@ -371,6 +415,6 @@ Both sets must contain the same logical migrations in the same order.
 | 6 | AddSalesPipeline | `20261006105733_AddSalesPipeline` | `20261006105746_AddSalesPipeline` | sales_projects, sales_bids |
 | 7 | AddPersistentGuestSessions | `20261006123942_AddPersistentGuestSessions` | `20261006123947_AddPersistentGuestSessions` | guest_sessions |
 | 8 | AddOutreachFollowUps | `20261006182426_AddOutreachFollowUps` | `20261006182652_AddOutreachFollowUps` | suppressions, next_actions, evidence excerpt 8000 |
+| 9 | AddAutomationSnapshotsAndStaffingCrm | `20261007053856_AddAutomationSnapshotsAndStaffingCrm` | `20261007053903_AddAutomationSnapshotsAndStaffingCrm` | profile_versions, campaign_schedules, research input snapshots, staffing accounts/contacts/deals/activities |
 
-The remaining M4/M5 persistence from [M4_M5_CONTRACT.md](M4_M5_CONTRACT.md) is not built:
-Suppression, NextAction and UsageRecord.
+Persisted AI usage records from [M4_M5_CONTRACT.md](M4_M5_CONTRACT.md) remain unbuilt; suppressions and next actions are built.

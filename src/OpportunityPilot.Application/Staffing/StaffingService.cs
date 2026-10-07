@@ -1,0 +1,198 @@
+using Microsoft.EntityFrameworkCore;
+using OpportunityPilot.Application.Abstractions;
+using OpportunityPilot.Application.Common;
+using OpportunityPilot.Domain.Staffing;
+
+namespace OpportunityPilot.Application.Staffing;
+
+public sealed class StaffingService(IAppDbContext db, ICurrentUser user, TimeProvider clock)
+{
+    public async Task<IReadOnlyList<StaffingAccountDto>> ListAccountsAsync(int take, int skip, CancellationToken ct)
+    {
+        take = Math.Clamp(take, 1, 200);
+        skip = Math.Max(0, skip);
+        var accounts = await OwnedAccounts.OrderByDescending(x => x.UpdatedAt).ThenBy(x => x.Id)
+            .Skip(skip).Take(take).ToListAsync(ct);
+        var ids = accounts.Select(x => x.Id).ToArray();
+        var contacts = await db.StaffingContacts.Where(x => x.OwnerId == user.OwnerId && ids.Contains(x.AccountId))
+            .OrderBy(x => x.Name).ToListAsync(ct);
+        return accounts.Select(x => ToDto(x, contacts.Where(c => c.AccountId == x.Id))).ToList();
+    }
+
+    public async Task<StaffingAccountDto> CreateAccountAsync(CreateStaffingAccountRequest request, CancellationToken ct)
+    {
+        if (request is null) throw Invalid("body", "Request body is required.");
+        if (string.IsNullOrWhiteSpace(request.Name)) throw Invalid("name", "Account name is required.");
+        if (!Enum.IsDefined(request.Source)) throw Invalid("source", "Unknown account source.");
+        if (!string.IsNullOrWhiteSpace(request.Domain)
+            && await OwnedAccounts.AnyAsync(x => x.Domain == request.Domain.Trim().ToLowerInvariant(), ct))
+            throw new ConflictException("An account with this domain already exists.");
+
+        StaffingAccount account;
+        try
+        {
+            account = new(user.OwnerId, request.Name, request.Source, Now);
+            account.Update(request.Name, NormaliseDomain(request.Domain), request.Industry, request.Location, request.SourceReference, Now);
+        }
+        catch (ArgumentException ex) { throw Invalid("account", ex.Message); }
+        db.StaffingAccounts.Add(account);
+        await db.SaveChangesAsync(ct);
+        return ToDto(account, []);
+    }
+
+    public async Task<StaffingContactDto> CreateContactAsync(Guid accountId, CreateStaffingContactRequest request, CancellationToken ct)
+    {
+        if (request is null) throw Invalid("body", "Request body is required.");
+        if (string.IsNullOrWhiteSpace(request.Name)) throw Invalid("name", "Contact name is required.");
+        _ = await FindAccountAsync(accountId, ct);
+        StaffingContact contact;
+        try
+        {
+            contact = new(user.OwnerId, accountId, request.Name, Now);
+            contact.Update(request.Name, request.Title, request.Email, request.EmailVerified, request.LinkedInUrl, request.Evidence, Now);
+        }
+        catch (ArgumentException ex) { throw Invalid("contact", ex.Message); }
+        db.StaffingContacts.Add(contact);
+        await db.SaveChangesAsync(ct);
+        return ToDto(contact);
+    }
+
+    public async Task<IReadOnlyList<StaffingDealDto>> ListDealsAsync(
+        int take, int skip, StaffingDealStage? stage, StaffingDealSource? source, CancellationToken ct)
+    {
+        take = Math.Clamp(take, 1, 200);
+        skip = Math.Max(0, skip);
+        var query = OwnedDeals;
+        if (stage is { } requestedStage) query = query.Where(x => x.Stage == requestedStage);
+        if (source is { } requestedSource) query = query.Where(x => x.Source == requestedSource);
+        var deals = await query.OrderByDescending(x => x.UpdatedAt).ThenBy(x => x.Id).Skip(skip).Take(take).ToListAsync(ct);
+        return await WithActivitiesAsync(deals, ct);
+    }
+
+    public async Task<StaffingDealDto> GetDealAsync(Guid id, CancellationToken ct)
+    {
+        var deal = await FindDealAsync(id, ct);
+        return (await WithActivitiesAsync([deal], ct))[0];
+    }
+
+    public async Task<StaffingDealDto> CreateDealAsync(Guid accountId, CreateStaffingDealRequest request, CancellationToken ct)
+    {
+        if (request is null) throw Invalid("body", "Request body is required.");
+        if (string.IsNullOrWhiteSpace(request.Title)) throw Invalid("title", "Deal title is required.");
+        if (!Enum.IsDefined(request.Source)) throw Invalid("source", "Unknown deal source.");
+        _ = await FindAccountAsync(accountId, ct);
+        if (request.ContactId is { } contactId)
+        {
+            var contact = await db.StaffingContacts.FirstOrDefaultAsync(
+                x => x.Id == contactId && x.AccountId == accountId && x.OwnerId == user.OwnerId, ct);
+            if (contact is null) throw new NotFoundException("Staffing contact not found.");
+        }
+
+        StaffingDeal deal;
+        try
+        {
+            deal = new(user.OwnerId, accountId, request.ContactId, request.Title, request.Source, Now);
+            deal.UpdateCommercials(request.Title, request.ExternalReference, request.EstimatedValue, request.Currency,
+                request.NextAction, request.NextActionAt, Now);
+        }
+        catch (ArgumentException ex) { throw Invalid("deal", ex.Message); }
+        db.StaffingDeals.Add(deal);
+        db.StaffingDealActivities.Add(new(user.OwnerId, deal.Id, StaffingDealActivityType.Created, "Deal created.", Now));
+        await db.SaveChangesAsync(ct);
+        return await GetDealAsync(deal.Id, ct);
+    }
+
+    public async Task<StaffingDealDto> UpdateDealAsync(Guid id, UpdateStaffingDealRequest request, CancellationToken ct)
+    {
+        if (request is null) throw Invalid("body", "Request body is required.");
+        var deal = await FindDealAsync(id, ct);
+        EnsureVersion(deal, request.ExpectedVersion);
+        try
+        {
+            deal.UpdateCommercials(request.Title, request.ExternalReference, request.EstimatedValue, request.Currency,
+                request.NextAction, request.NextActionAt, Now);
+        }
+        catch (ArgumentException ex) { throw Invalid("deal", ex.Message); }
+        db.StaffingDealActivities.Add(new(user.OwnerId, deal.Id, StaffingDealActivityType.DetailsChanged, "Deal details changed.", Now));
+        await SaveConcurrentAsync(ct);
+        return await GetDealAsync(id, ct);
+    }
+
+    public async Task<StaffingDealDto> MoveDealAsync(Guid id, MoveStaffingDealRequest request, CancellationToken ct)
+    {
+        if (request is null) throw Invalid("body", "Request body is required.");
+        if (!Enum.IsDefined(request.Stage)) throw Invalid("stage", "Unknown deal stage.");
+        var deal = await FindDealAsync(id, ct);
+        EnsureVersion(deal, request.ExpectedVersion);
+        var previous = deal.Stage;
+        try { deal.MoveTo(request.Stage, Now); }
+        catch (InvalidOperationException ex) { throw new ConflictException(ex.Message); }
+        if (previous != deal.Stage)
+            db.StaffingDealActivities.Add(new(user.OwnerId, deal.Id, StaffingDealActivityType.StageChanged,
+                $"{previous} → {deal.Stage}", Now));
+        await SaveConcurrentAsync(ct);
+        return await GetDealAsync(id, ct);
+    }
+
+    public async Task<StaffingDealDto> AddNoteAsync(Guid id, AddStaffingDealNoteRequest request, CancellationToken ct)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.Detail)) throw Invalid("detail", "Note is required.");
+        if (request.Detail.Trim().Length > StaffingDealActivity.MaxDetailLength)
+            throw Invalid("detail", $"Note must be {StaffingDealActivity.MaxDetailLength} characters or fewer.");
+        var deal = await FindDealAsync(id, ct);
+        db.StaffingDealActivities.Add(new(user.OwnerId, deal.Id, StaffingDealActivityType.NoteAdded, request.Detail, Now));
+        await db.SaveChangesAsync(ct);
+        return await GetDealAsync(id, ct);
+    }
+
+    private IQueryable<StaffingAccount> OwnedAccounts => db.StaffingAccounts.Where(x => x.OwnerId == user.OwnerId);
+    private IQueryable<StaffingDeal> OwnedDeals => db.StaffingDeals.Where(x => x.OwnerId == user.OwnerId);
+
+    private async Task<StaffingAccount> FindAccountAsync(Guid id, CancellationToken ct) =>
+        await OwnedAccounts.FirstOrDefaultAsync(x => x.Id == id, ct)
+        ?? throw new NotFoundException("Staffing account not found.");
+
+    private async Task<StaffingDeal> FindDealAsync(Guid id, CancellationToken ct) =>
+        await OwnedDeals.FirstOrDefaultAsync(x => x.Id == id, ct)
+        ?? throw new NotFoundException("Staffing deal not found.");
+
+    private async Task<IReadOnlyList<StaffingDealDto>> WithActivitiesAsync(IReadOnlyList<StaffingDeal> deals, CancellationToken ct)
+    {
+        var ids = deals.Select(x => x.Id).ToArray();
+        var activities = await db.StaffingDealActivities.Where(x => x.OwnerId == user.OwnerId && ids.Contains(x.DealId))
+            .OrderByDescending(x => x.OccurredAt).ThenBy(x => x.Id).ToListAsync(ct);
+        return deals.Select(x => ToDto(x, activities.Where(a => a.DealId == x.Id))).ToList();
+    }
+
+    private async Task SaveConcurrentAsync(CancellationToken ct)
+    {
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException) { throw new ConflictException("The deal changed elsewhere. Reload before saving."); }
+    }
+
+    private static void EnsureVersion(StaffingDeal deal, int expectedVersion)
+    {
+        if (deal.Version != expectedVersion)
+            throw new ConflictException($"The deal changed elsewhere (now version {deal.Version}). Reload before saving.");
+    }
+
+    private static string? NormaliseDomain(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
+    private DateTime Now => clock.GetUtcNow().UtcDateTime;
+
+    private static StaffingAccountDto ToDto(StaffingAccount account, IEnumerable<StaffingContact> contacts) =>
+        new(account.Id, account.Name, account.Domain, account.Industry, account.Location, account.Source,
+            account.SourceReference, account.Version, contacts.Select(ToDto).ToList(), account.CreatedAt, account.UpdatedAt);
+
+    private static StaffingContactDto ToDto(StaffingContact contact) =>
+        new(contact.Id, contact.AccountId, contact.Name, contact.Title, contact.Email, contact.EmailVerified,
+            contact.LinkedInUrl, contact.Evidence, contact.Version, contact.CreatedAt, contact.UpdatedAt);
+
+    private static StaffingDealDto ToDto(StaffingDeal deal, IEnumerable<StaffingDealActivity> activities) =>
+        new(deal.Id, deal.AccountId, deal.ContactId, deal.Title, deal.Source, deal.ExternalReference, deal.EstimatedValue,
+            deal.Currency, deal.Stage, deal.StageBeforeHold, deal.NextAction, deal.NextActionAt, deal.Version,
+            activities.Select(x => new StaffingDealActivityDto(x.Id, x.Type, x.Detail, x.OccurredAt)).ToList(),
+            deal.CreatedAt, deal.UpdatedAt);
+
+    private static RequestValidationException Invalid(string field, string message) =>
+        new(new Dictionary<string, string[]> { [field] = [message] });
+}

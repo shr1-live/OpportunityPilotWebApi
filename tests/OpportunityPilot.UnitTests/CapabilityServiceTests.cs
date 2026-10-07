@@ -68,7 +68,7 @@ public class CapabilityServiceTests
     [Theory]
     [InlineData("linkedin", CapabilityStatus.LocalAgent)]
     [InlineData("naukri", CapabilityStatus.LocalAgent)]
-    [InlineData("instahyre", CapabilityStatus.ManualHandoff)]
+    [InlineData("instahyre", CapabilityStatus.LocalAgent)]
     public void Job_platforms_report_how_applications_happen(string key, CapabilityStatus expected)
     {
         var caps = Get(new FeatureOptions(), new AiOptions());
@@ -91,9 +91,15 @@ public class CapabilityServiceTests
     [Theory]
     [InlineData("gmail", CapabilityStatus.Disabled)]
     [InlineData("mongo-archive", CapabilityStatus.Disabled)]
-    [InlineData("scheduler", CapabilityStatus.NotConfigured)]
     public void Capabilities_not_built_yet_are_not_reported_ready(string key, CapabilityStatus expected) =>
         Assert.Equal(expected, Get(new FeatureOptions(), new AiOptions()).Items.Single(i => i.Key == key).Status);
+
+    [Fact]
+    public void Scheduler_capability_is_reported_ready()
+    {
+        var item = Get(new FeatureOptions(), new AiOptions()).Items.Single(i => i.Key == "scheduler");
+        Assert.Equal(CapabilityStatus.Ready, item.Status);
+    }
 
     [Theory]
     [InlineData("linkedin")]

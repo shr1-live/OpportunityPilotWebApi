@@ -60,7 +60,7 @@ public sealed class CapabilityService(
                     ["Continue as a guest"], ["Create accounts", "Sign in from another device"]),
 
             new("gemini", "Gemini API", "AI",
-                geminiKeyPresent ? CapabilityStatus.Ready : CapabilityStatus.NotConfigured,
+                geminiKeyPresent ? CapabilityStatus.Configured : CapabilityStatus.NotConfigured,
                 geminiKeyPresent
                     ? $"Server key present for {a.GeminiModel}. Goal parsing uses Gemini with validated rules fallback; live provider verification is still required."
                     : "No server-side key. Rules/templates mode applies. The key is set in server configuration and is never returned to the browser.",
@@ -134,9 +134,9 @@ public sealed class CapabilityService(
                 f.MongoArchiveEnabled ? CapabilityStatus.NotBuilt : CapabilityStatus.Disabled,
                 "Optional archive of bounded research metadata. Milestone M8.", [], ["Archive raw research"]),
 
-            new("scheduler", "Scheduled research", "Optional", CapabilityStatus.NotConfigured,
-                "Schedule setup required. Unattended runs are never claimed until a trigger is verified.",
-                [], ["Run research while the app is closed"])
+            new("scheduler", "Scheduled research", "Optional", CapabilityStatus.Ready,
+                "Durable owner schedules queue research through a leased worker while the API is awake. Render free-tier sleep can delay, but never duplicate, a due run.",
+                ["Set campaign cadence, time zone, next run, pause and resume"], ["Guarantee an exact wall-clock start while the hosting service is asleep"])
             ,new("notifications", "Follow-up notifications", "Optional", CapabilityStatus.ManualHandoff,
                 "Due follow-ups are shown inside the app; no email or push delivery is claimed.",
                 ["Show due and overdue next actions"], ["Deliver reminders outside the app"])

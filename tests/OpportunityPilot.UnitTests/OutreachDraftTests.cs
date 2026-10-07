@@ -14,7 +14,7 @@ public class OutreachDraftTests
         draft.Approve(1, T0.AddMinutes(1));
 
         Assert.True(draft.HasValidApproval());
-        draft.Update(null, null, "Edited", T0.AddMinutes(2));
+        draft.Update(null, false, null, "Edited", T0.AddMinutes(2));
 
         Assert.Equal(2, draft.Version);
         Assert.Equal(DraftState.Draft, draft.State);

@@ -15,6 +15,10 @@ public sealed class ProfilesController(ProfileService profiles) : ControllerBase
     public async Task<ActionResult<ProfileDto>> Get(Guid id, CancellationToken ct) =>
         await profiles.GetAsync(id, ct);
 
+    [HttpGet("{id:guid}/versions")]
+    public async Task<ActionResult<IReadOnlyList<ProfileVersionDto>>> Versions(Guid id, CancellationToken ct) =>
+        Ok(await profiles.VersionsAsync(id, ct));
+
     [HttpPost]
     public async Task<ActionResult<ProfileDto>> Create(CreateProfileRequest request, CancellationToken ct)
     {

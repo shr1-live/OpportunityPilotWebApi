@@ -138,10 +138,28 @@ remain unavailable.
 | POST | `/api/v1/sales/projects` | user | `CreateSalesProjectRequest`; non-manual sources require `externalId` | 201 `SalesProjectDto`; 400; 409 duplicate provider id |
 | GET | `/api/v1/sales/projects/{id}` | user | — | 200 `SalesProjectDto`; 404 |
 | POST | `/api/v1/sales/bids/batch-approve` | user | `{ items: [{ id, version }] }` | exact-version per-item results |
-| POST | `/api/v1/sales/projects/{id}/handoff` | user | — | marks manual tender/provider handoff |
+| POST | `/api/v1/sales/bids/{id}/handoff` | user | — | requires this exact bid's valid approval; marks manual provider handoff |
+| POST | `/api/v1/sales/bids/{id}/confirm-placement` | user | `{ version, confirmed: true }` | records the user's explicit post-provider confirmation; idempotent once Placed |
 | POST | `/api/v1/sales/projects/{id}/bid` | user | `CreateSalesBidRequest` | 200 project with the new Draft bid; 400; 404 |
 | PUT | `/api/v1/sales/bids/{id}` | user | `UpdateSalesBidRequest` with `expectedVersion` | 200 project; 400; 404; 409 stale version |
 | POST | `/api/v1/sales/bids/{id}/approve` | user | `{ version }` | 200 project; 400 while `[placeholders]` remain; 404; 409 stale version |
+
+### Staffing CRM foundation (X2)
+
+These endpoints are an internal source of truth only. They do not scrape a provider, send a message, submit a bid,
+create a calendar event or claim that an external action occurred.
+
+| Method | Path | Auth | Request | Response / errors |
+|---|---|---|---|---|
+| GET | `/api/v1/staffing/accounts` | user | query `take` (1–200), `skip` | 200 `StaffingAccountDto[]` with contacts |
+| POST | `/api/v1/staffing/accounts` | user | `CreateStaffingAccountRequest` | 201 `StaffingAccountDto`; 400; 409 duplicate owned domain |
+| POST | `/api/v1/staffing/accounts/{accountId}/contacts` | user | `CreateStaffingContactRequest` | 200 `StaffingContactDto`; 400; 404 |
+| GET | `/api/v1/staffing/deals` | user | query `stage?`, `source?`, `take`, `skip` | 200 `StaffingDealDto[]`, newest updated first |
+| GET | `/api/v1/staffing/deals/{id}` | user | — | 200 `StaffingDealDto` with newest activities; 404 |
+| POST | `/api/v1/staffing/accounts/{accountId}/deals` | user | `CreateStaffingDealRequest` | 201 `StaffingDealDto`; 400; 404 |
+| PUT | `/api/v1/staffing/deals/{id}` | user | `UpdateStaffingDealRequest` with `expectedVersion` | 200; 400; 404; 409 stale version |
+| POST | `/api/v1/staffing/deals/{id}/stage` | user | `{ stage, expectedVersion }` | 200; 400 unknown stage; 404; 409 stale/invalid transition |
+| POST | `/api/v1/staffing/deals/{id}/notes` | user | `{ detail }` | 200 deal with immutable note activity; 400; 404 |
 
 ## DTO shapes
 
@@ -177,11 +195,18 @@ JSON is camelCase and enums are strings. `?` marks nullable.
 | DraftDto | `id, opportunityId, channel, recipient?, recipientVerified, subject?, body, version, state, approvedVersion?, approvedAt?, source, fallbackReason?, claims[], sendReady, sendBlockers[], createdAt, updatedAt` |
 | DraftListItemDto | `id, opportunityId, campaignId, campaignName, opportunityTitle, organization, channel, recipient?, recipientVerified, state, version, updatedAt` |
 | ApprovalItem | `opportunityId, campaignId, campaignName, title, organization, location?, platform?, applyUrl?, score, coverage, outcomeReason?, appliesVia (Agent, You)` |
-| SalesProjectDto | `id, source, externalId?, title, buyer?, description?, url?, deadlineUtc?, state, version, bids[], createdAt, updatedAt` |
+| SalesProjectDto | `id, source, externalId?, title, buyer?, description?, url?, deadlineUtc?, evidenceJson, state, version, bids[], createdAt, updatedAt` |
 | SalesBidDto | `id, projectId, amount, currency, deliveryDays, proposal, version, state, approvedVersion?, approvedAt?, hasValidApproval, createdAt, updatedAt` |
-| CreateSalesProjectRequest | `source (Manual in this slice), externalId?, title, buyer?, description?, url?, deadlineUtc?, evidenceJson?` |
+| CreateSalesProjectRequest | `source (Upwork, Freelancer, TenderFeed, PublicUrl or Manual), externalId?, title, buyer?, description?, url?, deadlineUtc?, evidenceJson?`; non-manual sources require an external id |
 | CreateSalesBidRequest | `amount, currency, deliveryDays, proposal` |
 | UpdateSalesBidRequest | `amount, currency, deliveryDays, proposal, expectedVersion` |
+| StaffingAccountDto | `id, name, domain?, industry?, location?, source, sourceReference?, version, contacts[], createdAt, updatedAt` |
+| StaffingContactDto | `id, accountId, name, title?, email?, emailVerified, linkedInUrl?, evidence?, version, createdAt, updatedAt` |
+| StaffingDealDto | `id, accountId, contactId?, title, source, externalReference?, estimatedValue?, currency?, stage, stageBeforeHold?, nextAction?, nextActionAt?, version, activities[], createdAt, updatedAt` |
+| CreateStaffingAccountRequest | `name, source, domain?, industry?, location?, sourceReference?` |
+| CreateStaffingContactRequest | `name, title?, email?, emailVerified, linkedInUrl?, evidence?` |
+| CreateStaffingDealRequest | `contactId?, title, source, externalReference?, estimatedValue?, currency?, nextAction?, nextActionAt?` |
+| UpdateStaffingDealRequest | `title, externalReference?, estimatedValue?, currency?, nextAction?, nextActionAt?, expectedVersion` |
 
 ## Planned, not built
 
