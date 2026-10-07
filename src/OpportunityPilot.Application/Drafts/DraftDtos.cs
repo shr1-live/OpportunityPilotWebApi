@@ -14,8 +14,8 @@ public sealed record CreateDraftRequest(DraftChannel Channel, string? Recipient)
 public sealed record UpdateDraftRequest(string? Recipient, string? Subject, string Body, int ExpectedVersion);
 public sealed record ApproveDraftRequest(int Version);
 public sealed record DraftListItemDto(
-    Guid Id, Guid OpportunityId, string OpportunityTitle, string Organization, DraftChannel Channel,
-    string? Recipient, DraftState State, int Version, DateTime UpdatedAt);
+    Guid Id, Guid OpportunityId, Guid CampaignId, string CampaignName, string OpportunityTitle, string Organization,
+    DraftChannel Channel, string? Recipient, bool RecipientVerified, DraftState State, int Version, DateTime UpdatedAt);
 public sealed record DraftPageDto(int Total, IReadOnlyList<DraftListItemDto> Items);
 public sealed record BatchApproveDraftItem(Guid Id, int Version);
 public sealed record BatchApproveDraftRequest(IReadOnlyList<BatchApproveDraftItem> Items);

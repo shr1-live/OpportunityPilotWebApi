@@ -26,7 +26,8 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         if (request.Channel == DraftChannel.CoverNote && opportunity.Mode != OpportunityMode.Job)
             throw Invalid("channel", "Cover notes can only be created for Job opportunities.");
         if (await db.OutreachDrafts.AnyAsync(d => d.OwnerId == ownerId && d.OpportunityId == opportunityId && d.Channel == request.Channel, ct))
-            throw new ConflictException("This opportunity already has a cover note. Edit the existing draft instead.");
+            throw new ConflictException($"This opportunity already has a {ChannelName(request.Channel)} draft. Edit the existing draft instead.");
+        await EnsureNotSuppressedAsync(request.Recipient, ct);
 
         var campaign = await db.Campaigns.FirstAsync(c => c.Id == opportunity.CampaignId && c.OwnerId == ownerId, ct);
         var profile = await db.Profiles.FirstOrDefaultAsync(p => p.Id == campaign.ProfileId && p.OwnerId == ownerId, ct)
@@ -47,7 +48,7 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         }
         catch (DbUpdateException)
         {
-            throw new ConflictException("This opportunity already has a cover note. Reload to see it.");
+            throw new ConflictException($"This opportunity already has a {ChannelName(request.Channel)} draft. Reload to see it.");
         }
         return ToDto(draft);
     }
@@ -60,21 +61,25 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         return rows.Select(ToDto).ToList();
     }
 
-    public async Task<DraftPageDto> ListAsync(DraftState? state, int take, int skip, CancellationToken ct)
+    public async Task<DraftPageDto> ListAsync(DraftState? state, DraftChannel? channel, Guid? campaignId, int take, int skip, CancellationToken ct)
     {
         take = Math.Clamp(take, 1, 200);
         skip = Math.Max(0, skip);
         var query = Owned;
         if (state is { } value) query = query.Where(d => d.State == value);
-        var total = await query.CountAsync(ct);
-        var rows = await (from draft in query
-                          join opportunity in db.Opportunities on draft.OpportunityId equals opportunity.Id
-                          where opportunity.OwnerId == user.OwnerId
-                          orderby draft.UpdatedAt descending, draft.Id
-                          select new { draft, opportunity.Title, opportunity.Organization })
+        if (channel is { } requestedChannel) query = query.Where(d => d.Channel == requestedChannel);
+        var joined = from draft in query
+                     join opportunity in db.Opportunities on draft.OpportunityId equals opportunity.Id
+                     join campaign in db.Campaigns on opportunity.CampaignId equals campaign.Id
+                     where opportunity.OwnerId == user.OwnerId && campaign.OwnerId == user.OwnerId
+                         && (campaignId == null || campaign.Id == campaignId)
+                     select new { draft, opportunity.Title, opportunity.Organization, CampaignId = campaign.Id, CampaignName = campaign.Name };
+        var total = await joined.CountAsync(ct);
+        var rows = await joined.OrderByDescending(x => x.draft.UpdatedAt).ThenBy(x => x.draft.Id)
             .Skip(skip).Take(take).ToListAsync(ct);
         return new DraftPageDto(total, rows.Select(x => new DraftListItemDto(
-            x.draft.Id, x.draft.OpportunityId, x.Title, x.Organization, x.draft.Channel, x.draft.Recipient,
+            x.draft.Id, x.draft.OpportunityId, x.CampaignId, x.CampaignName, x.Title, x.Organization,
+            x.draft.Channel, x.draft.Recipient, x.draft.RecipientVerified,
             x.draft.HasValidApproval() ? DraftState.Approved : DraftState.Draft, x.draft.Version, x.draft.UpdatedAt)).ToList());
     }
 
@@ -94,6 +99,7 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         var draft = await FindAsync(id, ct);
         if (draft.Version != request.ExpectedVersion)
             throw new ConflictException($"Draft was changed elsewhere (now version {draft.Version}). Reload before saving.");
+        await EnsureNotSuppressedAsync(request.Recipient, ct);
         try
         {
             draft.Update(request.Recipient, request.Subject, request.Body, clock.GetUtcNow().UtcDateTime);
@@ -109,12 +115,9 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         var draft = await FindAsync(id, ct);
         if (request is null || request.Version != draft.Version)
             throw new ConflictException($"Draft was changed elsewhere (now version {draft.Version}). Reload before approving.");
-        if (!string.IsNullOrWhiteSpace(draft.Recipient))
-        {
-            var normalized = Domain.Outreach.Suppression.Normalize(draft.Recipient);
-            if (await db.Suppressions.AnyAsync(x => x.OwnerId == user.OwnerId && x.NormalizedRecipient == normalized, ct))
-                throw Invalid("recipient", "Recipient is on your suppression list.");
-        }
+        await EnsureNotSuppressedAsync(draft.Recipient, ct);
+        if (ContainsUnresolvedPlaceholder(draft.Body) || ContainsUnresolvedPlaceholder(draft.Subject))
+            throw Invalid("draft", "Replace every [placeholder] before approving this draft.");
         try
         {
             draft.Approve(request.Version, clock.GetUtcNow().UtcDateTime);
@@ -180,6 +183,10 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         var state = validApproval ? DraftState.Approved : DraftState.Draft;
         var blockers = new List<string> { "Sending requires a configured provider or manual copy." };
         if (draft.Channel == DraftChannel.Email && string.IsNullOrWhiteSpace(draft.Recipient)) blockers.Add("Email drafts require a recipient.");
+        if (!string.IsNullOrWhiteSpace(draft.Recipient) && !draft.RecipientVerified)
+            blockers.Add("Recipient was entered manually and has not been verified against evidence.");
+        if (ContainsUnresolvedPlaceholder(draft.Body) || ContainsUnresolvedPlaceholder(draft.Subject))
+            blockers.Add("Replace every [placeholder] before approval.");
         if (!validApproval) blockers.Add("Approve this exact draft before the agent can use it.");
         return new DraftDto(draft.Id, draft.OpportunityId, draft.Channel, draft.Recipient, draft.RecipientVerified,
             draft.Subject, draft.Body, draft.Version, state, validApproval ? draft.ApprovedVersion : null,
@@ -280,6 +287,29 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
     }
 
     private static IReadOnlyList<DraftClaimDto> Claims(string json) => Deserialize<List<DraftClaimDto>>(json) ?? [];
+
+    private async Task EnsureNotSuppressedAsync(string? recipient, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(recipient)) return;
+        var normalized = Domain.Outreach.Suppression.Normalize(recipient);
+        if (await db.Suppressions.AnyAsync(x => x.OwnerId == user.OwnerId && x.NormalizedRecipient == normalized, ct))
+            throw Invalid("recipient", "Recipient is on your suppression list.");
+    }
+
+    private static bool ContainsUnresolvedPlaceholder(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return false;
+        var open = value.IndexOf('[');
+        return open >= 0 && value.IndexOf(']', open + 1) > open + 1;
+    }
+
+    private static string ChannelName(DraftChannel channel) => channel switch
+    {
+        DraftChannel.CoverNote => "cover note",
+        DraftChannel.LinkedInMessage => "LinkedIn message",
+        DraftChannel.ContactForm => "contact form",
+        _ => channel.ToString().ToLowerInvariant()
+    };
     private static T? Deserialize<T>(string json) where T : class
     {
         try { return JsonSerializer.Deserialize<T>(json, Json); }

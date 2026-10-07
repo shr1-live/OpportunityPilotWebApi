@@ -269,15 +269,18 @@ URL is `applyUrl ?? url` (items with neither are left out). Excluded: any job th
 for (same platform and external id). `coverNote` is returned only when the opportunity has a CoverNote whose state,
 approved version and SHA-256 content hash all still match.
 
-### Cover notes
+### Outreach drafts and cover notes
 
 Code: `Application/Drafts/DraftService.cs`, `Domain/Drafts/OutreachDraft.cs`
 
-- One CoverNote per opportunity. Creation is limited to Job opportunities and requires the campaign profile to be confirmed.
+- One draft per channel per opportunity. CoverNote creation is limited to Job opportunities; every generated channel requires the campaign profile to be confirmed.
 - The deterministic template uses the sourced role title, verified organization/skill facts, confirmed campaign years,
   and the confirmed profile's own offer/summary and availability text. Missing profile summary is shown as a placeholder.
 - Drafts start at version 1. A material recipient/subject/body edit increments the version and clears approval.
+- A non-empty recipient is checked against the owner's suppression list during create, edit and approval. Generated drafts currently treat supplied recipients as user-entered and unverified; the DTO and inbox state this explicitly.
+- Approval is refused while the subject or body contains a bracketed `[placeholder]`. Sales bid proposals use the same placeholder guard.
 - Approval stores the version and SHA-256 of `id|version|channel|recipient|subject|body`; a mismatch is reported as Draft.
+- The cross-opportunity inbox can filter by stored state, channel and campaign. Batch approval evaluates each selected id/version independently and returns approved, skipped or stale outcomes without approving an ineligible version.
 - No outbound delivery occurs. A valid approved CoverNote is exposed to the desktop agent, which fills it only into an
   explicitly cover-letter-like free-text field. Unapproved, edited or revoked text is never returned to the agent.
 

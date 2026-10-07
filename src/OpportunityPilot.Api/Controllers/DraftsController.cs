@@ -23,8 +23,9 @@ public sealed class DraftsController(DraftService drafts) : ControllerBase
 
     [HttpGet("drafts")]
     public async Task<ActionResult<DraftPageDto>> ListAll([FromQuery] OpportunityPilot.Domain.Drafts.DraftState? state,
+        [FromQuery] OpportunityPilot.Domain.Drafts.DraftChannel? channel, [FromQuery] Guid? campaignId,
         [FromQuery] int take = 50, [FromQuery] int skip = 0, CancellationToken ct = default) =>
-        await drafts.ListAsync(state, take, skip, ct);
+        await drafts.ListAsync(state, channel, campaignId, take, skip, ct);
 
     [HttpPut("drafts/{id:guid}")]
     public async Task<ActionResult<DraftDto>> Update(Guid id, UpdateDraftRequest request, CancellationToken ct) =>

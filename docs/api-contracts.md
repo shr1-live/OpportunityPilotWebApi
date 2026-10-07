@@ -108,7 +108,7 @@ profile is confirmed. No message is sent; approval only makes the exact approved
 | PUT | `/api/v1/drafts/{id}` | user | `{ recipient?, subject?, body, expectedVersion }` | 200 `DraftDto`; material edits increment version and clear approval; 400; 404; 409 |
 | POST | `/api/v1/drafts/{id}/approve` | user | `{ version }` | 200 `DraftDto`; approval is bound to SHA-256 of exact content and version; 400; 404; 409 |
 | POST | `/api/v1/drafts/{id}/revoke-approval` | user | — | 200 `DraftDto`; 404; 409 |
-| GET | `/api/v1/drafts` | user | query `state?`, `take`, `skip` | cross-opportunity `DraftPageDto` |
+| GET | `/api/v1/drafts` | user | query `state?`, `channel?`, `campaignId?`, `take` (1–200), `skip` | cross-opportunity `DraftPageDto`; items include campaign identity and recipient verification state |
 | POST | `/api/v1/drafts/batch-approve` | user | `{ items: [{ id, version }] }` | independent exact-version results; blocked/stale items are skipped with reasons |
 | GET/POST/DELETE | `/api/v1/suppressions[/{id}]` | user | recipient/reason on POST | owner suppression list |
 | GET/POST | `/api/v1/opportunities/{id}/activities` | user | `kind, detail, occurredAt?` on POST | activity history; observed stages update status |
@@ -141,7 +141,7 @@ remain unavailable.
 | POST | `/api/v1/sales/projects/{id}/handoff` | user | — | marks manual tender/provider handoff |
 | POST | `/api/v1/sales/projects/{id}/bid` | user | `CreateSalesBidRequest` | 200 project with the new Draft bid; 400; 404 |
 | PUT | `/api/v1/sales/bids/{id}` | user | `UpdateSalesBidRequest` with `expectedVersion` | 200 project; 400; 404; 409 stale version |
-| POST | `/api/v1/sales/bids/{id}/approve` | user | `{ version }` | 200 project; 404; 409 stale version |
+| POST | `/api/v1/sales/bids/{id}/approve` | user | `{ version }` | 200 project; 400 while `[placeholders]` remain; 404; 409 stale version |
 
 ## DTO shapes
 
@@ -175,6 +175,7 @@ JSON is camelCase and enums are strings. `?` marks nullable.
 | AgentPostingsRequest | `platform (LinkedIn or Naukri), items: { externalId, url, title, company, location?, description? }[] (1–100), queueResearch: bool` |
 | AgentShortlistItem | `opportunityId, campaignId, platform, externalId, url, title, organization, coverNote?`; `coverNote` is non-null only for a currently hash-valid approved CoverNote |
 | DraftDto | `id, opportunityId, channel, recipient?, recipientVerified, subject?, body, version, state, approvedVersion?, approvedAt?, source, fallbackReason?, claims[], sendReady, sendBlockers[], createdAt, updatedAt` |
+| DraftListItemDto | `id, opportunityId, campaignId, campaignName, opportunityTitle, organization, channel, recipient?, recipientVerified, state, version, updatedAt` |
 | ApprovalItem | `opportunityId, campaignId, campaignName, title, organization, location?, platform?, applyUrl?, score, coverage, outcomeReason?, appliesVia (Agent, You)` |
 | SalesProjectDto | `id, source, externalId?, title, buyer?, description?, url?, deadlineUtc?, state, version, bids[], createdAt, updatedAt` |
 | SalesBidDto | `id, projectId, amount, currency, deliveryDays, proposal, version, state, approvedVersion?, approvedAt?, hasValidApproval, createdAt, updatedAt` |

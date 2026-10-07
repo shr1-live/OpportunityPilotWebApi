@@ -80,6 +80,8 @@ public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvid
     {
         if (request is null) throw Invalid("version", "Version is required.");
         var bid = await FindBidAsync(bidId, ct);
+        if (ContainsUnresolvedPlaceholder(bid.Proposal))
+            throw Invalid("proposal", "Replace every [placeholder] before approving this proposal.");
         try { bid.Approve(request.Version, Now); }
         catch (InvalidOperationException ex) { throw new ConflictException(ex.Message); }
         var project = await FindProjectAsync(bid.ProjectId, ct);
@@ -123,6 +125,12 @@ public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvid
         ?? throw new NotFoundException("Sales bid not found.");
 
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
+
+    private static bool ContainsUnresolvedPlaceholder(string value)
+    {
+        var open = value.IndexOf('[');
+        return open >= 0 && value.IndexOf(']', open + 1) > open + 1;
+    }
 
     private static SalesProjectDto ToDto(SalesProject project, IEnumerable<SalesBid> bids) =>
         new(project.Id, project.Source, project.ExternalId, project.Title, project.Buyer, project.Description, project.Url,
