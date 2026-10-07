@@ -60,8 +60,10 @@ public sealed class WellfoundService(IAppDbContext db, ICurrentUser user, TimePr
         return new(result.Jobs.Count, added, updated, demoJobs.Count + demoApps.Count, result.ObservedAt);
     }
 
-    public async Task<IReadOnlyList<WellfoundJobDto>> JobsAsync(string workspace, string? keyword, string? location,
-        bool remoteOnly, decimal? minSalary, bool equityOnly, string? fundingStage, int take, CancellationToken ct)
+    public async Task<IReadOnlyList<WellfoundJobDto>> JobsAsync(string workspace, string? keyword, string? company,
+        string? location, string? techStack, string? workMode, decimal? minSalary, bool equityOnly,
+        string? fundingStage, string? industry, string? employmentType, int? postedWithinDays,
+        WellfoundJobState? state, string sort, int take, CancellationToken ct)
     {
         take = Math.Clamp(take, 1, 200);
         var isSales = workspace.Equals("Sales", StringComparison.OrdinalIgnoreCase);
@@ -73,16 +75,54 @@ public sealed class WellfoundService(IAppDbContext db, ICurrentUser user, TimePr
             query = query.Where(x => x.Title.Contains(value) || x.CompanyName.Contains(value) ||
                 (x.Industry != null && x.Industry.Contains(value)) || (x.Summary != null && x.Summary.Contains(value)));
         }
+        if (!string.IsNullOrWhiteSpace(company))
+        {
+            var value = company.Trim();
+            query = query.Where(x => x.CompanyName.Contains(value));
+        }
         if (!string.IsNullOrWhiteSpace(location))
         {
             var value = location.Trim();
             query = query.Where(x => x.Location != null && x.Location.Contains(value));
         }
-        if (remoteOnly) query = query.Where(x => x.RemoteType != null && x.RemoteType.Contains("Remote"));
+        foreach (var technology in SplitTerms(techStack))
+        {
+            var value = technology;
+            query = query.Where(x => x.Title.Contains(value) ||
+                (x.Summary != null && x.Summary.Contains(value)) || x.SkillsJson.Contains(value));
+        }
+        if (!string.IsNullOrWhiteSpace(workMode))
+        {
+            var value = workMode.Trim();
+            query = query.Where(x => x.RemoteType != null && x.RemoteType.Contains(value));
+        }
         if (minSalary is { } salary) query = query.Where(x => x.SalaryMax != null && x.SalaryMax >= salary);
         if (equityOnly) query = query.Where(x => x.EquityMax != null && x.EquityMax > 0);
         if (!string.IsNullOrWhiteSpace(fundingStage)) query = query.Where(x => x.FundingStage == fundingStage.Trim());
-        return (await query.OrderByDescending(x => x.MatchScore).ThenByDescending(x => x.PostedAt).Take(take).ToListAsync(ct))
+        if (!string.IsNullOrWhiteSpace(industry))
+        {
+            var value = industry.Trim();
+            query = query.Where(x => x.Industry != null && x.Industry.Contains(value));
+        }
+        if (!string.IsNullOrWhiteSpace(employmentType))
+        {
+            var value = employmentType.Trim();
+            query = query.Where(x => x.EmploymentType != null && x.EmploymentType.Contains(value));
+        }
+        if (postedWithinDays is > 0)
+        {
+            var since = Now.AddDays(-Math.Clamp(postedWithinDays.Value, 1, 365));
+            query = query.Where(x => x.PostedAt != null && x.PostedAt >= since);
+        }
+        if (state is { } requestedState) query = query.Where(x => x.State == requestedState);
+        query = sort.ToLowerInvariant() switch
+        {
+            "salary" => query.OrderByDescending(x => x.SalaryMax).ThenByDescending(x => x.PostedAt),
+            "company" => query.OrderBy(x => x.CompanyName).ThenByDescending(x => x.PostedAt),
+            "match" => query.OrderByDescending(x => x.MatchScore).ThenByDescending(x => x.PostedAt),
+            _ => query.OrderByDescending(x => x.PostedAt).ThenBy(x => x.CompanyName)
+        };
+        return (await query.Take(take).ToListAsync(ct))
             .Select(ToDto).ToList();
     }
 
@@ -203,6 +243,12 @@ public sealed class WellfoundService(IAppDbContext db, ICurrentUser user, TimePr
         try { return JsonSerializer.Deserialize<string[]>(json, JsonOptions) ?? []; }
         catch (JsonException) { return []; }
     }
+
+    private static IEnumerable<string> SplitTerms(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? []
+            : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Take(12);
 
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
     private static RequestValidationException Invalid(string field, string message) =>
