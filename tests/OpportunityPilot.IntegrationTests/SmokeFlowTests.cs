@@ -37,6 +37,9 @@ public class SmokeFlowTests(PostgresApiFactory factory) : IClassFixture<Postgres
 
         var draft = await (await user.PostAsJsonAsync($"/api/v1/opportunities/{opportunityId}/drafts", new { channel = "CoverNote" })).Json(HttpStatusCode.Created);
         Assert.Equal("Draft", draft.Str("state"));
+        // Claims drawn from the profile name the exact profile version they came from.
+        Assert.All(draft.GetProperty("claims").EnumerateArray().Where(c => c.Str("basis").StartsWith("Profile")), c => Assert.Matches(@"^Profile v\d+$", c.Str("basis")));
+        Assert.Contains(draft.GetProperty("claims").EnumerateArray(), c => c.Str("basis").StartsWith("Profile v"));
 
         var followUp = await (await user.PostAsJsonAsync($"/api/v1/opportunities/{opportunityId}/next-actions",
             new { kind = "FollowUp", note = "Check the application", dueAt = "2026-10-15T09:00:00Z", timeZone = "Asia/Kolkata" })).Json(HttpStatusCode.Created);
