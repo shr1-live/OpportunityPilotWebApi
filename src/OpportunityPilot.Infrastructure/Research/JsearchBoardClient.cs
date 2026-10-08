@@ -15,6 +15,7 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
     ILogger<JsearchBoardClient> logger, Application.Common.OperationalMetrics metrics) : IJobBoardSearch
 {
     private static readonly ConcurrentDictionary<string, JobBoardSearchResult> Cache = new();
+    private static int? LastRemaining;
 
     public bool Configured => options.Value.Configured;
 
@@ -41,7 +42,7 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
         var now = clock.GetUtcNow().UtcDateTime;
         var cacheKey = $"{request.Board}|{qs}";
         if (Cache.TryGetValue(cacheKey, out var cached) && cached.ObservedAt > now.AddMinutes(-o.CacheMinutes))
-            return cached with { FromCache = true };
+            return cached with { FromCache = true, QuotaRemaining = LastRemaining ?? cached.QuotaRemaining };
 
         using var message = new HttpRequestMessage(HttpMethod.Get, $"https://{o.Host}/{o.SearchPath.Trim('/')}?{qs}");
         message.Headers.Add("X-RapidAPI-Key", o.Key);
@@ -51,6 +52,9 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
         {
             using var response = await http.SendAsync(message, ct);
             metrics.Record("jsearch.search", clock.GetElapsedTime(started), response.IsSuccessStatusCode ? null : $"HTTP {(int)response.StatusCode}");
+            int? remaining = response.Headers.TryGetValues("X-RateLimit-Requests-Remaining", out var values)
+                && int.TryParse(values.FirstOrDefault(), out var left) ? left : null;
+            if (remaining is not null) LastRemaining = remaining;
             if (!response.IsSuccessStatusCode)
             {
                 var code = (int)response.StatusCode;
@@ -61,12 +65,12 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
                     429 => "The JSearch monthly or hourly quota is used up. Try again later.",
                     _ => $"JSearch answered {code}. Try again later.",
                 };
-                return new(request.Board, "Failed", [], 0, why, now, false, source);
+                return new(request.Board, "Failed", [], 0, why, now, false, source, remaining);
             }
             var (jobs, total) = JsearchBoardParser.Parse(await response.Content.ReadAsStringAsync(ct), request.Board);
             var result = new JobBoardSearchResult(request.Board, "Ready", jobs, total,
                 jobs.Count == 0 ? $"JSearch returned {total} postings; none were published on {name}. Try a broader search." : null,
-                now, false, source);
+                now, false, source, remaining);
             Cache[cacheKey] = result;
             return result;
         }

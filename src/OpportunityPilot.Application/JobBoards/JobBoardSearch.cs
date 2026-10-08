@@ -37,7 +37,9 @@ public sealed record JobBoardSearchResult(
     string? Message,
     DateTime? ObservedAt,
     bool FromCache,
-    string Source);
+    string Source,
+    /// <summary>Requests left on the provider plan this period, from RapidAPI's X-RateLimit-Requests-Remaining header.</summary>
+    int? QuotaRemaining = null);
 
 public interface IJobBoardSearch
 {

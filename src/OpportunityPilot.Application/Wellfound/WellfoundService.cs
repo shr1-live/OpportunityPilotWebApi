@@ -56,7 +56,16 @@ public sealed class WellfoundService(IAppDbContext db, ICurrentUser user, TimePr
         db.WellfoundActivities.Add(new(user.OwnerId, WellfoundActivityKind.SyncObserved,
             $"Observed {result.Jobs.Count} current public Wellfound job cards; {added} added and {updated} refreshed. No authenticated account data was used.",
             result.ObservedAt));
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent refresh for this owner (page auto-refresh plus a click) saved the same jobs first; the
+            // unique owner+job index rejected the duplicates. The jobs are current, so report them as refreshed.
+            return new(result.Jobs.Count, 0, result.Jobs.Count, 0, result.ObservedAt);
+        }
         return new(result.Jobs.Count, added, updated, demoJobs.Count + demoApps.Count, result.ObservedAt);
     }
 
