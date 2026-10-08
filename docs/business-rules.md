@@ -277,8 +277,9 @@ Code: `Application/Drafts/DraftService.cs`, `Domain/Drafts/OutreachDraft.cs`
 - The deterministic template uses the sourced role title, verified organization/skill facts, confirmed campaign years,
   and the confirmed profile's own offer/summary and availability text. Missing profile summary is shown as a placeholder.
 - Drafts start at version 1. A material recipient/subject/body edit increments the version and clears approval.
-- A non-empty recipient is checked against the owner's suppression list during create, edit and approval. Generated drafts currently treat supplied recipients as user-entered and unverified; the DTO and inbox state this explicitly.
+- A non-empty recipient is checked against the owner's suppression list during create, edit, approval and provider execution. A recipient matching stored opportunity evidence is labelled verified with its evidence id; otherwise it remains explicitly user-entered and unverified.
 - Approval is refused while the subject or body contains a bracketed `[placeholder]`. Sales bid proposals use the same placeholder guard.
+- Imported provider/tender bids additionally require non-empty stored source evidence before approval; Manual bids require a user-provided project brief. Bid approval binds the project evidence context plus exact proposal, amount, currency, delivery and version, so an edit invalidates approval.
 - Approval stores the version and SHA-256 of `id|version|channel|recipient|subject|body`; a mismatch is reported as Draft.
 - The cross-opportunity inbox can filter by stored state, channel and campaign. Batch approval evaluates each selected id/version independently and returns approved, skipped or stale outcomes without approving an ineligible version.
 - No outbound delivery occurs. A valid approved CoverNote is exposed to the desktop agent, which fills it only into an

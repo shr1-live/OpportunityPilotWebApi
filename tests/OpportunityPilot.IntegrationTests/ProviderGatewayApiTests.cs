@@ -89,7 +89,7 @@ public class ProviderGatewayApiTests(PostgresApiFactory factory) : IClassFixture
     public async Task A_bid_is_placed_only_through_the_gateway_with_a_receipt()
     {
         var user = PostgresApiFactory.ClientFor(factory, "gateway-bid@example.test");
-        var project = await (await user.PostAsJsonAsync("/api/v1/sales/projects", new { source = "Manual", title = "API integration", buyer = "Acme" })).Json(HttpStatusCode.Created);
+        var project = await (await user.PostAsJsonAsync("/api/v1/sales/projects", new { source = "Manual", title = "API integration", buyer = "Acme", description = "User-provided integration brief." })).Json(HttpStatusCode.Created);
         project = await (await user.PostAsJsonAsync($"/api/v1/sales/projects/{project.Id()}/bid",
             new { amount = 1200m, currency = "USD", deliveryDays = 14, proposal = "We will build the integration in two weeks." })).Json(HttpStatusCode.OK);
         var bid = project.GetProperty("bids").EnumerateArray().Single();

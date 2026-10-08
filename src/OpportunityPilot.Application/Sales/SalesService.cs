@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using OpportunityPilot.Application.Abstractions;
 using OpportunityPilot.Application.Common;
 using OpportunityPilot.Domain.Sales;
@@ -83,6 +84,10 @@ public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvid
         if (ContainsUnresolvedPlaceholder(bid.Proposal))
             throw Invalid("proposal", "Replace every [placeholder] before approving this proposal.");
         var project = await FindProjectAsync(bid.ProjectId, ct);
+        if (project.Source != SalesProjectSource.Manual && !HasEvidence(project.EvidenceJson))
+            throw Invalid("evidence", "Imported provider and tender bids require stored source evidence before approval.");
+        if (project.Source == SalesProjectSource.Manual && string.IsNullOrWhiteSpace(project.Description))
+            throw Invalid("evidence", "Manual bids require a user-provided project brief before approval.");
         try { bid.Approve(request.Version, project.ApprovalContext(), Now); }
         catch (InvalidOperationException ex) { throw new ConflictException(ex.Message); }
         project.ChangeState(SalesProjectState.BidApproved, Now);
@@ -146,6 +151,21 @@ public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvid
     {
         var open = value.IndexOf('[');
         return open >= 0 && value.IndexOf(']', open + 1) > open + 1;
+    }
+
+    private static bool HasEvidence(string value)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            return document.RootElement.ValueKind switch
+            {
+                JsonValueKind.Array => document.RootElement.GetArrayLength() > 0,
+                JsonValueKind.Object => document.RootElement.EnumerateObject().Any(),
+                _ => false,
+            };
+        }
+        catch (JsonException) { return false; }
     }
 
     private static SalesProjectDto ToDto(SalesProject project, IEnumerable<SalesBid> bids) =>

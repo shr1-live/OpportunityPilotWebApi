@@ -81,6 +81,9 @@ public sealed class AccountDataService(IAppDbContext db, ICurrentUser user, Time
         db.JobApplications.RemoveRange(await db.JobApplications.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.AgentKeys.RemoveRange(await db.AgentKeys.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.Suppressions.RemoveRange(await db.Suppressions.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        // Opportunities first: their evidence links restrict deleting evidence, which campaigns cascade to.
+        db.Opportunities.RemoveRange(await db.Opportunities.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        await db.SaveChangesAsync(ct);
         db.Campaigns.RemoveRange(await db.Campaigns.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.Profiles.RemoveRange(await db.Profiles.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.GuestSessions.RemoveRange(await db.GuestSessions.Where(x => x.OwnerId == owner).ToListAsync(ct));

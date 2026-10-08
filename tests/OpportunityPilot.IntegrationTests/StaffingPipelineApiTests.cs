@@ -165,7 +165,7 @@ public class StaffingPipelineApiTests(PostgresApiFactory factory) : IClassFixtur
         var card = await (await client.PostAsJsonAsync("/api/v1/staffing/rate-cards", new
         {
             name = "2026 India delivery", currency = "usd",
-            lines = new[] { new { role = ".NET engineer", seniority = "Senior", unit = "Hour", rate = 40m }, new { role = "QA engineer", seniority = (string?)null, unit = "Hour", rate = 25m } },
+            lines = new[] { new { role = ".NET engineer", seniority = (string?)"Senior", unit = "Hour", rate = 40m }, new { role = "QA engineer", seniority = (string?)null, unit = "Hour", rate = 25m } },
             terms = "Net 30"
         })).Json(HttpStatusCode.OK);
         Assert.Equal("USD", card.Str("currency"));
@@ -265,6 +265,13 @@ public class StaffingPipelineApiTests(PostgresApiFactory factory) : IClassFixtur
         await (await client.PostAsJsonAsync($"{api}/meetings", new { title = "Call", startsAt = "2026-10-21T05:00:00Z", timeZone = "UTC", durationMinutes = 30, invitees = "a@b.test" })).Json(HttpStatusCode.OK);
         await (await client.PostAsJsonAsync("/api/v1/staffing/rate-cards", new { name = "Card", currency = "USD", lines = new[] { new { role = "Dev", seniority = (string?)null, unit = "Hour", rate = 10m } } })).Json(HttpStatusCode.OK);
 
+        // A researched campaign too: deleting it must not trip over evidence links.
+        var campaign = await ResearchApi.CreateCampaignAsync(client, "Job", new { keywords = new[] { ".NET" } });
+        await ResearchApi.AddPasteAsync(client, campaign.Id(), "Senior .NET Engineer\nCompany: Acme\nWe build C# APIs on ASP.NET Core.");
+        await ResearchApi.QueueAsync(client, campaign.Id());
+        await PostgresApiFactory.RunResearchAsync(factory.Services);
+        Assert.NotEmpty(await ResearchApi.OpportunitiesAsync(client, campaign.Id()));
+
         var export = await client.GetJson("/api/v1/account-data/export");
         Assert.Equal(1, export.GetProperty("staffingCandidates").GetArrayLength());
         Assert.Equal(1, export.GetProperty("staffingSubmissions").GetArrayLength());
@@ -277,5 +284,7 @@ public class StaffingPipelineApiTests(PostgresApiFactory factory) : IClassFixtur
         foreach (var table in new[] { "staffingAccounts", "staffingContacts", "staffingDeals", "staffingDealActivities", "staffingCandidates", "staffingSubmissions",
                      "staffingInterviews", "staffingFeedback", "staffingOffers", "staffingRateCards", "staffingProposals", "staffingMessages", "staffingMeetings" })
             Assert.True(after.GetProperty(table).GetArrayLength() == 0, $"{table} still has rows after delete");
+        Assert.Equal(0, after.GetProperty("opportunities").GetArrayLength());
+        Assert.Equal(0, after.GetProperty("campaigns").GetArrayLength());
     }
 }
