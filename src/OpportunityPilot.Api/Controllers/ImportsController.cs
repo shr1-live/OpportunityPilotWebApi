@@ -10,6 +10,7 @@ public sealed class ImportsController(ImportService imports) : ControllerBase
 {
     /// <summary>CSV text up to 1 MB and 1000 rows. Nothing is imported until the preview is committed.</summary>
     [HttpPost("preview")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(Hosting.RateLimits.Imports)]
     [RequestSizeLimit(3 * 1024 * 1024)] // the 1 MB CSV arrives JSON-escaped
     public async Task<ActionResult<ImportPreviewDto>> Preview(ImportPreviewRequest request, CancellationToken ct) =>
         await imports.PreviewAsync(request, ct);

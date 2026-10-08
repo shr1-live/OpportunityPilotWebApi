@@ -49,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<ScheduleService>();
         services.AddScoped<StaffingService>();
         services.AddScoped<StaffingPipelineService>();
+        services.AddScoped<Auth.SecurityAudit>();
         services.AddScoped<WellfoundService>();
         services.AddScoped<JobBoardGatherer>();
         services.AddScoped<IResearchRunner, ResearchRunner>();

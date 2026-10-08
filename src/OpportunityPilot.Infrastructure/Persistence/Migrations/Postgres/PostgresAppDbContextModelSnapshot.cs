@@ -55,6 +55,11 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.Postgres
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("Scopes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(7);
+
                     b.HasKey("Id");
 
                     b.HasIndex("KeyHash")
@@ -157,6 +162,33 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.Postgres
                         .IsUnique();
 
                     b.ToTable("guest_sessions", "app");
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Auth.SecurityEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId", "OccurredAt");
+
+                    b.ToTable("security_events", "app");
                 });
 
             modelBuilder.Entity("OpportunityPilot.Domain.Automation.CampaignSchedule", b =>

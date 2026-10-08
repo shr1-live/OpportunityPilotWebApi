@@ -6,11 +6,13 @@ namespace OpportunityPilot.Application.Accounts;
 
 public sealed record DeleteAccountDataRequest(bool Confirm);
 
-public sealed class AccountDataService(IAppDbContext db, ICurrentUser user, TimeProvider clock)
+public sealed class AccountDataService(IAppDbContext db, ICurrentUser user, TimeProvider clock, Auth.SecurityAudit audit)
 {
     public async Task<object> ExportAsync(CancellationToken ct)
     {
         var owner = user.OwnerId;
+        audit.Record(owner, Domain.Auth.SecurityEventType.AccountDataExported);
+        await db.SaveChangesAsync(ct);
         return new
         {
             exportedAt = clock.GetUtcNow().UtcDateTime,
@@ -43,7 +45,8 @@ public sealed class AccountDataService(IAppDbContext db, ICurrentUser user, Time
             staffingRateCards = await db.StaffingRateCards.Where(x => x.OwnerId == owner).ToListAsync(ct),
             staffingProposals = await db.StaffingProposals.Where(x => x.OwnerId == owner).ToListAsync(ct),
             staffingMessages = await db.StaffingMessages.Where(x => x.OwnerId == owner).ToListAsync(ct),
-            staffingMeetings = await db.StaffingMeetings.Where(x => x.OwnerId == owner).ToListAsync(ct)
+            staffingMeetings = await db.StaffingMeetings.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            securityEvents = await db.SecurityEvents.Where(x => x.OwnerId == owner).ToListAsync(ct)
         };
     }
 
@@ -79,6 +82,9 @@ public sealed class AccountDataService(IAppDbContext db, ICurrentUser user, Time
         db.Campaigns.RemoveRange(await db.Campaigns.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.Profiles.RemoveRange(await db.Profiles.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.GuestSessions.RemoveRange(await db.GuestSessions.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.SecurityEvents.RemoveRange(await db.SecurityEvents.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        // The one record kept: that this owner's data was deleted, and when. It holds nothing else.
+        audit.Record(owner, Domain.Auth.SecurityEventType.AccountDataDeleted);
         await db.SaveChangesAsync(ct);
     }
 }

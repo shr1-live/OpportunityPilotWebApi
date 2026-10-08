@@ -13,6 +13,7 @@ public sealed class AuthController(GuestAccess guests, GuestSessionService sessi
 
     /// <summary>A fresh random guest identity. 404 when guests are switched off (Auth:AllowGuests=false with accounts on).</summary>
     [HttpPost("guest")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(Hosting.RateLimits.GuestSignIn)]
     [AllowAnonymous]
     public async Task<ActionResult<GuestSessionDto>> Guest(CancellationToken ct)
     {

@@ -12,21 +12,23 @@ namespace OpportunityPilot.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/agent")]
-[Authorize(AuthenticationSchemes = AgentKeyAuthenticationHandler.SchemeName)]
 public sealed class AgentResearchController(AgentResearchService agent) : ControllerBase
 {
     /// <summary>The owner's Job campaigns, with the criteria the agent searches with.</summary>
     [HttpGet("campaigns")]
+    [Authorize(Policy = AgentKeyAuthenticationHandler.ResearchPolicy)]
     public async Task<ActionResult<IReadOnlyList<AgentCampaignDto>>> Campaigns(CancellationToken ct) =>
         Ok(await agent.CampaignsAsync(ct));
 
     [HttpPost("campaigns/{id:guid}/postings")]
+    [Authorize(Policy = AgentKeyAuthenticationHandler.ResearchPolicy)]
     [RequestSizeLimit(4 * 1024 * 1024)]
     public async Task<ActionResult<AgentPostingsResult>> Postings(Guid id, AgentPostingsRequest request, CancellationToken ct) =>
         await agent.DeliverAsync(id, request, ct);
 
     /// <summary>Shortlisted Job opportunities on the platform that have not been applied to.</summary>
     [HttpGet("shortlist")]
+    [Authorize(Policy = AgentKeyAuthenticationHandler.ShortlistPolicy)]
     public async Task<ActionResult<IReadOnlyList<AgentShortlistItem>>> Shortlist([FromQuery] JobPlatform? platform, CancellationToken ct) =>
         Ok(await agent.ShortlistAsync(platform, ct));
 }

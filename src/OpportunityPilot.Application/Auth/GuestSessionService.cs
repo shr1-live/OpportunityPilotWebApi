@@ -29,7 +29,9 @@ public sealed class GuestSessionService(IAppDbContext db, TimeProvider clock)
 
         var token = TokenPrefix + Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
         var expiresAt = now + Lifetime;
-        db.GuestSessions.Add(new GuestSession(Guid.NewGuid(), Hash(token), now, expiresAt));
+        var ownerId = Guid.NewGuid();
+        db.GuestSessions.Add(new GuestSession(ownerId, Hash(token), now, expiresAt));
+        db.SecurityEvents.Add(new Domain.Auth.SecurityEvent(ownerId, Domain.Auth.SecurityEventType.GuestSessionIssued, $"Guest session valid until {expiresAt:yyyy-MM-dd}", now));
         await db.SaveChangesAsync(ct);
         return new IssuedGuestSession(token, expiresAt);
     }

@@ -64,6 +64,7 @@ builder.Services.AddRateLimiter(o =>
         RateLimitPartition.GetFixedWindowLimiter(
             ctx.User.FindFirst("sub")?.Value ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
             _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1) }));
+    RateLimits.Add(o);
 });
 
 builder.Services.Configure<ForwardedHeadersOptions>(o =>

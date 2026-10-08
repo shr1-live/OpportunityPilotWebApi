@@ -59,6 +59,7 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
     public DbSet<StaffingRateCard> StaffingRateCards => Set<StaffingRateCard>();
     public DbSet<StaffingProposal> StaffingProposals => Set<StaffingProposal>();
     public DbSet<StaffingMessage> StaffingMessages => Set<StaffingMessage>();
+    public DbSet<Domain.Auth.SecurityEvent> SecurityEvents => Set<Domain.Auth.SecurityEvent>();
     public DbSet<StaffingMeeting> StaffingMeetings => Set<StaffingMeeting>();
     public DbSet<WellfoundJob> WellfoundJobs => Set<WellfoundJob>();
     public DbSet<WellfoundApplication> WellfoundApplications => Set<WellfoundApplication>();
@@ -109,9 +110,20 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
             e.HasIndex(a => new { a.OwnerId, a.OccurredAt });
         });
 
+        modelBuilder.Entity<Domain.Auth.SecurityEvent>(e =>
+        {
+            e.ToTable("security_events");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.Type).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.Detail).HasMaxLength(Domain.Auth.SecurityEvent.MaxDetailLength);
+            e.HasIndex(x => new { x.OwnerId, x.OccurredAt });
+        });
+
         modelBuilder.Entity<AgentKey>(e =>
         {
             e.ToTable("agent_keys");
+            e.Property(k => k.Scopes).HasConversion<int>().HasDefaultValue(AgentKeyScope.All);
             e.HasKey(k => k.Id);
             e.Property(k => k.Id).ValueGeneratedNever();
             e.Property(k => k.Name).HasMaxLength(100).IsRequired();

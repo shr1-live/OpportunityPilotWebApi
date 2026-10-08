@@ -115,8 +115,11 @@ public static class AuthSetup
         // fallback policy, only endpoints marked [Authorize(AuthenticationSchemes = AgentKey)].
         authBuilder.AddScheme<AuthenticationSchemeOptions, AgentKeyAuthenticationHandler>(AgentKeyAuthenticationHandler.SchemeName, null);
 
-        builder.Services.AddAuthorizationBuilder()
+        var authz = builder.Services.AddAuthorizationBuilder()
             .SetFallbackPolicy(new AuthorizationPolicyBuilder(schemes.ToArray()).RequireAuthenticatedUser().Build());
+        foreach (var scope in new[] { "Research", "Shortlist", "Applications" })
+            authz.AddPolicy($"agent:{scope}", p => p.AddAuthenticationSchemes(AgentKeyAuthenticationHandler.SchemeName)
+                .RequireAuthenticatedUser().RequireClaim(AgentKeyAuthenticationHandler.ScopeClaim, scope));
 
         builder.Services.AddHttpClient(nameof(SupabaseJwks), c => c.Timeout = TimeSpan.FromSeconds(10));
         builder.Services.AddHttpContextAccessor();

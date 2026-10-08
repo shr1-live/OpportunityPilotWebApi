@@ -7,6 +7,7 @@ namespace OpportunityPilot.Api.Controllers;
 /// <summary>Live job-board postings (Indeed, LinkedIn, SEEK) through a licensed aggregator. Read-only: nothing is stored or applied to.</summary>
 [ApiController]
 [Route("api/v1/jobboards")]
+[Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(Hosting.RateLimits.JobBoardSearch)]
 public sealed class JobBoardsController(IJobBoardSearch search) : ControllerBase
 {
     [HttpGet("status")]
@@ -34,6 +35,7 @@ public sealed class JobBoardsController(IJobBoardSearch search) : ControllerBase
 /// <summary>The first W10 route, kept so the Indeed tab and any bookmarks keep working.</summary>
 [ApiController]
 [Route("api/v1/indeed")]
+[Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(Hosting.RateLimits.JobBoardSearch)]
 public sealed class IndeedController(IJobBoardSearch search) : ControllerBase
 {
     [HttpGet("jobs")]
