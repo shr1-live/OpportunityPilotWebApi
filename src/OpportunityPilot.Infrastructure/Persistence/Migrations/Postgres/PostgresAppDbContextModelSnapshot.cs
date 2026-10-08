@@ -173,6 +173,9 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.Postgres
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("LastMissedRuns")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("LastQueuedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -196,6 +199,9 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.Postgres
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<int>("TotalMissedRuns")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
