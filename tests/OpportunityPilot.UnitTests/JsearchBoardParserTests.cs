@@ -33,6 +33,34 @@ public class JsearchBoardParserTests
         Assert.Equal(ids, jobs.Select(j => j.ProviderJobId));
     }
 
+    // Shape returned by JSearch v5 on 2026-10-08 (trimmed from a real playground response).
+    private const string V5Json = """
+    {"status":"OK","request_id":"x","parameters":{"query":"developer jobs in chicago","num_pages":1},
+     "data":{"jobs":[
+      {"job_id":"v1","job_title":"Sr. Software Developer","employer_name":"Therapy Brands Thrive, LLC","job_publisher":"Indeed",
+       "job_employment_type":"Full-time","job_apply_link":"https://www.indeed.com/viewjob?jk=2090bb9261592361",
+       "apply_options":[{"apply_link":"https://www.indeed.com/viewjob?jk=2090bb9261592361","is_direct":false,"publisher":"Indeed"}],
+       "job_is_remote":true,"job_posted_at_datetime_utc":"2026-10-02T00:00:00.000Z","job_location":"Anywhere",
+       "job_city":null,"job_state":null,"job_country":null,"job_min_salary":null,"job_max_salary":null,"job_salary_period":null},
+      {"job_id":"v2","job_title":"Software Developer Oracle (IT)","employer_name":"Apex Systems","job_publisher":"LinkedIn",
+       "job_apply_link":"https://www.linkedin.com/jobs/view/software-developer-oracle-it-at-apex-systems-4476931825",
+       "job_city":"Chicago","job_state":"Illinois","job_country":"US","job_min_salary":65,"job_max_salary":67,"job_salary_period":"HOUR"}
+     ],"cursor":"abc"}}
+    """;
+
+    [Fact]
+    public void Reads_the_v5_wrapped_jobs_list()
+    {
+        var (indeed, total) = JsearchBoardParser.Parse(V5Json, JobBoard.Indeed);
+        Assert.Equal(2, total);
+        var job = Assert.Single(indeed);
+        Assert.Equal("https://www.indeed.com/viewjob?jk=2090bb9261592361", job.BoardUrl);
+        Assert.Equal("Anywhere", job.Location);
+        Assert.True(job.IsRemote);
+        var (linkedIn, _) = JsearchBoardParser.Parse(V5Json, JobBoard.LinkedIn);
+        Assert.Equal(65m, Assert.Single(linkedIn).SalaryMin);
+    }
+
     [Fact]
     public void Uses_the_board_apply_option_when_the_publisher_differs()
     {

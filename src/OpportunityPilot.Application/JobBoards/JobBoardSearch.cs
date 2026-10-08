@@ -70,7 +70,10 @@ public static class JsearchBoardParser
     public static (IReadOnlyList<JobBoardJobDto> Jobs, int ProviderResults) Parse(string json, JobBoard board)
     {
         using var doc = JsonDocument.Parse(json);
-        if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array) return ([], 0);
+        if (!doc.RootElement.TryGetProperty("data", out var data)) return ([], 0);
+        // API v5 (2026) wraps the list: {"data":{"jobs":[...],"cursor":...}}; earlier versions return {"data":[...]}.
+        if (data.ValueKind == JsonValueKind.Object && data.TryGetProperty("jobs", out var wrapped)) data = wrapped;
+        if (data.ValueKind != JsonValueKind.Array) return ([], 0);
         var jobs = new List<JobBoardJobDto>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var job in data.EnumerateArray())
