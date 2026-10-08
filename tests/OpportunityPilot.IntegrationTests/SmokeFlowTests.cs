@@ -78,4 +78,38 @@ public class SmokeFlowTests(PostgresApiFactory factory) : IClassFixture<Postgres
         Assert.NotEmpty(detail.GetProperty("evidence").EnumerateArray());
         Assert.NotEmpty(detail.GetProperty("breakdown").EnumerateArray());
     }
+
+    [Fact]
+    public async Task Sales_overview_counts_contacted_responded_and_outreach_from_stored_records()
+    {
+        var user = PostgresApiFactory.ClientFor(factory, "smoke-sales-kpis@example.test");
+        var campaign = await ResearchApi.CreateCampaignAsync(user, "Customer",
+            new { keywords = new[] { "Dynamics 365" }, industries = new[] { "Systems integration" }, locations = new[] { "London" } });
+        await ResearchApi.AddPasteAsync(user, campaign.Id(), Companies);
+        await ResearchApi.QueueAsync(user, campaign.Id());
+        await PostgresApiFactory.RunResearchAsync(factory.Services);
+        var id = Assert.Single(await ResearchApi.OpportunitiesAsync(user, campaign.Id())).Id();
+
+        foreach (var status in new[] { "Shortlisted", "Contacted", "Responded" })
+            await (await user.PatchAsJsonAsync($"/api/v1/opportunities/{id}/status", new { status })).Json(HttpStatusCode.OK);
+        await (await user.PostAsJsonAsync($"/api/v1/opportunities/{id}/drafts", new { channel = "Email", recipient = "ops@northwind.example" })).Json(HttpStatusCode.Created);
+        await (await user.PostAsJsonAsync($"/api/v1/opportunities/{id}/next-actions",
+            new { kind = "FollowUp", note = "Chase", dueAt = DateTime.UtcNow.AddDays(-1).ToString("O"), timeZone = "UTC" })).Json(HttpStatusCode.Created);
+
+        var sales = await user.GetJson("/api/v1/analytics/overview?workspace=Sales&days=30");
+        var kpis = sales.GetProperty("kpis");
+        Assert.Equal(1, kpis.Int("contacted"));
+        Assert.Equal(1, kpis.Int("responded"));
+        Assert.Equal(1.0, kpis.GetProperty("respondedRate").GetDouble());
+        var funnel = sales.GetProperty("funnel").EnumerateArray().ToDictionary(f => f.Str("key"), f => f.GetProperty("count"));
+        Assert.Equal(1, funnel["contacted"].GetInt32());
+        var outreach = sales.GetProperty("outreach");
+        Assert.Equal(1, outreach.Int("draftsAwaitingReview"));
+        Assert.Equal(1, outreach.Int("followUpsOverdue"));
+        Assert.Contains(sales.GetProperty("attention").EnumerateArray(), a => a.Str("kind") == "FollowUpsOverdue");
+
+        var partnerOnly = await user.GetJson("/api/v1/analytics/overview?workspace=Sales&days=30&mode=Partner");
+        Assert.Equal(0, partnerOnly.GetProperty("kpis").Int("found"));
+        Assert.Equal(HttpStatusCode.BadRequest, (await user.GetAsync("/api/v1/analytics/overview?workspace=Candidate&mode=Partner")).StatusCode);
+    }
 }
