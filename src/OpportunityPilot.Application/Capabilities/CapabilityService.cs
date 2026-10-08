@@ -121,6 +121,10 @@ public sealed class CapabilityService(
             PublicBoard("remotive", "Remotive remote jobs", "the public Remotive remote-jobs feed", company: false),
             PublicBoard("remoteok", "Remote OK jobs", "the public Remote OK jobs feed", company: false),
 
+            new("upwork", "Upwork projects", "Sources", CapabilityStatus.NotBuilt,
+                "Upwork's official API can search marketplace projects for the Sales workspace, but each app needs Upwork's approval and your Upwork account connected (OAuth). Upwork retired its job RSS feeds in 2024.",
+                [], ["Search Upwork projects", "Send proposals or spend Connects"]),
+
             new("gmail", "Gmail", "Outreach",
                 f.GmailEnabled ? CapabilityStatus.NotBuilt : CapabilityStatus.Disabled,
                 "OAuth drafts and reviewed sending. Milestone M6. Nothing is sent from this build.",
