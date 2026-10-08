@@ -47,6 +47,7 @@ builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
 // One bounded in-process research worker (Research:ProcessorEnabled=false turns it off, e.g. in tests).
 builder.Services.AddHostedService<ResearchProcessor>();
 builder.Services.AddHostedService<ScheduleProcessor>();
+builder.Services.AddHostedService<RetentionProcessor>();
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 var allowedOriginPatterns = builder.Configuration.GetSection("Cors:AllowedOriginPatterns").Get<string[]>() ?? [];
