@@ -43,7 +43,7 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
         if (Cache.TryGetValue(cacheKey, out var cached) && cached.ObservedAt > now.AddMinutes(-o.CacheMinutes))
             return cached with { FromCache = true };
 
-        using var message = new HttpRequestMessage(HttpMethod.Get, $"https://{o.Host}/search?{qs}");
+        using var message = new HttpRequestMessage(HttpMethod.Get, $"https://{o.Host}/{o.SearchPath.Trim('/')}?{qs}");
         message.Headers.Add("X-RapidAPI-Key", o.Key);
         message.Headers.Add("X-RapidAPI-Host", o.Host);
         var started = clock.GetTimestamp();

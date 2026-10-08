@@ -54,6 +54,9 @@ public sealed class JsearchOptions
     public string? Key { get; set; }
     public string Host { get; set; } = "jsearch.p.rapidapi.com";
 
+    /// <summary>Search path on the host. JSearch moves it between API versions, so it is configuration (Jsearch__SearchPath).</summary>
+    public string SearchPath { get; set; } = "/search";
+
     /// <summary>The free plan allows 200 requests a month, so identical searches are served from memory for this long.</summary>
     public int CacheMinutes { get; set; } = 360;
 
