@@ -53,6 +53,10 @@ public sealed class StaffingController(StaffingService staffing) : ControllerBas
         Guid id, MoveStaffingDealRequest request, CancellationToken ct) =>
         Ok(await staffing.MoveDealAsync(id, request, ct));
 
+    [HttpPost("from-opportunity/{opportunityId:guid}")]
+    public async Task<ActionResult<PromotedLeadDto>> FromOpportunity(Guid opportunityId, CancellationToken ct) =>
+        Ok(await staffing.PromoteOpportunityAsync(opportunityId, ct));
+
     [HttpPost("deals/{id:guid}/notes")]
     public async Task<ActionResult<StaffingDealDto>> AddNote(
         Guid id, AddStaffingDealNoteRequest request, CancellationToken ct) =>

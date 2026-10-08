@@ -35,3 +35,9 @@ public sealed record UpdateStaffingDealRequest(
 
 public sealed record MoveStaffingDealRequest(StaffingDealStage Stage, int ExpectedVersion);
 public sealed record AddStaffingDealNoteRequest(string Detail);
+
+public enum IdentityConfidence { High, Medium, Low }
+
+/// <summary>X3: a found company turned into a staffing lead. Confidence says how sure the account match is.</summary>
+/// <param name="Confidence">High: matched or created by website domain. Medium: matched an existing account by name. Low: new account by name only.</param>
+public sealed record PromotedLeadDto(StaffingDealDto Deal, Guid AccountId, bool AccountReused, bool DealReused, IdentityConfidence Confidence, string? EvidenceUrl);

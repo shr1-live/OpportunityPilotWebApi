@@ -112,4 +112,28 @@ public class SmokeFlowTests(PostgresApiFactory factory) : IClassFixture<Postgres
         Assert.Equal(0, partnerOnly.GetProperty("kpis").Int("found"));
         Assert.Equal(HttpStatusCode.BadRequest, (await user.GetAsync("/api/v1/analytics/overview?workspace=Candidate&mode=Partner")).StatusCode);
     }
+
+    [Fact]
+    public async Task A_found_company_becomes_one_staffing_lead_with_its_evidence()
+    {
+        var user = PostgresApiFactory.ClientFor(factory, "smoke-promote@example.test");
+        var campaign = await ResearchApi.CreateCampaignAsync(user, "Customer", new { keywords = new[] { "Dynamics 365" }, locations = new[] { "London" } });
+        await ResearchApi.AddPasteAsync(user, campaign.Id(), Companies);
+        await ResearchApi.QueueAsync(user, campaign.Id());
+        await PostgresApiFactory.RunResearchAsync(factory.Services);
+        var id = Assert.Single(await ResearchApi.OpportunitiesAsync(user, campaign.Id())).Id();
+
+        var lead = await (await user.PostAsync($"/api/v1/staffing/from-opportunity/{id}", null)).Json(HttpStatusCode.OK);
+        Assert.False(lead.GetProperty("dealReused").GetBoolean());
+        var confidence = lead.Str("confidence");
+        Assert.Contains(confidence, new[] { "High", "Low" });
+        var deal = lead.GetProperty("deal");
+        Assert.Contains("Northwind", deal.Str("title"));
+        Assert.Contains(deal.GetProperty("activities").EnumerateArray(), a => a.Str("detail").Contains("Created from Customer opportunity"));
+
+        var again = await (await user.PostAsync($"/api/v1/staffing/from-opportunity/{id}", null)).Json(HttpStatusCode.OK);
+        Assert.True(again.GetProperty("dealReused").GetBoolean());
+        Assert.Single((await user.GetJson("/api/v1/staffing/deals")).EnumerateArray());
+        Assert.Single((await user.GetJson("/api/v1/staffing/accounts")).EnumerateArray());
+    }
 }
