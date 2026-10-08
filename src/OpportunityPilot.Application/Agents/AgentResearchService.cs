@@ -104,8 +104,9 @@ public sealed class AgentResearchService(IAppDbContext db, ICurrentUser user, Ti
         var ownerId = user.OwnerId;
         var query = db.Opportunities.Where(o => o.OwnerId == ownerId && o.Mode == OpportunityMode.Job &&
                                                 o.Status == OpportunityStatus.Shortlisted && o.Platform != null && o.ExternalId != null &&
-                                                o.Platform != JobPlatform.Greenhouse && o.Platform != JobPlatform.Lever &&
-                                                o.Platform != JobPlatform.Adzuna);
+                                                // Only the platforms the local agent has adapters for; every other job is applied to by the user.
+                                                (o.Platform == JobPlatform.LinkedIn || o.Platform == JobPlatform.Naukri ||
+                                                 o.Platform == JobPlatform.Instahyre));
         if (platform is { } p) query = query.Where(o => o.Platform == p);
         var shortlisted = await query.OrderByDescending(o => o.Score).ThenBy(o => o.Id).Take(MaxShortlist).ToListAsync(ct);
 

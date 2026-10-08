@@ -19,5 +19,6 @@ public enum JobPlatform
     Workable,
     Remotive,
     RemoteOk,
-    Indeed
+    Indeed,
+    Seek
 }

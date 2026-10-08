@@ -4,6 +4,7 @@ using OpportunityPilot.Application.Configuration;
 using OpportunityPilot.Application.JobBoards;
 using OpportunityPilot.Application.Research;
 using OpportunityPilot.Application.Research.Boards;
+using OpportunityPilot.Domain.Common;
 using OpportunityPilot.Domain.Research;
 using OpportunityPilot.Infrastructure.Research;
 
@@ -47,17 +48,23 @@ public class JobBoardGathererTests
         new(fetcher, new ContentParser(), Options.Create(research ?? new ResearchOptions()), Options.Create(adzuna ?? new AdzunaOptions()),
             boards ?? new ScriptedBoards(false));
 
-    private static JobBoardJobDto IndeedJob(string id, string title) =>
-        new(id, title, "Acme", null, $"https://www.indeed.com/viewjob?jk={id}", "Pune, MH, IN", false, "FULLTIME",
+    private static JobBoardJobDto Posting(string id, string title, string company = "Acme", string? url = null) =>
+        new(id, title, company, null, url ?? $"https://www.indeed.com/viewjob?jk={id}", "Pune, MH, IN", false, "FULLTIME",
             null, null, null, null, T0, "C# services", "We build C# services on Azure.");
 
-    private static readonly IWebFetcher NoFetch = new ScriptedFetcher(_ => throw new InvalidOperationException("Indeed must not use the fetcher."));
+    private static Source SearchSource(string board) => SourceOf(SourceKind.JobSearch, board, $"{board} search");
+
+    private static Task<BoardGathered> Search(IJobBoardSearch boards, string board, CampaignCriteria criteria,
+        OpportunityMode mode = OpportunityMode.Job, int room = 100) =>
+        Gatherer(NoFetch, boards: boards).JobSearchAsync(SearchSource(board), criteria, mode, room, 50, CancellationToken.None);
+
+    private static readonly IWebFetcher NoFetch = new ScriptedFetcher(_ => throw new InvalidOperationException("Job search must not use the fetcher."));
 
     [Fact]
-    public async Task Indeed_without_a_jsearch_key_fails_with_a_plain_reason_and_calls_nothing()
+    public async Task Job_search_without_a_jsearch_key_fails_with_a_plain_reason_and_calls_nothing()
     {
         var boards = new ScriptedBoards(false);
-        var result = await Gather(Gatherer(NoFetch, boards: boards), SourceOf(SourceKind.Indeed, null, "Indeed search"), DotNet);
+        var result = await Search(boards, "Indeed", DotNet);
         Assert.Equal(SourceStatus.Failed, result.Status);
         Assert.Contains("Jsearch:Key", result.SafeError);
         Assert.Empty(boards.Requests);
@@ -67,25 +74,65 @@ public class JobBoardGathererTests
     public async Task Indeed_searches_each_keyword_in_the_first_place_dedupes_and_keeps_the_indeed_link()
     {
         var boards = new ScriptedBoards(true, r => new(r.Board, "Ready",
-            r.Query == ".NET" ? [IndeedJob("a", ".NET Developer"), IndeedJob("b", "C# Engineer")] : [IndeedJob("b", "C# Engineer")],
+            r.Query == ".NET" ? [Posting("a", ".NET Developer"), Posting("b", "C# Engineer")] : [Posting("b", "C# Engineer")],
             10, null, T0, false, "test"));
         var criteria = new CampaignCriteria { Keywords = [".NET", "C#"], Locations = ["Remote", "Pune"] };
-        var result = await Gather(Gatherer(NoFetch, boards: boards), SourceOf(SourceKind.Indeed, null, "Indeed search"), criteria);
+        var result = await Search(boards, "Indeed", criteria);
 
         Assert.Equal(SourceStatus.Ok, result.Status);
         Assert.Equal([".NET", "C#"], boards.Requests.Select(r => r.Query));
         Assert.All(boards.Requests, r => { Assert.Equal(JobBoard.Indeed, r.Board); Assert.Equal("Pune", r.Location); Assert.False(r.RemoteOnly); });
         Assert.Equal(["a", "b"], result.Items.Select(i => i.ExternalId));
+        Assert.All(result.Items, i => Assert.Equal(OpportunityPilot.Domain.Opportunities.JobPlatform.Indeed, i.Platform));
         Assert.Equal(2, result.Requests);
         Assert.Contains("2 Indeed postings found, 2 read", result.Message);
     }
 
     [Fact]
-    public async Task Indeed_with_only_remote_locations_searches_remote_only_and_cached_searches_cost_no_fetch()
+    public async Task LinkedIn_postings_keep_the_linkedin_job_id_so_the_agent_can_apply()
     {
-        var boards = new ScriptedBoards(true, r => new(r.Board, "Ready", [IndeedJob("a", ".NET Developer")], 1, null, T0, true, "test"));
-        var criteria = new CampaignCriteria { Keywords = [".NET"], Locations = ["Remote"] };
-        var result = await Gather(Gatherer(NoFetch, boards: boards), SourceOf(SourceKind.Indeed, null, "Indeed search"), criteria);
+        var boards = new ScriptedBoards(true, r => new(r.Board, "Ready",
+            [Posting("js-1", ".NET Developer", url: "https://www.linkedin.com/jobs/view/net-developer-at-acme-4012345678"),
+             Posting("js-2", "C# Engineer", url: "https://in.linkedin.com/jobs/view/4099999999/")], 2, null, T0, false, "test"));
+        var result = await Search(boards, "LinkedIn", DotNet);
+        Assert.Equal(JobBoard.LinkedIn, Assert.Single(boards.Requests).Board);
+        Assert.Equal(["4012345678", "4099999999"], result.Items.Select(i => i.ExternalId));
+        Assert.All(result.Items, i => Assert.Equal(OpportunityPilot.Domain.Opportunities.JobPlatform.LinkedIn, i.Platform));
+        Assert.Equal("https://www.linkedin.com/jobs/view/4012345678/", result.Items[0].ApplyUrl);
+    }
+
+    [Fact]
+    public async Task Seek_postings_are_seek_jobs()
+    {
+        var boards = new ScriptedBoards(true, r => new(r.Board, "Ready", [Posting("s1", ".NET Developer", url: "https://www.seek.com.au/job/1")], 1, null, T0, false, "test"));
+        var result = await Search(boards, "Seek", DotNet);
+        Assert.Equal(JobBoard.Seek, boards.Requests[0].Board);
+        Assert.Equal(OpportunityPilot.Domain.Opportunities.JobPlatform.Seek, Assert.Single(result.Items).Platform);
+    }
+
+    [Fact]
+    public async Task Sales_campaigns_get_one_hiring_company_per_employer_with_postings_as_evidence()
+    {
+        var boards = new ScriptedBoards(true, r => new(r.Board, "Ready",
+            [Posting("a", "React Developer", "Acme"), Posting("b", "Node Engineer", "ACME"), Posting("c", "QA Lead", "Beta")], 3, null, T0, false, "test"));
+        var criteria = new CampaignCriteria { Signals = ["hiring React developers"], Locations = ["Pune"] };
+        var result = await Search(boards, "Indeed", criteria, OpportunityMode.Customer);
+
+        Assert.Equal(["hiring React developers"], boards.Requests.Select(r => r.Query));
+        Assert.Equal(["Acme", "Beta"], result.Items.Select(i => i.Organization));
+        var acme = result.Items[0];
+        Assert.Null(acme.Platform);
+        Assert.Contains("Hiring on Indeed: React Developer", acme.Text);
+        Assert.Contains("Hiring on Indeed: Node Engineer", acme.Text);
+        Assert.Equal(2, acme.Links.Count);
+        Assert.Contains("2 hiring companies from 3 Indeed postings", result.Message);
+    }
+
+    [Fact]
+    public async Task Remote_only_locations_search_remote_and_cached_searches_cost_no_fetch()
+    {
+        var boards = new ScriptedBoards(true, r => new(r.Board, "Ready", [Posting("a", ".NET Developer")], 1, null, T0, true, "test"));
+        var result = await Search(boards, "Indeed", new CampaignCriteria { Keywords = [".NET"], Locations = ["Remote"] });
         Assert.True(Assert.Single(boards.Requests).RemoteOnly);
         Assert.Null(boards.Requests[0].Location);
         Assert.Equal(0, result.Requests);
@@ -93,19 +140,19 @@ public class JobBoardGathererTests
     }
 
     [Fact]
-    public async Task Indeed_without_keywords_is_skipped()
+    public async Task Nothing_to_search_for_is_skipped()
     {
         var boards = new ScriptedBoards(true);
-        var result = await Gather(Gatherer(NoFetch, boards: boards), SourceOf(SourceKind.Indeed, null, "Indeed search"), new CampaignCriteria());
+        var result = await Search(boards, "Indeed", new CampaignCriteria());
         Assert.Equal(SourceStatus.Skipped, result.Status);
         Assert.Empty(boards.Requests);
     }
 
     [Fact]
-    public async Task Indeed_provider_failure_is_reported()
+    public async Task Provider_failure_is_reported()
     {
         var boards = new ScriptedBoards(true, r => new(r.Board, "Failed", [], 0, "The JSearch monthly or hourly quota is used up.", T0, false, "test"));
-        var result = await Gather(Gatherer(NoFetch, boards: boards), SourceOf(SourceKind.Indeed, null, "Indeed search"), DotNet);
+        var result = await Search(boards, "Indeed", DotNet);
         Assert.Equal(SourceStatus.Failed, result.Status);
         Assert.Contains("quota", result.SafeError);
     }

@@ -295,10 +295,49 @@ public static class BoardMapping
 
     // ---------- helpers ----------
 
-    /// <summary>A live Indeed posting (JSearch) as a research candidate; the posting's Indeed link is the evidence and apply URL.</summary>
-    public static Candidate IndeedCandidate(Source source, JobBoardJobDto job) =>
-        Build(source, JobPlatform.Indeed, job.ProviderJobId, job.Title, job.CompanyName, job.Location, job.IsRemote ? "remote" : null,
-            job.BoardUrl, job.BoardUrl, null, job.Description, job.PostedAt);
+    /// <summary>
+    /// A live board posting (JSearch) as a job candidate. The board link is the evidence and apply URL. A LinkedIn posting
+    /// keeps LinkedIn's own job id (from <c>/jobs/view/…{id}</c>) so it de-duplicates with the agent's finds and, once
+    /// shortlisted, the local agent can apply to it.
+    /// </summary>
+    public static Candidate JobSearchCandidate(Source source, JobBoard board, JobBoardJobDto job)
+    {
+        var (platform, externalId) = board switch
+        {
+            JobBoard.LinkedIn => (JobPlatform.LinkedIn, LinkedInJobId(job.BoardUrl) ?? job.ProviderJobId),
+            JobBoard.Seek => (JobPlatform.Seek, job.ProviderJobId),
+            _ => (JobPlatform.Indeed, job.ProviderJobId),
+        };
+        var url = platform == JobPlatform.LinkedIn && LinkedInJobId(job.BoardUrl) is { } id ? $"https://www.linkedin.com/jobs/view/{id}/" : job.BoardUrl;
+        return Build(source, platform, externalId, job.Title, job.CompanyName, job.Location, job.IsRemote ? "remote" : null,
+            url, url, null, job.Description, job.PostedAt);
+    }
+
+    /// <summary>
+    /// For Sales campaigns: a company that is hiring is a lead. One candidate per company; each of its postings is a line of
+    /// evidence (role, place, date, board link) followed by the posting text, so buying signals are matched against it.
+    /// </summary>
+    public static Candidate HiringCompanyCandidate(Source source, JobBoard board, string company, IReadOnlyList<JobBoardJobDto> postings)
+    {
+        var name = JsearchBoardParser.Name(board);
+        var lines = postings.Select(p => $"Hiring on {name}: {p.Title}" +
+            (p.Location is null ? "" : $" — {p.Location}") + (p.IsRemote ? " (remote)" : "") +
+            (p.PostedAt is { } d ? $" — posted {d:yyyy-MM-dd}" : "") + $" — {p.BoardUrl}").ToList();
+        var details = string.Join("\n\n", postings.Select(p => p.Description).Where(t => !string.IsNullOrWhiteSpace(t)));
+        var text = Candidates.Bound(string.Join("\n", lines) + (details.Length > 0 ? "\n\n" + details : ""));
+        var first = postings[0];
+        return new Candidate(source.Id, source.Label, company, company, first.Location, first.BoardUrl, null, null, text,
+            null, null, null, first.BoardUrl, $"{company}\n{text}", postings.Select(p => p.BoardUrl).Distinct().ToList());
+    }
+
+    private static string? LinkedInJobId(string? url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u) || !u.Host.EndsWith("linkedin.com", StringComparison.OrdinalIgnoreCase)) return null;
+        var m = System.Text.RegularExpressions.Regex.Match(u.AbsolutePath, @"/jobs/view/(?:[^/]*?-)?(\d{6,})/?$");
+        if (m.Success) return m.Groups[1].Value;
+        var q = System.Web.HttpUtility.ParseQueryString(u.Query)["currentJobId"];
+        return q is { Length: >= 6 } && q.All(char.IsAsciiDigit) ? q : null;
+    }
 
     private static Candidate Build(Source source, JobPlatform platform, string externalId, string title, string organization,
         string? location, string? workplaceType, string? url, string? applyUrl, string? country, string? description,

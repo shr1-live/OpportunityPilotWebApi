@@ -109,6 +109,12 @@ Job discovery tabs still do not store.
 
 **Why:** the user chose "Indeed as campaign source" (2026-10-08) so Indeed jobs reach Approvals and Applications.
 
+**Extended (W18/W19, same day):** the source kind is `JobSearch` with the board on the source (`Indeed`, `LinkedIn`,
+`Seek`). LinkedIn postings keep LinkedIn's own job id (`/jobs/view/{id}`), so they de-duplicate with the agent's finds
+and a shortlisted one is applied to by the local agent; Indeed/SEEK jobs are applied to by the user. In Sales (non-Job)
+campaigns the same search (keywords, then buying signals) yields one lead per hiring company, its postings as evidence.
+The agent shortlist now lists only LinkedIn, Naukri and InstaHyre jobs (before, every non-Greenhouse/Lever/Adzuna job).
+
 ## 2026-10-08 — Sites that cannot be integrated
 
 | Site | Why not | What the app does instead |

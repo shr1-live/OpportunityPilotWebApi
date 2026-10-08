@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using OpportunityPilot.Application.Abstractions;
 using OpportunityPilot.Application.Common;
+using OpportunityPilot.Application.JobBoards;
 using OpportunityPilot.Application.Research;
 using OpportunityPilot.Application.Research.Boards;
 using OpportunityPilot.Domain.Common;
@@ -45,7 +46,7 @@ public sealed class SourceService(IAppDbContext db, ICurrentUser user, TimeProvi
                 else if (fetcher.CheckUrl(url) is { } reason) errors["url"] = [reason];
                 break;
             case SourceKind.Greenhouse or SourceKind.Lever or SourceKind.Adzuna or SourceKind.Ashby or SourceKind.SmartRecruiters or
-                SourceKind.Recruitee or SourceKind.Workable or SourceKind.Indeed or SourceKind.Remotive or SourceKind.RemoteOk when mode != OpportunityMode.Job:
+                SourceKind.Recruitee or SourceKind.Workable or SourceKind.Remotive or SourceKind.RemoteOk when mode != OpportunityMode.Job:
                 errors["kind"] = [$"{request.Kind} sources list jobs, so they can only be added to Job campaigns."];
                 break;
             case SourceKind.Greenhouse:
@@ -78,8 +79,13 @@ public sealed class SourceService(IAppDbContext db, ICurrentUser user, TimeProvi
             case SourceKind.Workable:
                 Board(SourceKind.Workable, BoardIdentifiers.Workable(request.Url), "Workable account slug or apply.workable.com URL");
                 break;
-            case SourceKind.Remotive or SourceKind.RemoteOk or SourceKind.Indeed:
-                // Indeed searches with the campaign's keywords and first location; nothing to store.
+            case SourceKind.Remotive or SourceKind.RemoteOk:
+                break;
+            case SourceKind.JobSearch:
+                // The board is stored; the search itself uses the campaign's keywords and first location at run time.
+                if (string.IsNullOrWhiteSpace(request.Url)) url = nameof(JobBoard.Indeed);
+                else if (Enum.TryParse<JobBoard>(request.Url.Trim(), ignoreCase: true, out var board) && Enum.IsDefined(board)) url = board.ToString();
+                else errors["url"] = ["Choose the board to search: Indeed, LinkedIn or Seek."];
                 break;
             case SourceKind.Csv:
                 errors["kind"] = ["CSV sources are created by committing an import preview (POST /api/v1/imports/preview)."];
@@ -156,7 +162,7 @@ public sealed class SourceService(IAppDbContext db, ICurrentUser user, TimeProvi
             SourceKind.SmartRecruiters => $"SmartRecruiters company {url}",
             SourceKind.Recruitee => $"Recruitee company {url}",
             SourceKind.Workable => $"Workable company {url}",
-            SourceKind.Indeed => "Indeed search",
+            SourceKind.JobSearch => $"{(url == nameof(JobBoard.Seek) ? "SEEK" : url ?? "Indeed")} search",
             SourceKind.Remotive => "Remotive remote jobs",
             SourceKind.RemoteOk => "Remote OK jobs",
             _ => kind.ToString()
