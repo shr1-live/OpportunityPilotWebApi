@@ -80,3 +80,28 @@ API credentials.
 **Why:** Indeed's current public partner documentation exposes approved ATS/employer job and candidate workflows, not
 an unrestricted public job-search feed. Its developer agreement requires approval and restricts scraping/database
 copies. A truthful handoff gives Candidate and Sales users useful filters today without fabricating integration depth.
+
+## 2026-10-08 — Live Indeed, LinkedIn and SEEK postings through a licensed aggregator (supersedes 2026-10-07 Indeed handoff)
+
+**Decision:** Job discovery shows current postings published on Indeed, LinkedIn or SEEK by calling JSearch (OpenWeb
+Ninja on RapidAPI, a Google-for-Jobs data service) from the server. A posting is shown only when it carries an https
+link on that board's own domain; each row links there. Results are shown, not stored in the database; identical
+searches are reused from memory for `Jsearch:CacheMinutes` (default 6 h). Nothing is applied to or sent. Without
+`Jsearch__ApiKey` the tabs say live listings are not set up and keep the official search link.
+
+**Why:** the user asked for Indeed "with live data, like Wellfound". Checked 2026-10-08: Indeed's RSS returns 404 and
+its search pages return 403 to non-browser clients; its Publisher API is closed. LinkedIn job/feed APIs and SEEK APIs
+are partner-only. Scraping any of them breaks their terms, so the only live route without partner approval is a
+licensed aggregator. The 2026-10-07 rule against copying results into a database still holds.
+
+**Open:** whether showing aggregator-sourced Indeed/LinkedIn/SEEK postings is acceptable for this product's terms is the
+user's call; JSearch's own terms govern the data. Not verified live until the key is set (TASKS U5).
+
+## 2026-10-08 — Sites that cannot be integrated
+
+| Site | Why not | What the app does instead |
+|---|---|---|
+| Indeed profile (`profile.indeed.com`) | Personal page behind your Indeed login; no API for it | Live Indeed postings (above); you apply on Indeed |
+| LinkedIn feed (`linkedin.com/feed`) | Behind your login; LinkedIn APIs are partner-only; reading it would be scraping | Live LinkedIn postings (above); the local agent applies through your own browser |
+| Stellantis "thehub" (`idpm.stellantis.com`) | A private corporate sign-in portal (employee/supplier identity), not a job source; no public jobs or API | Nothing. Add Stellantis' public careers board as a campaign source if it uses a supported ATS |
+| Upwork | Official GraphQL API, but each app needs Upwork's approval; job RSS feeds were retired in 2024 | Built behind `Upwork__*` keys (TASKS W14/U6) |
