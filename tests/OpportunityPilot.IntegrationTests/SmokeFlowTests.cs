@@ -46,4 +46,36 @@ public class SmokeFlowTests(PostgresApiFactory factory) : IClassFixture<Postgres
         Assert.Equal("Open", followUp.Str("state"));
         Assert.Contains((await user.GetJson("/api/v1/next-actions")).EnumerateArray(), n => n.Id() == followUp.Id());
     }
+
+    private const string Companies = """
+        Northwind Integrations
+        Website: https://northwind.example
+        Location: London
+        Industry: Systems integration
+        Northwind implements Dynamics 365 for retailers and is hiring .NET developers after a new funding round.
+        """;
+
+    [Theory]
+    [InlineData("Partner")]
+    [InlineData("Investor")]
+    [InlineData("Freelance")]
+    public async Task Every_sales_mode_runs_research_and_scores_with_evidence(string mode)
+    {
+        var user = PostgresApiFactory.ClientFor(factory, $"smoke-{mode.ToLowerInvariant()}@example.test");
+        var campaign = await ResearchApi.CreateCampaignAsync(user, mode,
+            new { keywords = new[] { "Dynamics 365" }, industries = new[] { "Systems integration" }, problems = new[] { ".NET" }, signals = new[] { "funding" }, locations = new[] { "London" } });
+        Assert.Equal(mode, campaign.Str("mode"));
+        await ResearchApi.AddPasteAsync(user, campaign.Id(), Companies);
+        var jobId = await ResearchApi.QueueAsync(user, campaign.Id());
+        await PostgresApiFactory.RunResearchAsync(factory.Services);
+        Assert.Equal("Completed", (await ResearchApi.JobAsync(user, jobId)).Str("state"));
+
+        var item = Assert.Single(await ResearchApi.OpportunitiesAsync(user, campaign.Id()));
+        Assert.Equal(mode, item.Str("mode"));
+        Assert.Equal("Northwind Integrations", item.Str("organization"));
+        Assert.True(item.Int("score") > 0, "a matching company should score above zero");
+        var detail = await user.GetJson($"/api/v1/opportunities/{item.Id()}");
+        Assert.NotEmpty(detail.GetProperty("evidence").EnumerateArray());
+        Assert.NotEmpty(detail.GetProperty("breakdown").EnumerateArray());
+    }
 }
