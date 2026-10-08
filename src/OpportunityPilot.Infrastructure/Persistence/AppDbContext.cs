@@ -60,6 +60,7 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
     public DbSet<StaffingProposal> StaffingProposals => Set<StaffingProposal>();
     public DbSet<StaffingMessage> StaffingMessages => Set<StaffingMessage>();
     public DbSet<Domain.Auth.SecurityEvent> SecurityEvents => Set<Domain.Auth.SecurityEvent>();
+    public DbSet<Domain.Ai.AiUsage> AiUsages => Set<Domain.Ai.AiUsage>();
     public DbSet<StaffingMeeting> StaffingMeetings => Set<StaffingMeeting>();
     public DbSet<WellfoundJob> WellfoundJobs => Set<WellfoundJob>();
     public DbSet<WellfoundApplication> WellfoundApplications => Set<WellfoundApplication>();
@@ -108,6 +109,18 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
             e.Property(a => a.Detail).HasMaxLength(1000);
             e.HasIndex(a => new { a.OwnerId, a.Platform, a.ExternalJobId }).IsUnique();
             e.HasIndex(a => new { a.OwnerId, a.OccurredAt });
+        });
+
+        modelBuilder.Entity<Domain.Ai.AiUsage>(e =>
+        {
+            e.ToTable("ai_usage");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.Operation).HasMaxLength(Domain.Ai.AiUsage.MaxOperationLength).IsRequired();
+            e.Property(x => x.Outcome).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.Reason).HasMaxLength(Domain.Ai.AiUsage.MaxReasonLength);
+            e.HasIndex(x => new { x.OwnerId, x.OccurredAt });
+            e.Ignore(x => x.Counts);
         });
 
         modelBuilder.Entity<Domain.Auth.SecurityEvent>(e =>

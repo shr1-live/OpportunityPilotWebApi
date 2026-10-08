@@ -70,6 +70,44 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.SqlServer
                     b.ToTable("agent_keys", "app");
                 });
 
+            modelBuilder.Entity("OpportunityPilot.Domain.Ai.AiUsage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DurationMs")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId", "OccurredAt");
+
+                    b.ToTable("ai_usage", "app");
+                });
+
             modelBuilder.Entity("OpportunityPilot.Domain.Applications.JobApplication", b =>
                 {
                     b.Property<Guid>("Id")

@@ -11,5 +11,5 @@ public sealed class AiController(AiService ai) : ControllerBase
     public async Task<ActionResult<GoalPreviewDto>> Preview(GoalPreviewRequest request, CancellationToken ct) => await ai.PreviewGoalAsync(request, ct);
 
     [HttpGet("ai/status")]
-    public ActionResult<AiStatusDto> Status() => ai.Status();
+    public async Task<ActionResult<AiStatusDto>> Status(CancellationToken ct) => await ai.StatusAsync(ct);
 }

@@ -53,6 +53,7 @@ public interface IAppDbContext
     DbSet<StaffingProposal> StaffingProposals { get; }
     DbSet<StaffingMessage> StaffingMessages { get; }
     DbSet<Domain.Auth.SecurityEvent> SecurityEvents { get; }
+    DbSet<Domain.Ai.AiUsage> AiUsages { get; }
     DbSet<StaffingMeeting> StaffingMeetings { get; }
     DbSet<WellfoundJob> WellfoundJobs { get; }
     DbSet<WellfoundApplication> WellfoundApplications { get; }
