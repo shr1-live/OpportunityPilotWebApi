@@ -82,6 +82,7 @@ public static class DependencyInjection
             services.AddDbContext<InMemoryAppDbContext>(o => o.UseInMemoryDatabase("opportunitypilot-demo"));
             services.AddScoped<AppDbContext>(sp => sp.GetRequiredService<InMemoryAppDbContext>());
             services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+            services.AddScoped<Application.Common.IDatabaseDiagnostics, Persistence.DatabaseDiagnosticsProbe>();
             return services;
         }
 
@@ -100,6 +101,7 @@ public static class DependencyInjection
         }
 
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+        services.AddScoped<Application.Common.IDatabaseDiagnostics, Persistence.DatabaseDiagnosticsProbe>();
         return services;
     }
 }

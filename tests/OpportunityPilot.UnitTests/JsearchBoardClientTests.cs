@@ -23,7 +23,7 @@ public class JsearchBoardClientTests
     {
         var handler = new Handler(status, body);
         var client = new JsearchBoardClient(new HttpClient(handler), Options.Create(new JsearchOptions { Key = key }),
-            TimeProvider.System, NullLogger<JsearchBoardClient>.Instance);
+            TimeProvider.System, NullLogger<JsearchBoardClient>.Instance, new OpportunityPilot.Application.Common.OperationalMetrics(TimeProvider.System));
         return (client, handler);
     }
 

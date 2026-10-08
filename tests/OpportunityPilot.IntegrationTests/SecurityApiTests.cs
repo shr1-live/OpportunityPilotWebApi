@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace OpportunityPilot.IntegrationTests;
 
@@ -36,5 +38,37 @@ public class SecurityApiTests(PostgresApiFactory factory) : IClassFixture<Postgr
         // Another owner sees none of these events.
         var other = PostgresApiFactory.ClientFor(factory, "security-other@example.test");
         Assert.Empty((await other.GetJson("/api/v1/security/events")).EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Diagnostics_report_the_database_and_flag_a_schema_exposed_to_supabase_roles()
+    {
+        var user = PostgresApiFactory.ClientFor(factory, "security-diagnostics@example.test");
+        var diag = await user.GetJson("/api/v1/diagnostics");
+        var db = diag.GetProperty("database");
+        Assert.True(db.GetProperty("reachable").GetBoolean());
+        Assert.Equal(0, db.GetProperty("pendingMigrations").GetInt32());
+        Assert.True(db.GetProperty("schemaExposure").GetProperty("checked").GetBoolean());
+        Assert.Empty(db.GetProperty("schemaExposure").GetProperty("exposedTo").EnumerateArray());
+        Assert.DoesNotContain("Password", diag.GetRawText(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Host=", diag.GetRawText());
+
+        // Simulate the Supabase misconfiguration: the anon role can use schema app.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var ctx = scope.ServiceProvider.GetRequiredService<OpportunityPilot.Infrastructure.Persistence.AppDbContext>();
+            await ctx.Database.ExecuteSqlRawAsync("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN; END IF; END $$; GRANT USAGE ON SCHEMA app TO anon;");
+        }
+        try
+        {
+            var exposed = (await user.GetJson("/api/v1/diagnostics")).GetProperty("database").GetProperty("schemaExposure");
+            Assert.Equal(["anon"], exposed.GetProperty("exposedTo").EnumerateArray().Select(r => r.GetString()));
+        }
+        finally
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var ctx = scope.ServiceProvider.GetRequiredService<OpportunityPilot.Infrastructure.Persistence.AppDbContext>();
+            await ctx.Database.ExecuteSqlRawAsync("REVOKE USAGE ON SCHEMA app FROM anon; DROP ROLE anon;");
+        }
     }
 }

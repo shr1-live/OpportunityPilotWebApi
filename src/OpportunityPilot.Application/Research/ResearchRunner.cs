@@ -27,7 +27,8 @@ public sealed class ResearchRunner(
     JobBoardGatherer boards,
     IOptions<ResearchOptions> options,
     TimeProvider clock,
-    ILogger<ResearchRunner> logger) : IResearchRunner
+    ILogger<ResearchRunner> logger,
+    Common.OperationalMetrics metrics) : IResearchRunner
 {
     public static readonly TimeSpan Lease = TimeSpan.FromMinutes(2);
     private const int ClaimTries = 5;
@@ -243,6 +244,7 @@ public sealed class ResearchRunner(
             : ResearchJobState.Completed;
         var gap = counts.SourcesFailed > 0 ? $"{counts.SourcesFailed} source{Plural(counts.SourcesFailed)} could not be read; see the events for reasons." : null;
         job.Finish(state, gap, Now());
+        metrics.Record("research.run", Now() - (job.StartedAt ?? job.CreatedAt), state == ResearchJobState.Completed ? null : state.ToString());
         AddEvent(job, ResearchStage.Complete, state == ResearchJobState.Completed ? EventLevel.Info : EventLevel.Warning, state switch
         {
             ResearchJobState.Cancelled => "Cancelled. Opportunities found before cancelling were kept.",

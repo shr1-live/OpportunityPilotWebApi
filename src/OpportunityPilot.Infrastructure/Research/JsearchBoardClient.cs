@@ -12,7 +12,7 @@ namespace OpportunityPilot.Infrastructure.Research;
 /// logged. Identical searches are served from memory for <see cref="JsearchOptions.CacheMinutes"/> so the free quota lasts.
 /// </summary>
 public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions> options, TimeProvider clock,
-    ILogger<JsearchBoardClient> logger) : IJobBoardSearch
+    ILogger<JsearchBoardClient> logger, Application.Common.OperationalMetrics metrics) : IJobBoardSearch
 {
     private static readonly ConcurrentDictionary<string, JobBoardSearchResult> Cache = new();
 
@@ -45,9 +45,11 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
         using var message = new HttpRequestMessage(HttpMethod.Get, $"https://{o.Host}/search?{qs}");
         message.Headers.Add("X-RapidAPI-Key", o.Key);
         message.Headers.Add("X-RapidAPI-Host", o.Host);
+        var started = clock.GetTimestamp();
         try
         {
             using var response = await http.SendAsync(message, ct);
+            metrics.Record("jsearch.search", clock.GetElapsedTime(started), response.IsSuccessStatusCode ? null : $"HTTP {(int)response.StatusCode}");
             if (!response.IsSuccessStatusCode)
             {
                 var code = (int)response.StatusCode;
@@ -70,6 +72,7 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
         catch (Exception e) when ((e is HttpRequestException or TaskCanceledException or JsonException) && !ct.IsCancellationRequested)
         {
             logger.LogWarning("JSearch request failed: {Type}", e.GetType().Name);
+            metrics.Record("jsearch.search", clock.GetElapsedTime(started), e.GetType().Name);
             return new(request.Board, "Failed", [], 0, "JSearch could not be reached. Try again later.", now, false, source);
         }
     }
