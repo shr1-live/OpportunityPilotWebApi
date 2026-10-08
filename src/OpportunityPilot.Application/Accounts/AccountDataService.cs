@@ -29,7 +29,21 @@ public sealed class AccountDataService(IAppDbContext db, ICurrentUser user, Time
             upworkOpportunities = await db.UpworkOpportunities.Where(x => x.OwnerId == owner).ToListAsync(ct),
             wellfoundJobs = await db.WellfoundJobs.Where(x => x.OwnerId == owner).ToListAsync(ct),
             wellfoundApplications = await db.WellfoundApplications.Where(x => x.OwnerId == owner).ToListAsync(ct),
-            wellfoundActivities = await db.WellfoundActivities.Where(x => x.OwnerId == owner).ToListAsync(ct)
+            wellfoundActivities = await db.WellfoundActivities.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            schedules = await db.CampaignSchedules.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            staffingAccounts = await db.StaffingAccounts.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            staffingContacts = await db.StaffingContacts.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            staffingDeals = await db.StaffingDeals.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            staffingDealActivities = await db.StaffingDealActivities.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            staffingCandidates = await db.StaffingCandidates.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            staffingSubmissions = await db.StaffingSubmissions.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            staffingInterviews = await db.StaffingInterviews.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            staffingFeedback = await db.StaffingFeedbackEntries.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            staffingOffers = await db.StaffingOffers.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            staffingRateCards = await db.StaffingRateCards.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            staffingProposals = await db.StaffingProposals.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            staffingMessages = await db.StaffingMessages.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            staffingMeetings = await db.StaffingMeetings.Where(x => x.OwnerId == owner).ToListAsync(ct)
         };
     }
 
@@ -37,6 +51,23 @@ public sealed class AccountDataService(IAppDbContext db, ICurrentUser user, Time
     {
         if (request?.Confirm != true) throw new RequestValidationException(new Dictionary<string, string[]> { ["confirm"] = ["Set confirm to true to permanently delete account data."] });
         var owner = user.OwnerId;
+        // Staffing records first, children before parents (several foreign keys restrict deletes).
+        db.StaffingFeedbackEntries.RemoveRange(await db.StaffingFeedbackEntries.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.StaffingInterviews.RemoveRange(await db.StaffingInterviews.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.StaffingOffers.RemoveRange(await db.StaffingOffers.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.StaffingSubmissions.RemoveRange(await db.StaffingSubmissions.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.StaffingProposals.RemoveRange(await db.StaffingProposals.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.StaffingMessages.RemoveRange(await db.StaffingMessages.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.StaffingMeetings.RemoveRange(await db.StaffingMeetings.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.StaffingDealActivities.RemoveRange(await db.StaffingDealActivities.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        await db.SaveChangesAsync(ct);
+        db.StaffingDeals.RemoveRange(await db.StaffingDeals.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.StaffingCandidates.RemoveRange(await db.StaffingCandidates.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.StaffingRateCards.RemoveRange(await db.StaffingRateCards.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        await db.SaveChangesAsync(ct);
+        db.StaffingContacts.RemoveRange(await db.StaffingContacts.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.StaffingAccounts.RemoveRange(await db.StaffingAccounts.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.CampaignSchedules.RemoveRange(await db.CampaignSchedules.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.WellfoundActivities.RemoveRange(await db.WellfoundActivities.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.WellfoundApplications.RemoveRange(await db.WellfoundApplications.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.WellfoundJobs.RemoveRange(await db.WellfoundJobs.Where(x => x.OwnerId == owner).ToListAsync(ct));

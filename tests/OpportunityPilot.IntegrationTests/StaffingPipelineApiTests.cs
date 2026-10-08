@@ -248,4 +248,34 @@ public class StaffingPipelineApiTests(PostgresApiFactory factory) : IClassFixtur
         var kpis = await client.GetJson("/api/v1/staffing/kpis");
         Assert.Equal(1, kpis.Int("meetingsUpcoming"));
     }
+
+    [Fact]
+    public async Task Export_includes_and_delete_removes_every_staffing_record()
+    {
+        var (client, dealId) = await DealAtRequirementConfirmedAsync(factory, "staffing-delete@example.test");
+        var candidate = await CandidateWithConsentAsync(client, ["Name", "Skills"]);
+        var api = $"/api/v1/staffing/deals/{dealId}";
+        var submission = await (await client.PostAsJsonAsync($"{api}/submissions", new { candidateId = candidate.Id(), sharedFields = new[] { "Name" } })).Json(HttpStatusCode.OK);
+        submission = await (await client.PostAsJsonAsync($"{api}/submissions/{submission.Id()}/approve", new { expectedVersion = submission.Int("version") })).Json(HttpStatusCode.OK);
+        submission = await (await client.PostAsJsonAsync($"{api}/submissions/{submission.Id()}/sent", new { expectedVersion = submission.Int("version"), channel = "Email", receipt = "r" })).Json(HttpStatusCode.OK);
+        await (await client.PostAsJsonAsync($"{api}/interviews", new { submissionId = submission.Id() })).Json(HttpStatusCode.OK);
+        await (await client.PostAsJsonAsync($"{api}/feedback", new { submissionId = submission.Id(), source = "Internal", decision = "None", detail = "n", sharedWithCandidate = false })).Json(HttpStatusCode.OK);
+        await (await client.PostAsJsonAsync($"{api}/offers", new { submissionId = submission.Id(), clientRate = 10, currency = "USD", unit = "Hour" })).Json(HttpStatusCode.OK);
+        await (await client.PostAsJsonAsync($"{api}/messages", new { channel = "Email", recipient = "a@b.test", body = "Hi" })).Json(HttpStatusCode.OK);
+        await (await client.PostAsJsonAsync($"{api}/meetings", new { title = "Call", startsAt = "2026-10-21T05:00:00Z", timeZone = "UTC", durationMinutes = 30, invitees = "a@b.test" })).Json(HttpStatusCode.OK);
+        await (await client.PostAsJsonAsync("/api/v1/staffing/rate-cards", new { name = "Card", currency = "USD", lines = new[] { new { role = "Dev", seniority = (string?)null, unit = "Hour", rate = 10m } } })).Json(HttpStatusCode.OK);
+
+        var export = await client.GetJson("/api/v1/account-data/export");
+        Assert.Equal(1, export.GetProperty("staffingCandidates").GetArrayLength());
+        Assert.Equal(1, export.GetProperty("staffingSubmissions").GetArrayLength());
+        Assert.Equal(1, export.GetProperty("staffingMessages").GetArrayLength());
+
+        var delete = new HttpRequestMessage(HttpMethod.Delete, "/api/v1/account-data") { Content = JsonContent.Create(new { confirm = true }) };
+        Assert.True((await client.SendAsync(delete)).IsSuccessStatusCode);
+
+        var after = await client.GetJson("/api/v1/account-data/export");
+        foreach (var table in new[] { "staffingAccounts", "staffingContacts", "staffingDeals", "staffingDealActivities", "staffingCandidates", "staffingSubmissions",
+                     "staffingInterviews", "staffingFeedback", "staffingOffers", "staffingRateCards", "staffingProposals", "staffingMessages", "staffingMeetings" })
+            Assert.True(after.GetProperty(table).GetArrayLength() == 0, $"{table} still has rows after delete");
+    }
 }
