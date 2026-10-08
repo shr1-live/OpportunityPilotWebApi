@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -70,5 +71,18 @@ public class SecurityApiTests(PostgresApiFactory factory) : IClassFixture<Postgr
             var ctx = scope.ServiceProvider.GetRequiredService<OpportunityPilot.Infrastructure.Persistence.AppDbContext>();
             await ctx.Database.ExecuteSqlRawAsync("REVOKE USAGE ON SCHEMA app FROM anon; DROP ROLE anon;");
         }
+    }
+
+    [Fact]
+    public async Task Provider_readiness_states_support_credentials_and_only_stored_verification()
+    {
+        var user = PostgresApiFactory.ClientFor(factory, "providers@example.test");
+        var rows = (await user.GetJson("/api/v1/providers/readiness")).EnumerateArray().ToDictionary(r => r.Str("key"));
+        Assert.Contains("instahyre-agent", rows.Keys);
+        Assert.Contains("wellfound", rows.Keys);
+        Assert.Equal("Manual", rows["linkedin-messages"].Str("execution"));
+        Assert.False(rows["job-boards"].GetProperty("credentialSet").GetBoolean());          // no JSearch key in tests
+        Assert.Equal(JsonValueKind.Null, rows["linkedin-agent"].GetProperty("lastVerified").ValueKind); // nothing applied yet
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateClient().GetAsync("/api/v1/providers/readiness")).StatusCode);
     }
 }

@@ -54,6 +54,7 @@ public static class DependencyInjection
         services.AddScoped<Common.RetentionService>();
         services.AddScoped<Outreach.ProviderGateway>();
         services.AddScoped<Demo.SalesDemoService>();
+        services.AddScoped<Capabilities.ProviderReadinessService>();
         services.AddScoped<WellfoundService>();
         services.AddScoped<JobBoardGatherer>();
         services.AddScoped<IResearchRunner, ResearchRunner>();
