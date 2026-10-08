@@ -47,7 +47,8 @@ public sealed class AccountDataService(IAppDbContext db, ICurrentUser user, Time
             staffingMessages = await db.StaffingMessages.Where(x => x.OwnerId == owner).ToListAsync(ct),
             staffingMeetings = await db.StaffingMeetings.Where(x => x.OwnerId == owner).ToListAsync(ct),
             securityEvents = await db.SecurityEvents.Where(x => x.OwnerId == owner).ToListAsync(ct),
-            aiUsage = await db.AiUsages.Where(x => x.OwnerId == owner).ToListAsync(ct)
+            aiUsage = await db.AiUsages.Where(x => x.OwnerId == owner).ToListAsync(ct),
+            providerExecutions = await db.ProviderExecutions.Where(x => x.OwnerId == owner).ToListAsync(ct)
         };
     }
 
@@ -83,6 +84,7 @@ public sealed class AccountDataService(IAppDbContext db, ICurrentUser user, Time
         db.Campaigns.RemoveRange(await db.Campaigns.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.Profiles.RemoveRange(await db.Profiles.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.GuestSessions.RemoveRange(await db.GuestSessions.Where(x => x.OwnerId == owner).ToListAsync(ct));
+        db.ProviderExecutions.RemoveRange(await db.ProviderExecutions.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.AiUsages.RemoveRange(await db.AiUsages.Where(x => x.OwnerId == owner).ToListAsync(ct));
         db.SecurityEvents.RemoveRange(await db.SecurityEvents.Where(x => x.OwnerId == owner).ToListAsync(ct));
         // The one record kept: that this owner's data was deleted, and when. It holds nothing else.

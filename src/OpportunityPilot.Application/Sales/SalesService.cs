@@ -5,7 +5,7 @@ using OpportunityPilot.Domain.Sales;
 
 namespace OpportunityPilot.Application.Sales;
 
-public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvider clock)
+public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvider clock, Outreach.ProviderGateway gateway)
 {
     public async Task<IReadOnlyList<SalesProjectDto>> ListProjectsAsync(int take, int skip, SalesProjectState? state, SalesProjectSource? source, CancellationToken ct)
     {
@@ -122,15 +122,13 @@ public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvid
     {
         if (request is null || !request.Confirmed)
             throw Invalid("confirmed", "Explicit confirmation is required after the proposal was submitted on the provider.");
+        // One contract for every provider action: start (or reuse) the bid's execution, then confirm it with a receipt.
+        var execution = await gateway.StartBidAsync(bidId, new Outreach.StartExecutionRequest(request.Version), ct);
+        if (execution.State == Domain.Outreach.ExecutionState.AwaitingManualConfirmation)
+            await gateway.ConfirmAsync(execution.Id,
+                new Outreach.ConfirmExecutionRequest(string.IsNullOrWhiteSpace(request.Receipt) ? "Placed on the provider by the user" : request.Receipt, null), ct);
         var bid = await FindBidAsync(bidId, ct);
-        if (request.Version != bid.Version)
-            throw new ConflictException($"Bid was changed elsewhere (now version {bid.Version}). Reload before confirming placement.");
-        var project = await FindProjectAsync(bid.ProjectId, ct);
-        try { bid.MarkPlaced(project.ApprovalContext(), Now); }
-        catch (InvalidOperationException ex) { throw Invalid("bid", ex.Message); }
-        project.ChangeState(SalesProjectState.BidPlaced, Now);
-        await db.SaveChangesAsync(ct);
-        return await GetProjectAsync(project.Id, ct);
+        return await GetProjectAsync(bid.ProjectId, ct);
     }
 
     private IQueryable<SalesProject> OwnedProjects => db.SalesProjects.Where(p => p.OwnerId == user.OwnerId);

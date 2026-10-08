@@ -61,6 +61,7 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
     public DbSet<StaffingMessage> StaffingMessages => Set<StaffingMessage>();
     public DbSet<Domain.Auth.SecurityEvent> SecurityEvents => Set<Domain.Auth.SecurityEvent>();
     public DbSet<Domain.Ai.AiUsage> AiUsages => Set<Domain.Ai.AiUsage>();
+    public DbSet<Domain.Outreach.ProviderExecution> ProviderExecutions => Set<Domain.Outreach.ProviderExecution>();
     public DbSet<StaffingMeeting> StaffingMeetings => Set<StaffingMeeting>();
     public DbSet<WellfoundJob> WellfoundJobs => Set<WellfoundJob>();
     public DbSet<WellfoundApplication> WellfoundApplications => Set<WellfoundApplication>();
@@ -109,6 +110,24 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
             e.Property(a => a.Detail).HasMaxLength(1000);
             e.HasIndex(a => new { a.OwnerId, a.Platform, a.ExternalJobId }).IsUnique();
             e.HasIndex(a => new { a.OwnerId, a.OccurredAt });
+        });
+
+        modelBuilder.Entity<Domain.Outreach.ProviderExecution>(e =>
+        {
+            e.ToTable("provider_executions");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.Subject).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.Provider).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.ContentHash).HasMaxLength(128).IsRequired();
+            e.Property(x => x.IdempotencyKey).HasMaxLength(Domain.Outreach.ProviderExecution.MaxKeyLength).IsRequired();
+            e.Property(x => x.Receipt).HasMaxLength(Domain.Outreach.ProviderExecution.MaxReceiptLength);
+            e.Property(x => x.ProviderReference).HasMaxLength(Domain.Outreach.ProviderExecution.MaxReferenceLength);
+            e.Property(x => x.SafeFailure).HasMaxLength(Domain.Outreach.ProviderExecution.MaxFailureLength);
+            // Two requests racing to execute the same approved content: the database lets only one through.
+            e.HasIndex(x => new { x.OwnerId, x.IdempotencyKey }).IsUnique();
+            e.HasIndex(x => new { x.OwnerId, x.SubjectId });
         });
 
         modelBuilder.Entity<Domain.Ai.AiUsage>(e =>

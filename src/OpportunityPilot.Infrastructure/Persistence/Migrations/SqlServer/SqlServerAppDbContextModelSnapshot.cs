@@ -396,6 +396,9 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.SqlServer
                     b.Property<bool>("RecipientVerified")
                         .HasColumnType("bit");
 
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Source")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -639,6 +642,79 @@ namespace OpportunityPilot.Infrastructure.Persistence.Migrations.SqlServer
                     b.HasIndex("OwnerId", "State", "DueAt");
 
                     b.ToTable("next_actions", "app");
+                });
+
+            modelBuilder.Entity("OpportunityPilot.Domain.Outreach.ProviderExecution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Attempt")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ProviderReference")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Receipt")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("SafeFailure")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("SubjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SubjectVersion")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("OwnerId", "SubjectId");
+
+                    b.ToTable("provider_executions", "app");
                 });
 
             modelBuilder.Entity("OpportunityPilot.Domain.Outreach.Suppression", b =>

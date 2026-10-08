@@ -191,7 +191,7 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
     public static DraftDto ToDto(OutreachDraft draft, string? factsJson = null)
     {
         var validApproval = draft.HasValidApproval();
-        var state = validApproval ? DraftState.Approved : DraftState.Draft;
+        var state = draft.State == DraftState.Sent ? DraftState.Sent : validApproval ? DraftState.Approved : DraftState.Draft;
         var blockers = new List<string> { "Sending requires a configured provider or manual copy." };
         if (draft.Channel == DraftChannel.Email && string.IsNullOrWhiteSpace(draft.Recipient)) blockers.Add("Email drafts require a recipient.");
         if (!string.IsNullOrWhiteSpace(draft.Recipient) && !draft.RecipientVerified)

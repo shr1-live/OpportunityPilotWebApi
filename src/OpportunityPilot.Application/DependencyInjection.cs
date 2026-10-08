@@ -52,6 +52,7 @@ public static class DependencyInjection
         services.AddScoped<Auth.SecurityAudit>();
         services.AddSingleton<Common.OperationalMetrics>();
         services.AddScoped<Common.RetentionService>();
+        services.AddScoped<Outreach.ProviderGateway>();
         services.AddScoped<WellfoundService>();
         services.AddScoped<JobBoardGatherer>();
         services.AddScoped<IResearchRunner, ResearchRunner>();

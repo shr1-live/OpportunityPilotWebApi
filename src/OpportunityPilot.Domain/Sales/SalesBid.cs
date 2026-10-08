@@ -100,6 +100,17 @@ public sealed class SalesBid : IOwned
 
     public void MarkPlaced(DateTime utcNow) => MarkPlaced(string.Empty, utcNow);
 
+    /// <summary>The provider refused or the user could not place it. Keeps the approval so it can be tried again.</summary>
+    public void MarkFailed(DateTime utcNow)
+    {
+        if (State == SalesBidState.Placed) throw new InvalidOperationException("A placed bid cannot fail afterwards.");
+        State = SalesBidState.Failed;
+        UpdatedAt = utcNow;
+    }
+
+    /// <summary>The approved content hash, for the provider gateway's idempotency key.</summary>
+    public string? ApprovedContentHash => ApprovedHash;
+
     public bool HasValidApproval(string providerContext)
     {
         if (State != SalesBidState.Approved || ApprovedVersion != Version || ApprovedHash?.Length != HashLength) return false;
