@@ -14,7 +14,9 @@ public enum StaffingDealActivityType
     InterviewChanged,
     FeedbackRecorded,
     OfferChanged,
-    ProposalChanged
+    ProposalChanged,
+    MessageChanged,
+    MeetingChanged
 }
 
 /// <summary>An immutable, safe audit fact about a staffing deal.</summary>

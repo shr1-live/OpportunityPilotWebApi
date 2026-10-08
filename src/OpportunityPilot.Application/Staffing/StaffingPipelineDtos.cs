@@ -95,4 +95,5 @@ public sealed record StaffingKpisDto(
     int Candidates, int CandidatesWithConsent, int CandidatesAvailable,
     int SubmissionsDraft, int SubmissionsApproved, int SubmissionsSent,
     int InterviewsUpcoming, int InterviewsCompleted, int InterviewsNotNotified,
-    int OffersExtended, int OffersAccepted, int ContractsSigned, int Placements, DateTime GeneratedAt);
+    int OffersExtended, int OffersAccepted, int ContractsSigned, int Placements,
+    int MessagesAwaitingSend, int RepliesToClassify, int MeetingsUpcoming, DateTime GeneratedAt);

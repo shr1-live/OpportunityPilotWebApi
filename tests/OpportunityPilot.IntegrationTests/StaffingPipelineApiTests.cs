@@ -202,4 +202,50 @@ public class StaffingPipelineApiTests(PostgresApiFactory factory) : IClassFixtur
         })).Json(HttpStatusCode.OK);
         Assert.Equal("Draft", proposal.Str("state"));
     }
+
+    [Fact]
+    public async Task Outreach_reply_and_meeting_move_the_deal_and_an_unsubscribe_blocks_further_drafts()
+    {
+        var client = PostgresApiFactory.ClientFor(factory, "staffing-conversation@example.test");
+        var account = await (await client.PostAsJsonAsync("/api/v1/staffing/accounts", new { name = "Beta Retail", source = "Manual" })).Json(HttpStatusCode.Created);
+        var deal = await (await client.PostAsJsonAsync($"/api/v1/staffing/accounts/{account.Id()}/deals", new { title = "QA team", source = "Manual" })).Json(HttpStatusCode.Created);
+        var version = deal.Int("version");
+        foreach (var stage in new[] { "Qualified", "Shortlisted" })
+            version = (await (await client.PostAsJsonAsync($"/api/v1/staffing/deals/{deal.Id()}/stage", new { stage, expectedVersion = version })).Json(HttpStatusCode.OK)).Int("version");
+        var api = $"/api/v1/staffing/deals/{deal.Id()}";
+        async Task<string> Stage() => (await client.GetJson(api)).Str("stage");
+
+        var message = await (await client.PostAsJsonAsync($"{api}/messages", new { channel = "Email", recipient = "Rao@Beta.test", subject = "QA team", body = "Hello [name]" })).Json(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"{api}/messages/{message.Id()}/approve", new { expectedVersion = message.Int("version") })).StatusCode);
+        message = await (await client.PutAsJsonAsync($"{api}/messages/{message.Id()}", new { recipient = "rao@beta.test", subject = "QA team", body = "Hello Ms Rao", expectedVersion = message.Int("version") })).Json(HttpStatusCode.OK);
+        message = await (await client.PostAsJsonAsync($"{api}/messages/{message.Id()}/approve", new { expectedVersion = message.Int("version") })).Json(HttpStatusCode.OK);
+        Assert.Equal("OutreachApproved", await Stage());
+        message = await (await client.PostAsJsonAsync($"{api}/messages/{message.Id()}/sent", new { expectedVersion = message.Int("version"), receipt = "Gmail sent item 9 Oct" })).Json(HttpStatusCode.OK);
+        Assert.Equal("Sent", message.Str("state"));
+        Assert.Equal("Contacted", await Stage());
+
+        await (await client.PostAsJsonAsync($"{api}/replies", new { channel = "Email", from = "rao@beta.test", body = "Let's talk Tuesday", intent = "Interested" })).Json(HttpStatusCode.OK);
+        Assert.Equal("Replied", await Stage());
+
+        var meeting = await (await client.PostAsJsonAsync($"{api}/meetings", new
+        {
+            title = "Discovery call", startsAt = "2026-10-21T05:00:00Z", timeZone = "Asia/Kolkata", durationMinutes = 30, invitees = "rao@beta.test", agenda = "Scope", link = "https://meet.example.test/x"
+        })).Json(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"{api}/meetings/{meeting.Id()}/invited", new { expectedVersion = meeting.Int("version"), receipt = "x" })).StatusCode);
+        meeting = await (await client.PostAsJsonAsync($"{api}/meetings/{meeting.Id()}/approve", new { expectedVersion = meeting.Int("version") })).Json(HttpStatusCode.OK);
+        meeting = await (await client.PostAsJsonAsync($"{api}/meetings/{meeting.Id()}/invited", new { expectedVersion = meeting.Int("version"), receipt = "Calendar invite sent" })).Json(HttpStatusCode.OK);
+        Assert.Equal("Invited", meeting.Str("state"));
+        Assert.Equal("MeetingScheduled", await Stage());
+
+        await (await client.PostAsJsonAsync($"{api}/replies", new { channel = "Email", from = "ops@beta.test", body = "Please remove me", intent = "Unsubscribe" })).Json(HttpStatusCode.OK);
+        var blocked = await client.PostAsJsonAsync($"{api}/messages", new { channel = "Email", recipient = "OPS@beta.test", body = "Following up" });
+        Assert.Equal(HttpStatusCode.BadRequest, blocked.StatusCode);
+        Assert.Contains("suppression", await blocked.Content.ReadAsStringAsync());
+
+        var conversation = await client.GetJson($"{api}/conversation");
+        Assert.Equal(3, conversation.GetProperty("messages").GetArrayLength());
+        Assert.True(conversation.GetProperty("messages").EnumerateArray().Single(m => m.Str("counterpart") == "ops@beta.test").GetProperty("suppressed").GetBoolean());
+        var kpis = await client.GetJson("/api/v1/staffing/kpis");
+        Assert.Equal(1, kpis.Int("meetingsUpcoming"));
+    }
 }

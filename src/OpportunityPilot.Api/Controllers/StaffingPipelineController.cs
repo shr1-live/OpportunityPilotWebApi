@@ -127,6 +127,54 @@ public sealed class StaffingPipelineController(StaffingPipelineService pipeline)
     public async Task<ActionResult<StaffingProposalDto>> ProposalAnswer(Guid dealId, Guid id, ClientAnswerRequest request, CancellationToken ct) =>
         Ok(await pipeline.RecordProposalAnswerAsync(dealId, id, request, ct));
 
+    [HttpGet("deals/{dealId:guid}/conversation")]
+    public async Task<ActionResult<StaffingConversationDto>> Conversation(Guid dealId, CancellationToken ct) =>
+        Ok(await pipeline.ConversationAsync(dealId, ct));
+
+    [HttpPost("deals/{dealId:guid}/messages")]
+    public async Task<ActionResult<StaffingMessageDto>> DraftMessage(Guid dealId, DraftMessageRequest request, CancellationToken ct) =>
+        Ok(await pipeline.DraftMessageAsync(dealId, request, ct));
+
+    [HttpPut("deals/{dealId:guid}/messages/{id:guid}")]
+    public async Task<ActionResult<StaffingMessageDto>> EditMessage(Guid dealId, Guid id, EditMessageRequest request, CancellationToken ct) =>
+        Ok(await pipeline.EditMessageAsync(dealId, id, request, ct));
+
+    [HttpPost("deals/{dealId:guid}/messages/{id:guid}/approve")]
+    public async Task<ActionResult<StaffingMessageDto>> ApproveMessage(Guid dealId, Guid id, VersionRequest request, CancellationToken ct) =>
+        Ok(await pipeline.ApproveMessageAsync(dealId, id, request, ct));
+
+    [HttpPost("deals/{dealId:guid}/messages/{id:guid}/sent")]
+    public async Task<ActionResult<StaffingMessageDto>> MessageSent(Guid dealId, Guid id, MessageSentRequest request, CancellationToken ct) =>
+        Ok(await pipeline.MarkMessageSentAsync(dealId, id, request, ct));
+
+    [HttpPost("deals/{dealId:guid}/replies")]
+    public async Task<ActionResult<StaffingMessageDto>> RecordReply(Guid dealId, RecordReplyRequest request, CancellationToken ct) =>
+        Ok(await pipeline.RecordReplyAsync(dealId, request, ct));
+
+    [HttpPost("deals/{dealId:guid}/messages/{id:guid}/intent")]
+    public async Task<ActionResult<StaffingMessageDto>> ClassifyReply(Guid dealId, Guid id, ClassifyReplyRequest request, CancellationToken ct) =>
+        Ok(await pipeline.ClassifyReplyAsync(dealId, id, request, ct));
+
+    [HttpPost("deals/{dealId:guid}/meetings")]
+    public async Task<ActionResult<StaffingMeetingDto>> PlanMeeting(Guid dealId, PlanMeetingRequest request, CancellationToken ct) =>
+        Ok(await pipeline.PlanMeetingAsync(dealId, null, request, ct));
+
+    [HttpPut("deals/{dealId:guid}/meetings/{id:guid}")]
+    public async Task<ActionResult<StaffingMeetingDto>> ReplanMeeting(Guid dealId, Guid id, PlanMeetingRequest request, CancellationToken ct) =>
+        Ok(await pipeline.PlanMeetingAsync(dealId, id, request, ct));
+
+    [HttpPost("deals/{dealId:guid}/meetings/{id:guid}/approve")]
+    public async Task<ActionResult<StaffingMeetingDto>> ApproveMeeting(Guid dealId, Guid id, VersionRequest request, CancellationToken ct) =>
+        Ok(await pipeline.ApproveMeetingAsync(dealId, id, request, ct));
+
+    [HttpPost("deals/{dealId:guid}/meetings/{id:guid}/invited")]
+    public async Task<ActionResult<StaffingMeetingDto>> MeetingInvited(Guid dealId, Guid id, MeetingInvitedRequest request, CancellationToken ct) =>
+        Ok(await pipeline.MarkMeetingInvitedAsync(dealId, id, request, ct));
+
+    [HttpPost("deals/{dealId:guid}/meetings/{id:guid}/finish")]
+    public async Task<ActionResult<StaffingMeetingDto>> FinishMeeting(Guid dealId, Guid id, FinishMeetingRequest request, CancellationToken ct) =>
+        Ok(await pipeline.FinishMeetingAsync(dealId, id, request, ct));
+
     [HttpGet("kpis")]
     public async Task<ActionResult<StaffingKpisDto>> Kpis(CancellationToken ct) => Ok(await pipeline.KpisAsync(ct));
 }

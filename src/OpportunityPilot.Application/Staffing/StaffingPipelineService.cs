@@ -11,7 +11,7 @@ namespace OpportunityPilot.Application.Staffing;
 /// is owner-scoped. Nothing is sent by the server: every handoff to a client or candidate is recorded by the user with a
 /// receipt, and the deal advances one stage only when such a stored fact proves the step happened.
 /// </summary>
-public sealed class StaffingPipelineService(IAppDbContext db, ICurrentUser user, TimeProvider clock)
+public sealed partial class StaffingPipelineService(IAppDbContext db, ICurrentUser user, TimeProvider clock)
 {
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
 
@@ -407,7 +407,10 @@ public sealed class StaffingPipelineService(IAppDbContext db, ICurrentUser user,
             interviews.Count(i => i.State == InterviewState.Completed),
             interviews.Count(i => i.State == InterviewState.Scheduled && i.CandidateNotification == NotificationStatus.NotNotified),
             offers.Count(o => o.State == OfferState.Extended), offers.Count(o => o.State == OfferState.Accepted),
-            offers.Count(o => o.Contract == ContractStatus.Signed), offers.Count(o => o.Outcome == PlacementOutcome.Placed), now);
+            offers.Count(o => o.Contract == ContractStatus.Signed), offers.Count(o => o.Outcome == PlacementOutcome.Placed),
+            await Owned(db.StaffingMessages).CountAsync(m => m.State == MessageState.Draft || m.State == MessageState.Approved, ct),
+            await Owned(db.StaffingMessages).CountAsync(m => m.State == MessageState.Received && m.Intent == ReplyIntent.Unclassified, ct),
+            await Owned(db.StaffingMeetings).CountAsync(m => m.State == MeetingState.Invited && m.StartsAt >= now, ct), now);
     }
 
     // ---------- helpers ----------
