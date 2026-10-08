@@ -40,6 +40,7 @@ public sealed class ProviderReadinessService(
         var linkedIn = await LastApplied(ApplicationPlatform.LinkedIn);
         var naukri = await LastApplied(ApplicationPlatform.Naukri);
         var instahyre = await LastApplied(ApplicationPlatform.Instahyre);
+        var hasAgentKey = await db.AgentKeys.AnyAsync(k => k.OwnerId == owner && k.RevokedAt == null, ct);
 
         string[] both = ["Candidate", "Sales"];
         return
@@ -53,13 +54,13 @@ public sealed class ProviderReadinessService(
                 "Save or apply on Wellfound; recruiter data needs Wellfound Recruit OAuth.",
                 "Only the anonymous public jobs page is read.", lastWellfound, lastWellfound is null ? null : "public jobs imported", "W7–W9, W1"),
             new("linkedin-agent", "LinkedIn Easy Apply (local agent)", ["Candidate"], Support.Assisted, Support.Assisted, Support.Automatic, Support.Assisted,
-                "Agent key (Applications → Agent setup)", true, "Runs in your own logged-in browser on your computer; stops at questions it cannot answer.",
+                "Agent key (Applications → Agent setup)", hasAgentKey, "Runs in your own logged-in browser on your computer; stops at questions it cannot answer.",
                 "Unofficial automation: LinkedIn may restrict accounts that use it.", linkedIn, linkedIn is null ? null : "the agent reported an application", "U3"),
             new("naukri-agent", "Naukri (local agent)", ["Candidate"], Support.Assisted, Support.Assisted, Support.Automatic, Support.Assisted,
-                "Agent key", true, "Runs in your own browser; answers the recruiter questionnaire from your saved answers.",
+                "Agent key", hasAgentKey, "Runs in your own browser; answers the recruiter questionnaire from your saved answers.",
                 "Unofficial automation: Naukri may restrict accounts that use it.", naukri, naukri is null ? null : "the agent reported an application", "U3"),
             new("instahyre-agent", "InstaHyre (local agent)", ["Candidate"], Support.Assisted, Support.None, Support.Automatic, Support.Assisted,
-                "Agent key", true, "Collects personalised opportunities and applies only to your shortlist, in your own browser.",
+                "Agent key", hasAgentKey, "Collects personalised opportunities and applies only to your shortlist, in your own browser.",
                 "Selectors need a first live run (U3); stops before unknown forms or security checks.", instahyre,
                 instahyre is null ? null : "the agent reported an application", "U3"),
             new("email", "Email (send yourself; Gmail API not connected)", ["Sales", "Candidate"], Support.None, Support.Automatic, Support.Automatic,
