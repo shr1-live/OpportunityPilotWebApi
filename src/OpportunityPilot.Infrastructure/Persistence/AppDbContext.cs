@@ -51,6 +51,13 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
     public DbSet<StaffingContact> StaffingContacts => Set<StaffingContact>();
     public DbSet<StaffingDeal> StaffingDeals => Set<StaffingDeal>();
     public DbSet<StaffingDealActivity> StaffingDealActivities => Set<StaffingDealActivity>();
+    public DbSet<StaffingCandidate> StaffingCandidates => Set<StaffingCandidate>();
+    public DbSet<StaffingSubmission> StaffingSubmissions => Set<StaffingSubmission>();
+    public DbSet<StaffingInterview> StaffingInterviews => Set<StaffingInterview>();
+    public DbSet<StaffingFeedback> StaffingFeedbackEntries => Set<StaffingFeedback>();
+    public DbSet<StaffingOffer> StaffingOffers => Set<StaffingOffer>();
+    public DbSet<StaffingRateCard> StaffingRateCards => Set<StaffingRateCard>();
+    public DbSet<StaffingProposal> StaffingProposals => Set<StaffingProposal>();
     public DbSet<WellfoundJob> WellfoundJobs => Set<WellfoundJob>();
     public DbSet<WellfoundApplication> WellfoundApplications => Set<WellfoundApplication>();
     public DbSet<WellfoundActivity> WellfoundActivities => Set<WellfoundActivity>();
@@ -455,6 +462,134 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
             e.Property(x => x.Detail).HasMaxLength(StaffingDealActivity.MaxDetailLength).IsRequired();
             e.HasOne<StaffingDeal>().WithMany().HasForeignKey(x => x.DealId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.OwnerId, x.DealId, x.OccurredAt });
+        });
+
+        modelBuilder.Entity<StaffingCandidate>(e =>
+        {
+            e.ToTable("staffing_candidates");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.Name).HasMaxLength(StaffingCandidate.MaxNameLength).IsRequired();
+            e.Property(x => x.Headline).HasMaxLength(StaffingCandidate.MaxHeadlineLength);
+            e.Property(x => x.Email).HasMaxLength(StaffingCandidate.MaxContactLength);
+            e.Property(x => x.Phone).HasMaxLength(StaffingCandidate.MaxContactLength);
+            e.Property(x => x.Location).HasMaxLength(StaffingCandidate.MaxLocationLength);
+            e.Property(x => x.Skills).HasMaxLength(StaffingCandidate.MaxSkillsLength);
+            e.Property(x => x.Availability).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.RateAmount).HasPrecision(18, 2);
+            e.Property(x => x.RateCurrency).HasMaxLength(3);
+            e.Property(x => x.RateUnit).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.ResumeText).HasMaxLength(StaffingCandidate.MaxResumeLength);
+            e.Property(x => x.Consent).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.ConsentEvidence).HasMaxLength(StaffingCandidate.MaxConsentEvidenceLength);
+            e.Property(x => x.ShareableFields).HasConversion<int>();
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasIndex(x => new { x.OwnerId, x.UpdatedAt });
+        });
+
+        modelBuilder.Entity<StaffingSubmission>(e =>
+        {
+            e.ToTable("staffing_submissions");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.SharedFields).HasConversion<int>();
+            e.Property(x => x.SnapshotJson).HasMaxLength(StaffingSubmission.MaxSnapshotLength).IsRequired();
+            e.Property(x => x.Note).HasMaxLength(StaffingSubmission.MaxNoteLength);
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Channel).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Receipt).HasMaxLength(StaffingSubmission.MaxReceiptLength);
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasOne<StaffingDeal>().WithMany().HasForeignKey(x => x.DealId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<StaffingCandidate>().WithMany().HasForeignKey(x => x.CandidateId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.OwnerId, x.DealId });
+            e.HasIndex(x => new { x.OwnerId, x.CandidateId });
+        });
+
+        modelBuilder.Entity<StaffingInterview>(e =>
+        {
+            e.ToTable("staffing_interviews");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Mode).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.TimeZone).HasMaxLength(StaffingInterview.MaxTimeZoneLength);
+            e.Property(x => x.Location).HasMaxLength(StaffingInterview.MaxLocationLength);
+            e.Property(x => x.CandidateNotes).HasMaxLength(StaffingInterview.MaxNotesLength);
+            e.Property(x => x.InternalNotes).HasMaxLength(StaffingInterview.MaxNotesLength);
+            e.Property(x => x.CandidateNotification).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasOne<StaffingDeal>().WithMany().HasForeignKey(x => x.DealId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<StaffingSubmission>().WithMany().HasForeignKey(x => x.SubmissionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.OwnerId, x.DealId, x.Round });
+            e.HasIndex(x => new { x.OwnerId, x.ScheduledAt });
+        });
+
+        modelBuilder.Entity<StaffingFeedback>(e =>
+        {
+            e.ToTable("staffing_feedback");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.Source).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Decision).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Detail).HasMaxLength(StaffingFeedback.MaxDetailLength).IsRequired();
+            e.HasOne<StaffingDeal>().WithMany().HasForeignKey(x => x.DealId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<StaffingSubmission>().WithMany().HasForeignKey(x => x.SubmissionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.OwnerId, x.SubmissionId, x.RecordedAt });
+        });
+
+        modelBuilder.Entity<StaffingOffer>(e =>
+        {
+            e.ToTable("staffing_offers");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.ClientRate).HasPrecision(18, 2);
+            e.Property(x => x.CandidatePay).HasPrecision(18, 2);
+            e.Property(x => x.PlacementValue).HasPrecision(18, 2);
+            e.Property(x => x.Currency).HasMaxLength(3);
+            e.Property(x => x.Unit).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Contract).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.ContractVersion).HasMaxLength(StaffingOffer.MaxContractVersionLength);
+            e.Property(x => x.SignatureProvider).HasMaxLength(StaffingOffer.MaxReferenceLength);
+            e.Property(x => x.SignedDocumentReference).HasMaxLength(StaffingOffer.MaxReferenceLength);
+            e.Property(x => x.Outcome).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Notes).HasMaxLength(StaffingOffer.MaxNotesLength);
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasOne<StaffingDeal>().WithMany().HasForeignKey(x => x.DealId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<StaffingSubmission>().WithMany().HasForeignKey(x => x.SubmissionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.OwnerId, x.DealId });
+        });
+
+        modelBuilder.Entity<StaffingRateCard>(e =>
+        {
+            e.ToTable("staffing_rate_cards");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.Name).HasMaxLength(StaffingRateCard.MaxNameLength).IsRequired();
+            e.Property(x => x.Currency).HasMaxLength(3).IsRequired();
+            e.Property(x => x.LinesJson).HasMaxLength(StaffingRateCard.MaxLinesLength).IsRequired();
+            e.Property(x => x.Terms).HasMaxLength(StaffingRateCard.MaxTermsLength);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasIndex(x => new { x.OwnerId, x.Status });
+        });
+
+        modelBuilder.Entity<StaffingProposal>(e =>
+        {
+            e.ToTable("staffing_proposals");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.Title).HasMaxLength(StaffingProposal.MaxTitleLength).IsRequired();
+            e.Property(x => x.Currency).HasMaxLength(3).IsRequired();
+            e.Property(x => x.LinesJson).HasMaxLength(StaffingRateCard.MaxLinesLength).IsRequired();
+            e.Property(x => x.Terms).HasMaxLength(StaffingRateCard.MaxTermsLength);
+            e.Property(x => x.Body).HasMaxLength(StaffingProposal.MaxBodyLength);
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Receipt).HasMaxLength(1_000);
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasOne<StaffingDeal>().WithMany().HasForeignKey(x => x.DealId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<StaffingRateCard>().WithMany().HasForeignKey(x => x.RateCardId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.OwnerId, x.DealId });
         });
 
         modelBuilder.Entity<WellfoundJob>(e =>

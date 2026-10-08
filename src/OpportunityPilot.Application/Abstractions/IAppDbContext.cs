@@ -44,6 +44,13 @@ public interface IAppDbContext
     DbSet<StaffingContact> StaffingContacts { get; }
     DbSet<StaffingDeal> StaffingDeals { get; }
     DbSet<StaffingDealActivity> StaffingDealActivities { get; }
+    DbSet<StaffingCandidate> StaffingCandidates { get; }
+    DbSet<StaffingSubmission> StaffingSubmissions { get; }
+    DbSet<StaffingInterview> StaffingInterviews { get; }
+    DbSet<StaffingFeedback> StaffingFeedbackEntries { get; }
+    DbSet<StaffingOffer> StaffingOffers { get; }
+    DbSet<StaffingRateCard> StaffingRateCards { get; }
+    DbSet<StaffingProposal> StaffingProposals { get; }
     DbSet<WellfoundJob> WellfoundJobs { get; }
     DbSet<WellfoundApplication> WellfoundApplications { get; }
     DbSet<WellfoundActivity> WellfoundActivities { get; }

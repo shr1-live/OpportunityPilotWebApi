@@ -9,7 +9,12 @@ public enum StaffingDealActivityType
     DetailsChanged,
     NoteAdded,
     ManualActionConfirmed,
-    ProviderReceiptRecorded
+    ProviderReceiptRecorded,
+    SubmissionChanged,
+    InterviewChanged,
+    FeedbackRecorded,
+    OfferChanged,
+    ProposalChanged
 }
 
 /// <summary>An immutable, safe audit fact about a staffing deal.</summary>
