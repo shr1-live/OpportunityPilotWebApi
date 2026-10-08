@@ -53,7 +53,11 @@ public sealed record OpportunityDetailDto(
     IReadOnlyList<FactRow> Facts,
     IReadOnlyList<string> Gaps,
     IReadOnlyList<EvidenceDto> Evidence,
-    IReadOnlyList<ActivityDto> Activities);
+    IReadOnlyList<ActivityDto> Activities,
+    ScoredByDto? ScoredBy = null);
+
+/// <summary>The research run that last scored this opportunity and the exact input versions it used.</summary>
+public sealed record ScoredByDto(Guid ResearchJobId, int CampaignVersion, int ProfileVersion, DateTime RunAt);
 
 public sealed record UpdateOpportunityStatusRequest(OpportunityStatus Status);
 

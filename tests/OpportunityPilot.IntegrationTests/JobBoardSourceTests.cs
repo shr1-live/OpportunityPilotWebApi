@@ -148,6 +148,12 @@ public class JobBoardSourceTests(PostgresApiFactory factory) : IClassFixture<Pos
         Assert.Equal("https://jobs.example/leverdemo/aaaa-1111", backend.Str("url"));
         Assert.Equal("https://jobs.example/leverdemo/aaaa-1111/apply", backend.Str("applyUrl"));
         Assert.Equal("Qualified", backend.Str("outcome"));
+        // Reproducibility: the result names the run and the exact campaign/profile versions that scored it.
+        var scoredBy = (await user.GetJson($"/api/v1/opportunities/{backend.Id()}")).GetProperty("scoredBy");
+        Assert.Equal(jobId, scoredBy.GetProperty("researchJobId").GetGuid());
+        var inputs = (await ResearchApi.JobAsync(user, jobId)).GetProperty("inputs");
+        Assert.Equal(inputs.Int("campaignVersion"), scoredBy.Int("campaignVersion"));
+        Assert.Equal(inputs.Int("profileVersion"), scoredBy.Int("profileVersion"));
         Assert.Equal("Excluded", items.Single(i => i.Str("title") == "Recruiter").Str("outcome"));
         // No auto-suggest threshold on this campaign: research leaves every status New.
         Assert.All(items, i => Assert.Equal("New", i.Str("status")));
