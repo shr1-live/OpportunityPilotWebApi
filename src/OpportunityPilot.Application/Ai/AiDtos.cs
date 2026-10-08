@@ -10,7 +10,12 @@ public sealed record GoalPreviewDto(AiSource Source, string? FallbackReason, Opp
 public sealed record AiStatusDto(bool Active, string Provider, string Model, string? FallbackReason,
     int CallsToday, int DailyLimit, int MaxCallsPerRun, object? LastFailure);
 
+/// <summary>What one AI call produced. <see cref="Json"/> is null when it failed; <see cref="Outcome"/> says why.</summary>
+public sealed record LlmResult(string? Json, Domain.Ai.AiOutcome Outcome, string? Reason, int Attempts, TimeSpan Duration);
+
 public interface ILlmClient
 {
-    Task<string?> GenerateJsonAsync(string operation, string system, string input, CancellationToken ct);
+    Task<LlmResult> GenerateJsonAsync(string operation, string system, string input, CancellationToken ct);
 }
+
+public sealed record AiUsageSummary(int CallsToday, int DailyLimit, string? LastFailure, DateTime? LastFailureAt);

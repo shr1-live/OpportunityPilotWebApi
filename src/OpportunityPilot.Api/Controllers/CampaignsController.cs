@@ -15,7 +15,7 @@ public sealed class CampaignsController(CampaignService campaigns) : ControllerB
     public async Task<ActionResult<CampaignDto>> Get(Guid id, CancellationToken ct) =>
         await campaigns.GetAsync(id, ct);
 
-    /// <summary>Job and Customer only for now; other modes return 400 "not supported yet".</summary>
+    /// <summary>Any <c>OpportunityMode</c>; an unknown mode returns 400.</summary>
     [HttpPost]
     public async Task<ActionResult<CampaignDto>> Create(CreateCampaignRequest request, CancellationToken ct)
     {

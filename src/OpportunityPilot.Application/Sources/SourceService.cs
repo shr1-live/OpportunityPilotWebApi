@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using OpportunityPilot.Application.Abstractions;
 using OpportunityPilot.Application.Common;
+using OpportunityPilot.Application.JobBoards;
 using OpportunityPilot.Application.Research;
 using OpportunityPilot.Application.Research.Boards;
 using OpportunityPilot.Domain.Common;
@@ -80,6 +81,12 @@ public sealed class SourceService(IAppDbContext db, ICurrentUser user, TimeProvi
                 break;
             case SourceKind.Remotive or SourceKind.RemoteOk:
                 break;
+            case SourceKind.JobSearch:
+                // The board is stored; the search itself uses the campaign's keywords and first location at run time.
+                if (string.IsNullOrWhiteSpace(request.Url)) url = nameof(JobBoard.Indeed);
+                else if (Enum.TryParse<JobBoard>(request.Url.Trim(), ignoreCase: true, out var board) && Enum.IsDefined(board)) url = board.ToString();
+                else errors["url"] = ["Choose the board to search: Indeed, LinkedIn or Seek."];
+                break;
             case SourceKind.Csv:
                 errors["kind"] = ["CSV sources are created by committing an import preview (POST /api/v1/imports/preview)."];
                 break;
@@ -155,6 +162,7 @@ public sealed class SourceService(IAppDbContext db, ICurrentUser user, TimeProvi
             SourceKind.SmartRecruiters => $"SmartRecruiters company {url}",
             SourceKind.Recruitee => $"Recruitee company {url}",
             SourceKind.Workable => $"Workable company {url}",
+            SourceKind.JobSearch => $"{(url == nameof(JobBoard.Seek) ? "SEEK" : url ?? "Indeed")} search",
             SourceKind.Remotive => "Remotive remote jobs",
             SourceKind.RemoteOk => "Remote OK jobs",
             _ => kind.ToString()

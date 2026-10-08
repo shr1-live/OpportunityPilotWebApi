@@ -23,7 +23,8 @@ public sealed record UpdateSalesBidRequest(
     decimal Amount, string Currency, int DeliveryDays, string Proposal, int ExpectedVersion);
 
 public sealed record ApproveSalesBidRequest(int Version);
-public sealed record ConfirmSalesBidPlacementRequest(int Version, bool Confirmed);
+/// <summary>Kept for existing clients; goes through the provider gateway. Prefer POST /api/v1/executions/bids/{id}.</summary>
+public sealed record ConfirmSalesBidPlacementRequest(int Version, bool Confirmed, string? Receipt = null);
 public sealed record BatchApproveSalesBidItem(Guid Id, int Version);
 public sealed record BatchApproveSalesBidsRequest(IReadOnlyList<BatchApproveSalesBidItem> Items);
 public sealed record BatchApproveSalesBidResult(Guid Id, bool Approved, string? Reason, SalesProjectDto? Project);

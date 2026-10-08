@@ -17,6 +17,12 @@ public sealed class AgentKeyAuthenticationHandler(
 {
     public const string SchemeName = "AgentKey";
     public const string Header = "X-Agent-Key";
+    public const string ScopeClaim = "agent_scope";
+
+    /// <summary>Authorization policy names, one per scope: an agent endpoint names the one it needs.</summary>
+    public const string ResearchPolicy = "agent:Research";
+    public const string ShortlistPolicy = "agent:Shortlist";
+    public const string ApplicationsPolicy = "agent:Applications";
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -24,10 +30,12 @@ public sealed class AgentKeyAuthenticationHandler(
         if (string.IsNullOrEmpty(presented)) return AuthenticateResult.NoResult();
 
         var keys = Context.RequestServices.GetRequiredService<AgentKeyService>();
-        var ownerId = await keys.ValidateAsync(presented, Context.RequestAborted);
-        if (ownerId is null) return AuthenticateResult.Fail("Agent key is unknown or revoked.");
+        var key = await keys.IdentifyAsync(presented, Context.RequestAborted);
+        if (key is null) return AuthenticateResult.Fail("Agent key is unknown or revoked.");
 
-        var identity = new ClaimsIdentity([new Claim("sub", ownerId.Value.ToString()), new Claim("agent", "true")], SchemeName);
+        var claims = new List<Claim> { new("sub", key.OwnerId.ToString()), new("agent", "true") };
+        claims.AddRange(AgentKeyService.ScopeNames(key.Scopes).Select(s => new Claim(ScopeClaim, s)));
+        var identity = new ClaimsIdentity(claims, SchemeName);
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName));
     }
 }

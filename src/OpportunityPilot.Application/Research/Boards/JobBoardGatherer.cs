@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Options;
 using OpportunityPilot.Application.Campaigns;
 using OpportunityPilot.Application.Configuration;
+using OpportunityPilot.Application.JobBoards;
+using OpportunityPilot.Domain.Common;
 using OpportunityPilot.Domain.Research;
 
 namespace OpportunityPilot.Application.Research.Boards;
@@ -15,7 +17,8 @@ public sealed record BoardGathered(SourceStatus Status, string? SafeError, IRead
 /// No login, no scraping: these endpoints exist to publish job listings. Messages never contain a request URL (the
 /// Adzuna one carries the server's key).
 /// </summary>
-public sealed class JobBoardGatherer(IWebFetcher fetcher, IContentParser parser, IOptions<ResearchOptions> research, IOptions<AdzunaOptions> adzuna)
+public sealed class JobBoardGatherer(IWebFetcher fetcher, IContentParser parser, IOptions<ResearchOptions> research, IOptions<AdzunaOptions> adzuna,
+    IJobBoardSearch jobBoards)
 {
     public const int AdzunaMaxKeywords = 3;
     public const int AdzunaResultsPerPage = 50;
@@ -211,6 +214,67 @@ public sealed class JobBoardGatherer(IWebFetcher fetcher, IContentParser parser,
         return new(SourceStatus.Ok, null, items, requests, message, level);
     }
 
+    public const int JobSearchMaxKeywords = 3;
+
+    /// <summary>
+    /// Indeed, LinkedIn and SEEK have no public search API, so postings come from JSearch (a licensed Google-for-Jobs
+    /// service, server key) and only those with an https link on the board's own domain are kept. One search per term
+    /// (Job: keywords; other modes: keywords, then buying signals) in the first non-"Remote" location, past month. Job
+    /// campaigns get one candidate per posting; other modes get one candidate per hiring company, with its postings as
+    /// evidence. Each search not served from the API's cache costs one fetch.
+    /// </summary>
+    public async Task<BoardGathered> JobSearchAsync(Source source, CampaignCriteria criteria, OpportunityMode mode, int room, int fetchesLeft,
+        CancellationToken ct)
+    {
+        var board = Enum.TryParse<JobBoard>(source.Url, ignoreCase: true, out var b) && Enum.IsDefined(b) ? b : JobBoard.Indeed;
+        var name = JsearchBoardParser.Name(board);
+        if (!jobBoards.Configured)
+            return Failed(source, $"{name} search needs the server's JSearch key (Jsearch:Key), which is not set.", 0);
+        var job = mode == OpportunityMode.Job;
+        var terms = (job ? criteria.Keywords : criteria.Keywords.Concat(criteria.Signals))
+            .Select(k => k.Trim()).Where(k => k.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Take(JobSearchMaxKeywords).ToList();
+        if (terms.Count == 0)
+            return new(SourceStatus.Skipped, $"{name} search needs {(job ? "keywords" : "keywords or buying signals")}: add them to the campaign.", [], 0,
+                $"{source.Label}: skipped, the campaign has nothing to search for.", EventLevel.Warning);
+        if (fetchesLeft <= 0) return FetchLimitReached(source);
+
+        var where = criteria.Locations.FirstOrDefault(l => !l.Trim().Equals("Remote", StringComparison.OrdinalIgnoreCase))?.Trim();
+        var remoteOnly = where is null && criteria.Locations.Count > 0;
+        // SEEK only runs in Australia and New Zealand; the API client defaults SEEK to Australia.
+        var postings = new Dictionary<string, JobBoardJobDto>(StringComparer.Ordinal);
+        var requests = 0;
+        var searched = 0;
+        var cached = 0;
+        string? failure = null;
+        string? stoppedBy = null;
+        foreach (var term in terms)
+        {
+            if (fetchesLeft - requests <= 0) { stoppedBy = $"the run's limit of {_limits.EffectiveFetches} fetches"; break; }
+            var result = await jobBoards.SearchAsync(new JobBoardSearchRequest(board, term, where, remoteOnly, "month", null, 1), ct);
+            if (result.FromCache) cached++; else requests++;
+            if (result.Status != "Ready") { failure ??= result.Message ?? "JSearch could not be read."; continue; }
+            searched++;
+            foreach (var posting in result.Jobs) postings.TryAdd(posting.ProviderJobId, posting);
+        }
+
+        if (searched == 0) return Failed(source, failure ?? "JSearch could not be read.", requests);
+        var all = job
+            ? postings.Values.Select(p => BoardMapping.JobSearchCandidate(source, board, p)).ToList()
+            : postings.Values.GroupBy(p => p.CompanyName.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => BoardMapping.HiringCompanyCandidate(source, board, g.Key, g.ToList())).ToList();
+        var items = all.Take(room).ToList();
+        var place = where is null ? (remoteOnly ? " (remote only)" : "") : $" in {where}";
+        var what = job ? Count(all.Count, $"{name} posting") : $"{Count(all.Count, "hiring company", "hiring companies")} from {Count(postings.Count, $"{name} posting")}";
+        var message = $"{source.Label}: searched {Count(searched, "term")}{place} through JSearch, {what} found, {items.Count} read.";
+        if (cached > 0) message += $" {Count(cached, "search")} reused from the last few hours to save the JSearch quota.";
+        if (postings.Count == 0) message += $" No matching posting was published on {name}; try broader terms.";
+        if (items.Count < all.Count) message += $" Stopped at the run's limit of {_limits.EffectiveCandidates} candidates.";
+        if (stoppedBy is not null) message += $" Stopped at {stoppedBy}.";
+        if (failure is not null) message += $" Some searches failed: {failure}";
+        var level = postings.Count == 0 || items.Count < all.Count || stoppedBy is not null || failure is not null ? EventLevel.Warning : EventLevel.Info;
+        return new(SourceStatus.Ok, null, items, requests, message, level);
+    }
+
     private static BoardGathered Failed(Source source, string reason, int requests) =>
         new(SourceStatus.Failed, reason, [], requests, $"{source.Label}: could not be read safely — {reason}", EventLevel.Warning);
 
@@ -225,4 +289,6 @@ public sealed class JobBoardGatherer(IWebFetcher fetcher, IContentParser parser,
         (string.IsNullOrWhiteSpace(configured) ? fallback : configured.Trim()).Trim().Trim('/');
 
     private static string Count(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
+
+    private static string Count(int n, string one, string many) => $"{n} {(n == 1 ? one : many)}";
 }

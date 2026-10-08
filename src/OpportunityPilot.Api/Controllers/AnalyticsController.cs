@@ -11,6 +11,7 @@ public sealed class AnalyticsController(AnalyticsService analytics) : Controller
     /// <summary>workspace Candidate (Job campaigns) or Sales (Customer campaigns); days 1–365 (default 30).</summary>
     [HttpGet("overview")]
     public async Task<ActionResult<AnalyticsOverviewDto>> Overview(
-        [FromQuery] string? workspace, [FromQuery] int days = AnalyticsService.DefaultDays, CancellationToken ct = default) =>
-        await analytics.OverviewAsync(workspace, days, ct);
+        [FromQuery] string? workspace, [FromQuery] int days = AnalyticsService.DefaultDays,
+        [FromQuery] Domain.Common.OpportunityMode? mode = null, CancellationToken ct = default) =>
+        await analytics.OverviewAsync(workspace, days, ct, mode);
 }

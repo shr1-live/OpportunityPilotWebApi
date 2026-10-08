@@ -141,7 +141,11 @@ public sealed class OpportunityService(IAppDbContext db, ICurrentUser user, Time
             Deserialize<List<string>>(o.GapsJson) ?? [],
             evidence.Select(e => new EvidenceDto(e.Id, e.SourceId, labels.GetValueOrDefault(e.SourceId), e.Url, e.RetrievedAt, e.Excerpt,
                 e.ExtractionMethod)).ToList(),
-            activities);
+            activities,
+            o.LastResearchJobId is { } jobId
+                ? await db.ResearchJobs.Where(j => j.Id == jobId && j.OwnerId == user.OwnerId)
+                    .Select(j => new ScoredByDto(j.Id, j.CampaignVersion, j.ProfileVersion, j.StartedAt ?? j.CreatedAt)).FirstOrDefaultAsync(ct)
+                : null);
     }
 
     public static OpportunitySummaryDto ToSummary(Opportunity o) => new(

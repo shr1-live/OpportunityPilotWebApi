@@ -1,11 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using OpportunityPilot.Application.Abstractions;
 using OpportunityPilot.Application.Common;
 using OpportunityPilot.Domain.Sales;
 
 namespace OpportunityPilot.Application.Sales;
 
-public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvider clock)
+public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvider clock, Outreach.ProviderGateway gateway)
 {
     public async Task<IReadOnlyList<SalesProjectDto>> ListProjectsAsync(int take, int skip, SalesProjectState? state, SalesProjectSource? source, CancellationToken ct)
     {
@@ -83,6 +84,10 @@ public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvid
         if (ContainsUnresolvedPlaceholder(bid.Proposal))
             throw Invalid("proposal", "Replace every [placeholder] before approving this proposal.");
         var project = await FindProjectAsync(bid.ProjectId, ct);
+        if (project.Source != SalesProjectSource.Manual && !HasEvidence(project.EvidenceJson))
+            throw Invalid("evidence", "Imported provider and tender bids require stored source evidence before approval.");
+        if (project.Source == SalesProjectSource.Manual && string.IsNullOrWhiteSpace(project.Description))
+            throw Invalid("evidence", "Manual bids require a user-provided project brief before approval.");
         try { bid.Approve(request.Version, project.ApprovalContext(), Now); }
         catch (InvalidOperationException ex) { throw new ConflictException(ex.Message); }
         project.ChangeState(SalesProjectState.BidApproved, Now);
@@ -122,15 +127,13 @@ public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvid
     {
         if (request is null || !request.Confirmed)
             throw Invalid("confirmed", "Explicit confirmation is required after the proposal was submitted on the provider.");
+        // One contract for every provider action: start (or reuse) the bid's execution, then confirm it with a receipt.
+        var execution = await gateway.StartBidAsync(bidId, new Outreach.StartExecutionRequest(request.Version), ct);
+        if (execution.State == Domain.Outreach.ExecutionState.AwaitingManualConfirmation)
+            await gateway.ConfirmAsync(execution.Id,
+                new Outreach.ConfirmExecutionRequest(string.IsNullOrWhiteSpace(request.Receipt) ? "Placed on the provider by the user" : request.Receipt, null), ct);
         var bid = await FindBidAsync(bidId, ct);
-        if (request.Version != bid.Version)
-            throw new ConflictException($"Bid was changed elsewhere (now version {bid.Version}). Reload before confirming placement.");
-        var project = await FindProjectAsync(bid.ProjectId, ct);
-        try { bid.MarkPlaced(project.ApprovalContext(), Now); }
-        catch (InvalidOperationException ex) { throw Invalid("bid", ex.Message); }
-        project.ChangeState(SalesProjectState.BidPlaced, Now);
-        await db.SaveChangesAsync(ct);
-        return await GetProjectAsync(project.Id, ct);
+        return await GetProjectAsync(bid.ProjectId, ct);
     }
 
     private IQueryable<SalesProject> OwnedProjects => db.SalesProjects.Where(p => p.OwnerId == user.OwnerId);
@@ -148,6 +151,21 @@ public sealed class SalesService(IAppDbContext db, ICurrentUser user, TimeProvid
     {
         var open = value.IndexOf('[');
         return open >= 0 && value.IndexOf(']', open + 1) > open + 1;
+    }
+
+    private static bool HasEvidence(string value)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            return document.RootElement.ValueKind switch
+            {
+                JsonValueKind.Array => document.RootElement.GetArrayLength() > 0,
+                JsonValueKind.Object => document.RootElement.EnumerateObject().Any(),
+                _ => false,
+            };
+        }
+        catch (JsonException) { return false; }
     }
 
     private static SalesProjectDto ToDto(SalesProject project, IEnumerable<SalesBid> bids) =>

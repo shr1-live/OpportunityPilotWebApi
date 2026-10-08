@@ -145,6 +145,64 @@ public sealed class StaffingService(IAppDbContext db, ICurrentUser user, TimePro
         return await GetDealAsync(id, ct);
     }
 
+    private static readonly string[] BoardHosts = ["indeed.com", "linkedin.com", "seek.com.au", "seek.co.nz", "wellfound.com", "greenhouse.io", "lever.co"];
+
+    /// <summary>
+    /// X3: turn a researched Sales opportunity (a company, possibly found as a hiring signal) into a staffing account and
+    /// deal, linked to its source. Accounts are de-duplicated by website domain, then by name; promoting the same
+    /// opportunity twice returns the existing deal. Nothing is contacted.
+    /// </summary>
+    public async Task<PromotedLeadDto> PromoteOpportunityAsync(Guid opportunityId, CancellationToken ct)
+    {
+        var o = await db.Opportunities.FirstOrDefaultAsync(x => x.Id == opportunityId && x.OwnerId == user.OwnerId, ct)
+            ?? throw new NotFoundException("Opportunity not found.");
+        if (o.Mode == Domain.Common.OpportunityMode.Job)
+            throw Invalid("opportunity", "Only companies found by Sales campaigns become staffing leads; job postings stay in the Candidate workspace.");
+        var reference = $"opportunity:{o.Id:N}";
+        var existingDeal = await OwnedDeals.FirstOrDefaultAsync(d => d.ExternalReference == reference, ct);
+        if (existingDeal is not null)
+            return new(await GetDealAsync(existingDeal.Id, ct), existingDeal.AccountId, true, true, IdentityConfidence.High, o.Url);
+
+        var name = string.IsNullOrWhiteSpace(o.Organization) ? o.Title : o.Organization;
+        var domain = DomainOf(o.Url);
+        StaffingAccount? account = null;
+        var confidence = IdentityConfidence.Low;
+        if (domain is not null)
+        {
+            account = await OwnedAccounts.FirstOrDefaultAsync(a => a.Domain == domain, ct);
+            confidence = IdentityConfidence.High;
+        }
+        if (account is null)
+        {
+            var lower = name.Trim().ToLower();
+            account = await OwnedAccounts.FirstOrDefaultAsync(a => a.Name.ToLower() == lower, ct);
+            if (account is not null && domain is null) confidence = IdentityConfidence.Medium;
+        }
+        var reused = account is not null;
+        if (account is null)
+        {
+            account = new StaffingAccount(user.OwnerId, name, StaffingAccountSource.PublicWeb, Now);
+            account.Update(name, domain, null, o.Location, o.Url, Now);
+            db.StaffingAccounts.Add(account);
+        }
+        var deal = new StaffingDeal(user.OwnerId, account.Id, null, $"Staffing for {name}", StaffingDealSource.PublicWeb, Now);
+        deal.UpdateCommercials(deal.Title, reference, null, null, "Qualify the requirement", null, Now);
+        db.StaffingDeals.Add(deal);
+        db.StaffingDealActivities.Add(new(user.OwnerId, deal.Id, StaffingDealActivityType.Created,
+            $"Created from {o.Mode} opportunity \"{o.Title}\" (fit {o.Score}){(o.Url is null ? "" : $" — evidence: {o.Url}")}. Account match: {confidence}.", Now));
+        await db.SaveChangesAsync(ct);
+        return new(await GetDealAsync(deal.Id, ct), account.Id, reused, false, confidence, o.Url);
+    }
+
+    /// <summary>The company's own domain from a URL; null for job boards and ATS hosts, which identify the board, not the company.</summary>
+    private static string? DomainOf(string? url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u)) return null;
+        var host = u.Host.ToLowerInvariant();
+        if (host.StartsWith("www.", StringComparison.Ordinal)) host = host[4..];
+        return BoardHosts.Any(b => host == b || host.EndsWith("." + b, StringComparison.Ordinal)) ? null : host;
+    }
+
     private IQueryable<StaffingAccount> OwnedAccounts => db.StaffingAccounts.Where(x => x.OwnerId == user.OwnerId);
     private IQueryable<StaffingDeal> OwnedDeals => db.StaffingDeals.Where(x => x.OwnerId == user.OwnerId);
 

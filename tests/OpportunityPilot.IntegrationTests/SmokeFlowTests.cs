@@ -1,0 +1,139 @@
+using System.Net;
+using System.Net.Http.Json;
+
+namespace OpportunityPilot.IntegrationTests;
+
+/// <summary>
+/// The release smoke (S12): one owner goes from campaign to research to approval to a reviewed draft to a follow-up, on
+/// a real Postgres with migrations applied. If this passes, the core pipeline works end to end.
+/// </summary>
+public class SmokeFlowTests(PostgresApiFactory factory) : IClassFixture<PostgresApiFactory>
+{
+    private const string Postings = """
+        Senior .NET Engineer
+        Company: Acme
+        Location: Pune
+        URL: https://jobs.example/acme-1
+        We build APIs in C# on ASP.NET Core. 3-5 years of experience.
+        """;
+
+    [Fact]
+    public async Task Campaign_to_research_to_approval_to_draft_to_follow_up()
+    {
+        var user = PostgresApiFactory.ClientFor(factory, "smoke@example.test");
+
+        var campaign = await ResearchApi.CreateCampaignAsync(user, "Job",
+            new { keywords = new[] { ".NET" }, requiredSkills = new[] { "C#" }, locations = new[] { "Pune" } }, autoSuggestMinScore: 1);
+        await ResearchApi.AddPasteAsync(user, campaign.Id(), Postings);
+        var jobId = await ResearchApi.QueueAsync(user, campaign.Id());
+        await PostgresApiFactory.RunResearchAsync(factory.Services);
+        Assert.Equal("Completed", (await ResearchApi.JobAsync(user, jobId)).Str("state"));
+
+        var suggested = (await user.GetJson("/api/v1/approvals")).GetProperty("items").EnumerateArray().ToList();
+        var opportunityId = Assert.Single(suggested).GetProperty("opportunityId").GetGuid();
+        var decided = await (await user.PostAsJsonAsync("/api/v1/approvals/decide", new { approve = new[] { opportunityId } })).Json(HttpStatusCode.OK);
+        Assert.Equal(1, decided.Int("approved"));
+        Assert.Equal("Shortlisted", (await user.GetJson($"/api/v1/opportunities/{opportunityId}")).Str("status"));
+
+        var draft = await (await user.PostAsJsonAsync($"/api/v1/opportunities/{opportunityId}/drafts", new { channel = "CoverNote" })).Json(HttpStatusCode.Created);
+        Assert.Equal("Draft", draft.Str("state"));
+        // Claims drawn from the profile name the exact profile version they came from.
+        Assert.All(draft.GetProperty("claims").EnumerateArray().Where(c => c.Str("basis").StartsWith("Profile")), c => Assert.Matches(@"^Profile v\d+$", c.Str("basis")));
+        Assert.Contains(draft.GetProperty("claims").EnumerateArray(), c => c.Str("basis").StartsWith("Profile v"));
+
+        var followUp = await (await user.PostAsJsonAsync($"/api/v1/opportunities/{opportunityId}/next-actions",
+            new { kind = "FollowUp", note = "Check the application", dueAt = "2026-10-15T09:00:00Z", timeZone = "Asia/Kolkata" })).Json(HttpStatusCode.Created);
+        Assert.Equal("Open", followUp.Str("state"));
+        Assert.Contains((await user.GetJson("/api/v1/next-actions")).EnumerateArray(), n => n.Id() == followUp.Id());
+    }
+
+    private const string Companies = """
+        Northwind Integrations
+        Website: https://northwind.example
+        Location: London
+        Industry: Systems integration
+        Northwind implements Dynamics 365 for retailers and is hiring .NET developers after a new funding round.
+        """;
+
+    [Theory]
+    [InlineData("Partner")]
+    [InlineData("Investor")]
+    [InlineData("Freelance")]
+    public async Task Every_sales_mode_runs_research_and_scores_with_evidence(string mode)
+    {
+        var user = PostgresApiFactory.ClientFor(factory, $"smoke-{mode.ToLowerInvariant()}@example.test");
+        var campaign = await ResearchApi.CreateCampaignAsync(user, mode,
+            new { keywords = new[] { "Dynamics 365" }, industries = new[] { "Systems integration" }, problems = new[] { ".NET" }, signals = new[] { "funding" }, locations = new[] { "London" } });
+        Assert.Equal(mode, campaign.Str("mode"));
+        await ResearchApi.AddPasteAsync(user, campaign.Id(), Companies);
+        var jobId = await ResearchApi.QueueAsync(user, campaign.Id());
+        await PostgresApiFactory.RunResearchAsync(factory.Services);
+        Assert.Equal("Completed", (await ResearchApi.JobAsync(user, jobId)).Str("state"));
+
+        var item = Assert.Single(await ResearchApi.OpportunitiesAsync(user, campaign.Id()));
+        Assert.Equal(mode, item.Str("mode"));
+        Assert.Equal("Northwind Integrations", item.Str("organization"));
+        Assert.True(item.Int("score") > 0, "a matching company should score above zero");
+        var detail = await user.GetJson($"/api/v1/opportunities/{item.Id()}");
+        Assert.NotEmpty(detail.GetProperty("evidence").EnumerateArray());
+        Assert.NotEmpty(detail.GetProperty("breakdown").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Sales_overview_counts_contacted_responded_and_outreach_from_stored_records()
+    {
+        var user = PostgresApiFactory.ClientFor(factory, "smoke-sales-kpis@example.test");
+        var campaign = await ResearchApi.CreateCampaignAsync(user, "Customer",
+            new { keywords = new[] { "Dynamics 365" }, industries = new[] { "Systems integration" }, locations = new[] { "London" } });
+        await ResearchApi.AddPasteAsync(user, campaign.Id(), Companies);
+        await ResearchApi.QueueAsync(user, campaign.Id());
+        await PostgresApiFactory.RunResearchAsync(factory.Services);
+        var id = Assert.Single(await ResearchApi.OpportunitiesAsync(user, campaign.Id())).Id();
+
+        foreach (var status in new[] { "Shortlisted", "Contacted", "Responded" })
+            await (await user.PatchAsJsonAsync($"/api/v1/opportunities/{id}/status", new { status })).Json(HttpStatusCode.OK);
+        await (await user.PostAsJsonAsync($"/api/v1/opportunities/{id}/drafts", new { channel = "Email", recipient = "ops@northwind.example" })).Json(HttpStatusCode.Created);
+        await (await user.PostAsJsonAsync($"/api/v1/opportunities/{id}/next-actions",
+            new { kind = "FollowUp", note = "Chase", dueAt = DateTime.UtcNow.AddDays(-1).ToString("O"), timeZone = "UTC" })).Json(HttpStatusCode.Created);
+
+        var sales = await user.GetJson("/api/v1/analytics/overview?workspace=Sales&days=30");
+        var kpis = sales.GetProperty("kpis");
+        Assert.Equal(1, kpis.Int("contacted"));
+        Assert.Equal(1, kpis.Int("responded"));
+        Assert.Equal(1.0, kpis.GetProperty("respondedRate").GetDouble());
+        var funnel = sales.GetProperty("funnel").EnumerateArray().ToDictionary(f => f.Str("key"), f => f.GetProperty("count"));
+        Assert.Equal(1, funnel["contacted"].GetInt32());
+        var outreach = sales.GetProperty("outreach");
+        Assert.Equal(1, outreach.Int("draftsAwaitingReview"));
+        Assert.Equal(1, outreach.Int("followUpsOverdue"));
+        Assert.Contains(sales.GetProperty("attention").EnumerateArray(), a => a.Str("kind") == "FollowUpsOverdue");
+
+        var partnerOnly = await user.GetJson("/api/v1/analytics/overview?workspace=Sales&days=30&mode=Partner");
+        Assert.Equal(0, partnerOnly.GetProperty("kpis").Int("found"));
+        Assert.Equal(HttpStatusCode.BadRequest, (await user.GetAsync("/api/v1/analytics/overview?workspace=Candidate&mode=Partner")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_found_company_becomes_one_staffing_lead_with_its_evidence()
+    {
+        var user = PostgresApiFactory.ClientFor(factory, "smoke-promote@example.test");
+        var campaign = await ResearchApi.CreateCampaignAsync(user, "Customer", new { keywords = new[] { "Dynamics 365" }, locations = new[] { "London" } });
+        await ResearchApi.AddPasteAsync(user, campaign.Id(), Companies);
+        await ResearchApi.QueueAsync(user, campaign.Id());
+        await PostgresApiFactory.RunResearchAsync(factory.Services);
+        var id = Assert.Single(await ResearchApi.OpportunitiesAsync(user, campaign.Id())).Id();
+
+        var lead = await (await user.PostAsync($"/api/v1/staffing/from-opportunity/{id}", null)).Json(HttpStatusCode.OK);
+        Assert.False(lead.GetProperty("dealReused").GetBoolean());
+        var confidence = lead.Str("confidence");
+        Assert.Contains(confidence, new[] { "High", "Low" });
+        var deal = lead.GetProperty("deal");
+        Assert.Contains("Northwind", deal.Str("title"));
+        Assert.Contains(deal.GetProperty("activities").EnumerateArray(), a => a.Str("detail").Contains("Created from Customer opportunity"));
+
+        var again = await (await user.PostAsync($"/api/v1/staffing/from-opportunity/{id}", null)).Json(HttpStatusCode.OK);
+        Assert.True(again.GetProperty("dealReused").GetBoolean());
+        Assert.Single((await user.GetJson("/api/v1/staffing/deals")).EnumerateArray());
+        Assert.Single((await user.GetJson("/api/v1/staffing/accounts")).EnumerateArray());
+    }
+}

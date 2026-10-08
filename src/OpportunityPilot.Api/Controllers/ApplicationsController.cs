@@ -22,7 +22,7 @@ public sealed class ApplicationsController(ApplicationService applications) : Co
 
     /// <summary>Called by the local desktop agent only. User tokens are rejected here; agent keys work nowhere else.</summary>
     [HttpPost("report")]
-    [Authorize(AuthenticationSchemes = AgentKeyAuthenticationHandler.SchemeName)]
+    [Authorize(Policy = AgentKeyAuthenticationHandler.ApplicationsPolicy)]
     public async Task<ActionResult<ApplicationReportResult>> Report(ApplicationReportRequest request, CancellationToken ct) =>
         await applications.ReportAsync(request, ct);
 }

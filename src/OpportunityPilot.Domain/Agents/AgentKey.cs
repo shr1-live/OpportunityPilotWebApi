@@ -2,6 +2,20 @@ using OpportunityPilot.Domain.Common;
 
 namespace OpportunityPilot.Domain.Agents;
 
+/// <summary>What a key may do. Keys created before scopes existed keep All.</summary>
+[Flags]
+public enum AgentKeyScope
+{
+    None = 0,
+    /// <summary>Read campaigns and upload postings found by the agent.</summary>
+    Research = 1,
+    /// <summary>Read the shortlist the agent applies to.</summary>
+    Shortlist = 2,
+    /// <summary>Report application results.</summary>
+    Applications = 4,
+    All = Research | Shortlist | Applications
+}
+
 /// <summary>
 /// A personal key the local desktop agent presents to report results. Only the SHA-256 of the key is stored;
 /// the plaintext is shown once at creation. <see cref="Prefix"/> lets the user tell keys apart.
@@ -10,8 +24,10 @@ public class AgentKey : IOwned
 {
     private AgentKey() { }
 
-    public AgentKey(Guid ownerId, string name, string keyHash, string prefix, DateTime utcNow)
+    public AgentKey(Guid ownerId, string name, string keyHash, string prefix, DateTime utcNow, AgentKeyScope scopes = AgentKeyScope.All)
     {
+        if (scopes == AgentKeyScope.None || (scopes & ~AgentKeyScope.All) != 0) throw new ArgumentException("Choose at least one valid scope.", nameof(scopes));
+        Scopes = scopes;
         if (ownerId == Guid.Empty) throw new ArgumentException("Owner is required.", nameof(ownerId));
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name is required.", nameof(name));
         if (keyHash is not { Length: 64 }) throw new ArgumentException("Key hash must be 64 hex characters.", nameof(keyHash));
@@ -31,6 +47,7 @@ public class AgentKey : IOwned
     public DateTime CreatedAt { get; private set; }
     public DateTime? LastUsedAt { get; private set; }
     public DateTime? RevokedAt { get; private set; }
+    public AgentKeyScope Scopes { get; private set; } = AgentKeyScope.All;
 
     /// <summary>Idempotent: the first revocation time is kept.</summary>
     public void Revoke(DateTime utcNow) => RevokedAt ??= utcNow;

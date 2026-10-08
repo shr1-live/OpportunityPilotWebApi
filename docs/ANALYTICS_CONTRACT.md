@@ -70,3 +70,13 @@ AnalyticsOverview = {
 - Tests: unit tests for the funnel "reached" logic, histogram banding (boundary 70/100), rates with zero denominators;
   integration test that builds two campaigns + research + approvals + an agent Applied report and asserts every
   number, plus ownership isolation and `workspace=Sales` nulls.
+
+## Update 2026-10-08 — Sales covers every Sales mode (P5)
+
+- `GET /api/v1/analytics/overview?workspace=Sales&days=30[&mode=Customer|Partner|Investor|Freelance]`: Sales now counts
+  all four Sales modes unless `mode` narrows it (400 for `mode` with `workspace=Candidate`).
+- `kpis.contacted` / `kpis.responded` are counted for Sales from stored status changes (first reach of Contacted /
+  Responded in the window); `respondedRate` = responded / contacted. Funnel `contacted` and `responded` are no longer null.
+- New `outreach` (Sales only, counted now): `draftsAwaitingReview`, `draftsApproved`, `bidsPlaced`, `bidsFailed`,
+  `followUpsDue` (open, due in the next 7 days), `followUpsOverdue`, `replyRate`.
+- New attention kind `FollowUpsOverdue`.

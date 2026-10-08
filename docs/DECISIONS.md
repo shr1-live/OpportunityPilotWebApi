@@ -80,3 +80,46 @@ API credentials.
 **Why:** Indeed's current public partner documentation exposes approved ATS/employer job and candidate workflows, not
 an unrestricted public job-search feed. Its developer agreement requires approval and restricts scraping/database
 copies. A truthful handoff gives Candidate and Sales users useful filters today without fabricating integration depth.
+
+## 2026-10-08 — Live Indeed, LinkedIn and SEEK postings through a licensed aggregator (supersedes 2026-10-07 Indeed handoff)
+
+**Decision:** Job discovery shows current postings published on Indeed, LinkedIn or SEEK by calling JSearch (OpenWeb
+Ninja on RapidAPI, a Google-for-Jobs data service) from the server. A posting is shown only when it carries an https
+link on that board's own domain; each row links there. Results are shown, not stored in the database; identical
+searches are reused from memory for `Jsearch:CacheMinutes` (default 6 h). Nothing is applied to or sent. Without
+`Jsearch__Key` the tabs say live listings are not set up and keep the official search link.
+
+**Why:** the user asked for Indeed "with live data, like Wellfound". Checked 2026-10-08: Indeed's RSS returns 404 and
+its search pages return 403 to non-browser clients; its Publisher API is closed. LinkedIn job/feed APIs and SEEK APIs
+are partner-only. Scraping any of them breaks their terms, so the only live route without partner approval is a
+licensed aggregator. The 2026-10-07 rule against copying results into a database still holds.
+
+**Open:** whether showing aggregator-sourced Indeed/LinkedIn/SEEK postings is acceptable for this product's terms is the
+user's call; JSearch's own terms govern the data. Not verified live until the key is set (TASKS U5).
+
+## 2026-10-08 — Indeed is also a campaign source (W17)
+
+**Decision:** a Job campaign can add an `Indeed` source. Each run searches JSearch (same server key and 6 h cache as the
+Job discovery tabs) with the campaign's first 3 keywords in its first non-"Remote" location (only "Remote" → remote-only),
+posted in the last month, keeps only postings with an https indeed.com link, and turns them into candidates that are
+filtered, scored and suggested exactly like Greenhouse jobs (`JobPlatform.Indeed`; the user applies on Indeed). Each
+search that is not served from the cache costs one fetch of the run budget. Without `Jsearch__Key` the source fails with
+"Indeed needs the server's JSearch key". This supersedes "results are shown, not stored" for campaign runs only; the
+Job discovery tabs still do not store.
+
+**Why:** the user chose "Indeed as campaign source" (2026-10-08) so Indeed jobs reach Approvals and Applications.
+
+**Extended (W18/W19, same day):** the source kind is `JobSearch` with the board on the source (`Indeed`, `LinkedIn`,
+`Seek`). LinkedIn postings keep LinkedIn's own job id (`/jobs/view/{id}`), so they de-duplicate with the agent's finds
+and a shortlisted one is applied to by the local agent; Indeed/SEEK jobs are applied to by the user. In Sales (non-Job)
+campaigns the same search (keywords, then buying signals) yields one lead per hiring company, its postings as evidence.
+The agent shortlist now lists only LinkedIn, Naukri and InstaHyre jobs (before, every non-Greenhouse/Lever/Adzuna job).
+
+## 2026-10-08 — Sites that cannot be integrated
+
+| Site | Why not | What the app does instead |
+|---|---|---|
+| Indeed profile (`profile.indeed.com`) | Personal page behind your Indeed login; no API for it | Live Indeed postings (above); you apply on Indeed |
+| LinkedIn feed (`linkedin.com/feed`) | Behind your login; LinkedIn APIs are partner-only; reading it would be scraping | Live LinkedIn postings (above); the local agent applies through your own browser |
+| Stellantis "thehub" (`idpm.stellantis.com`) | A private corporate sign-in portal (employee/supplier identity), not a job source; no public jobs or API | Nothing. Add Stellantis' public careers board as a campaign source if it uses a supported ATS |
+| Upwork | Official GraphQL API (`api.upwork.com/graphql`, `marketplaceJobPostingsSearch`) needs an approved key and the Authorization Code grant (your Upwork account connected); job RSS feeds were retired in 2024 | Shown as *Not built yet* (W14). The client is built once the key is approved and the query can be tested (TASKS U6 → W16). Proposals/Connects are never spent by the app |

@@ -15,7 +15,9 @@ public enum DraftChannel
 public enum DraftState
 {
     Draft,
-    Approved
+    Approved,
+    /// <summary>The approved version was sent; set only from a confirmed provider execution with a receipt.</summary>
+    Sent
 }
 
 public enum DraftSource
@@ -72,6 +74,7 @@ public sealed class OutreachDraft : IOwned
     public string? ApprovedHash { get; private set; }
     public int? ApprovedVersion { get; private set; }
     public DateTime? ApprovedAt { get; private set; }
+    public DateTime? SentAt { get; private set; }
     public DraftSource Source { get; private set; }
     public string ClaimsJson { get; private set; } = "[]";
     public DateTime CreatedAt { get; private set; }
@@ -79,6 +82,7 @@ public sealed class OutreachDraft : IOwned
 
     public void Update(string? recipient, bool recipientVerified, string? subject, string body, DateTime utcNow)
     {
+        if (State == DraftState.Sent) throw new InvalidOperationException("A sent message cannot be edited; draft a new one.");
         var nextRecipient = Guard.Optional(recipient, MaxRecipientLength, nameof(recipient));
         var nextSubject = Guard.Optional(subject, MaxSubjectLength, nameof(subject));
         var nextBody = RequiredBody(body);
@@ -95,6 +99,7 @@ public sealed class OutreachDraft : IOwned
 
     public void Approve(int version, DateTime utcNow)
     {
+        if (State == DraftState.Sent) throw new InvalidOperationException("This message was already sent.");
         if (version != Version) throw new InvalidOperationException("The draft version is stale.");
         if (string.IsNullOrWhiteSpace(Body)) throw new InvalidOperationException("The draft body is required.");
         if (Channel == DraftChannel.Email && string.IsNullOrWhiteSpace(Recipient))
@@ -107,8 +112,18 @@ public sealed class OutreachDraft : IOwned
         UpdatedAt = utcNow;
     }
 
+    /// <summary>Called only by the provider gateway when an execution of the approved version succeeded.</summary>
+    public void MarkSent(DateTime utcNow)
+    {
+        if (!HasValidApproval()) throw new InvalidOperationException("Only the approved current version can be sent.");
+        State = DraftState.Sent;
+        SentAt = utcNow;
+        UpdatedAt = utcNow;
+    }
+
     public void RevokeApproval(DateTime utcNow)
     {
+        if (State == DraftState.Sent) throw new InvalidOperationException("A sent message cannot be un-approved.");
         if (State == DraftState.Draft && ApprovedHash is null) return;
         ClearApproval();
         UpdatedAt = utcNow;

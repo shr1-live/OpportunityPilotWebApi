@@ -34,6 +34,7 @@ public sealed class CapabilityService(
     IOptions<AiOptions> ai,
     IOptions<DatabaseOptions> database,
     IOptions<AdzunaOptions> adzuna,
+    IOptions<JsearchOptions> jsearch,
     SetupState setup)
 {
     public CapabilitiesDto Get(string environment)
@@ -104,12 +105,25 @@ public sealed class CapabilityService(
                     "Server keys missing (Adzuna__AppId and Adzuna__AppKey). Adzuna sources can be added but fail until the keys are set.",
                     [], ["Search Adzuna"]),
 
+            jsearch.Value.Configured
+                ? new("job-boards", "Indeed, LinkedIn and SEEK postings", "Sources", CapabilityStatus.Ready,
+                    "Shows current postings published on Indeed, LinkedIn or SEEK through JSearch, a licensed Google-for-Jobs data service. The key is set on the server and never shown.",
+                    ["Search one board with your filters (Job discovery)", "Add Indeed as a source in a Job campaign: postings are scored and go to Approvals", "Link every posting to the board itself", "Reuse a search for a few hours to save the free quota"],
+                    ["Apply for you", "Read your Indeed profile or LinkedIn feed"])
+                : new("job-boards", "Indeed, LinkedIn and SEEK postings", "Sources", CapabilityStatus.NotConfigured,
+                    "Server key missing (Jsearch__Key, free RapidAPI plan). Until it is set, Job discovery opens the same search on each board instead.",
+                    ["Open the search on Indeed, LinkedIn or SEEK"], ["Show live postings in the app"]),
+
             PublicBoard("ashby", "Ashby job boards", "a company's public Ashby careers board"),
             PublicBoard("smartrecruiters", "SmartRecruiters postings", "a company's public SmartRecruiters postings"),
             PublicBoard("recruitee", "Recruitee offers", "a company's public Recruitee offers"),
             PublicBoard("workable", "Workable jobs", "a company's public Workable careers widget"),
             PublicBoard("remotive", "Remotive remote jobs", "the public Remotive remote-jobs feed", company: false),
             PublicBoard("remoteok", "Remote OK jobs", "the public Remote OK jobs feed", company: false),
+
+            new("upwork", "Upwork projects", "Sources", CapabilityStatus.NotBuilt,
+                "Upwork's official API can search marketplace projects for the Sales workspace, but each app needs Upwork's approval and your Upwork account connected (OAuth). Upwork retired its job RSS feeds in 2024.",
+                [], ["Search Upwork projects", "Send proposals or spend Connects"]),
 
             new("gmail", "Gmail", "Outreach",
                 f.GmailEnabled ? CapabilityStatus.NotBuilt : CapabilityStatus.Disabled,

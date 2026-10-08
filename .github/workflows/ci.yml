@@ -16,6 +16,13 @@ jobs:
       - run: dotnet restore OpportunityPilot.sln
       - run: dotnet build OpportunityPilot.sln --configuration Release --no-restore
       - run: dotnet test OpportunityPilot.sln --configuration Release --no-build
+      # The EF model and the migrations must match for both providers, or a deploy would migrate the wrong schema.
+      - run: dotnet tool install --global dotnet-ef --version "10.*"
+      - name: Migrations match the model (SqlServer, Postgres)
+        run: |
+          for c in SqlServer Postgres; do
+            dotnet ef migrations has-pending-model-changes -p src/OpportunityPilot.Infrastructure -s src/OpportunityPilot.Api               --context ${c}AppDbContext --configuration Release --no-build
+          done
   agent:
     runs-on: ubuntu-latest
     defaults:

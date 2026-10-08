@@ -34,11 +34,16 @@ public sealed class AnalyticsService(IAppDbContext db, ICurrentUser user, TimePr
 
     private const string Arrow = " → ";
 
-    public async Task<AnalyticsOverviewDto> OverviewAsync(string? workspace, int days, CancellationToken ct)
+    public static readonly OpportunityMode[] SalesModes = [OpportunityMode.Customer, OpportunityMode.Partner, OpportunityMode.Investor, OpportunityMode.Freelance];
+
+    /// <param name="salesMode">Sales only: one of Customer, Partner, Investor, Freelance; null = all four.</param>
+    public async Task<AnalyticsOverviewDto> OverviewAsync(string? workspace, int days, CancellationToken ct, OpportunityMode? salesMode = null)
     {
         var ws = Validate(workspace, days);
         var candidate = ws == AnalyticsWorkspace.Candidate;
-        var mode = candidate ? OpportunityMode.Job : OpportunityMode.Customer;
+        if (salesMode is { } requested && (candidate || !SalesModes.Contains(requested)))
+            throw new RequestValidationException(new Dictionary<string, string[]> { ["mode"] = ["Filter by mode only in the Sales workspace: Customer, Partner, Investor or Freelance."] });
+        var modes = candidate ? [OpportunityMode.Job] : salesMode is { } one ? [one] : SalesModes;
         var owner = user.OwnerId;
         var now = clock.GetUtcNow().UtcDateTime;
         var since = now.AddDays(-days);
@@ -47,23 +52,23 @@ public sealed class AnalyticsService(IAppDbContext db, ICurrentUser user, TimePr
         // Candidate charts the last 14 days even when the window is shorter, so activities are read from the earlier of the two.
         var rangeStart = candidate ? Min(since, firstChartDay.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)) : since;
 
-        var campaigns = await db.Campaigns.Where(c => c.OwnerId == owner && c.Mode == mode)
+        var campaigns = await db.Campaigns.Where(c => c.OwnerId == owner && modes.Contains(c.Mode))
             .Select(c => new { c.Id, c.Name, c.AutoSuggestMinScore })
             .ToListAsync(ct);
 
         // Opportunities found in the window (the funnel cohort). Breakdown and facts only where they are read.
         var found = await db.Opportunities
-            .Where(o => o.OwnerId == owner && o.Mode == mode && o.CreatedAt >= since)
+            .Where(o => o.OwnerId == owner && modes.Contains(o.Mode) && o.CreatedAt >= since)
             .Select(o => new
             {
                 o.Id, o.Score, o.Outcome, o.Status,
                 BreakdownJson = o.Outcome != FilterOutcome.Excluded ? o.BreakdownJson : null,
-                FactsJson = mode == OpportunityMode.Customer ? o.FactsJson : null
+                FactsJson = !candidate ? o.FactsJson : null
             })
             .ToListAsync(ct);
 
         var statusCounts = await db.Opportunities
-            .Where(o => o.OwnerId == owner && o.Mode == mode &&
+            .Where(o => o.OwnerId == owner && modes.Contains(o.Mode) &&
                         (o.Status == OpportunityStatus.Suggested || o.Status == OpportunityStatus.Shortlisted))
             .GroupBy(o => o.Status)
             .Select(g => new { Status = g.Key, Count = g.Count() })
@@ -72,7 +77,7 @@ public sealed class AnalyticsService(IAppDbContext db, ICurrentUser user, TimePr
         // Status-proving activities in the range, for the funnel cohort and for "first reached X in the window".
         var rangeActivities = (await (from a in db.Activities
                     join o in db.Opportunities on a.OpportunityId equals o.Id
-                    where a.OwnerId == owner && o.OwnerId == owner && o.Mode == mode && a.OccurredAt >= rangeStart &&
+                    where a.OwnerId == owner && o.OwnerId == owner && modes.Contains(o.Mode) && a.OccurredAt >= rangeStart &&
                           StatusKinds.Contains(a.Kind)
                     select new { a.OpportunityId, a.Kind, a.Detail, a.OccurredAt })
                 .ToListAsync(ct))
@@ -83,15 +88,15 @@ public sealed class AnalyticsService(IAppDbContext db, ICurrentUser user, TimePr
         var qualified = found.Where(o => o.Outcome == FilterOutcome.Qualified).ToList();
         var awaiting = candidate ? statusCounts.GetValueOrDefault(OpportunityStatus.Suggested) : 0;
         var shortlisted = statusCounts.GetValueOrDefault(OpportunityStatus.Shortlisted);
-        var shortlistedNotApplied = candidate ? await ShortlistedNotAppliedAsync(owner, mode, ct) : 0;
+        var shortlistedNotApplied = candidate ? await ShortlistedNotAppliedAsync(owner, modes, ct) : 0;
 
-        // First reach of Applied / Responded (Candidate only: Sales has no Applied stage, responded waits for Outreach).
-        Dictionary<Guid, AnalyticsActivity> appliedFirst = [], respondedFirst = [];
-        if (candidate)
+        // First reach of Applied (Candidate) or Contacted (Sales), and Responded, from stored status changes.
+        Dictionary<Guid, AnalyticsActivity> appliedFirst = [], respondedFirst = [], contactedFirst = [];
         {
-            appliedFirst = FirstReaches(rangeActivities, OpportunityStatus.Applied);
+            if (candidate) appliedFirst = FirstReaches(rangeActivities, OpportunityStatus.Applied);
+            else contactedFirst = FirstReaches(rangeActivities, OpportunityStatus.Contacted);
             respondedFirst = FirstReaches(rangeActivities, OpportunityStatus.Responded);
-            var reachedIds = appliedFirst.Keys.Concat(respondedFirst.Keys).Distinct().ToList();
+            var reachedIds = appliedFirst.Keys.Concat(contactedFirst.Keys).Concat(respondedFirst.Keys).Distinct().ToList();
             if (reachedIds.Count > 0)
             {
                 // An opportunity that already got there before the range was not reached in it.
@@ -104,6 +109,7 @@ public sealed class AnalyticsService(IAppDbContext db, ICurrentUser user, TimePr
                     .ToDictionary(g => g.Key, g => HighestRank(null, g.Select(a => new AnalyticsActivity(a.Kind, a.Detail, a.OccurredAt))));
                 RemoveReachedEarlier(appliedFirst, earlier, OpportunityStatus.Applied);
                 RemoveReachedEarlier(respondedFirst, earlier, OpportunityStatus.Responded);
+                RemoveReachedEarlier(contactedFirst, earlier, OpportunityStatus.Contacted);
             }
         }
 
@@ -111,17 +117,18 @@ public sealed class AnalyticsService(IAppDbContext db, ICurrentUser user, TimePr
         int? applied = candidate ? appliedInWindow.Count : null;
         int? appliedByAgent = candidate ? appliedInWindow.Count(a => a.Kind == ActivityKinds.Applied) : null;
         int? appliedByYou = candidate ? appliedInWindow.Count(a => a.Kind != ActivityKinds.Applied) : null;
-        int? responded = candidate ? respondedFirst.Values.Count(a => a.OccurredAt >= since) : null;
+        int? responded = respondedFirst.Values.Count(a => a.OccurredAt >= since);
+        int? contacted = candidate ? null : contactedFirst.Values.Count(a => a.OccurredAt >= since);
 
         var agentNeedsYou = candidate
             ? await db.JobApplications.CountAsync(a => a.OwnerId == owner && a.Status == ApplicationStatus.NeedsManual && a.OccurredAt >= since, ct)
             : 0;
 
         var kpis = new AnalyticsKpisDto(found.Count, qualified.Count, Rate(qualified.Count, found.Count), awaiting, shortlisted,
-            shortlistedNotApplied, applied, appliedByAgent, appliedByYou, Contacted: null, responded, Rate(responded, applied), agentNeedsYou);
+            shortlistedNotApplied, applied, appliedByAgent, appliedByYou, contacted, responded, Rate(responded, candidate ? applied : contacted), agentNeedsYou);
 
         // Funnel.
-        var read = await ReadAsync(owner, mode, since, ct);
+        var read = await ReadAsync(owner, modes, since, ct);
         int CountReached(OpportunityStatus stage) => found.Count(o =>
             Reached(o.Status, rangeActivities.GetValueOrDefault(o.Id) ?? [], stage));
         var funnel = new List<FunnelStageDto>
@@ -140,8 +147,8 @@ public sealed class AnalyticsService(IAppDbContext db, ICurrentUser user, TimePr
         else
         {
             funnel.Add(new("shortlisted", "Shortlisted", CountReached(OpportunityStatus.Shortlisted), "Of those found, reached Shortlisted or a later stage."));
-            funnel.Add(new("contacted", "Contacted", null, "Not tracked until Outreach is built."));
-            funnel.Add(new("responded", "Responded", null, "Not tracked until Outreach is built."));
+            funnel.Add(new("contacted", "Contacted", CountReached(OpportunityStatus.Contacted), "Of those found, marked Contacted (after you sent the approved message) or a later stage."));
+            funnel.Add(new("responded", "Responded", CountReached(OpportunityStatus.Responded), "Of those found, reached Responded or a later stage."));
         }
 
         // Fit histogram and unknown criteria.
@@ -152,7 +159,7 @@ public sealed class AnalyticsService(IAppDbContext db, ICurrentUser user, TimePr
             .Select(o => Deserialize<List<BreakdownRow>>(o.BreakdownJson) ?? []));
 
         // Sources.
-        var (sources, failingSources) = await SourcesAsync(owner, mode, ct);
+        var (sources, failingSources) = await SourcesAsync(owner, modes, ct);
 
         // Applications per day (Candidate).
         IReadOnlyList<ApplicationsDayDto>? perDay = null;
@@ -182,7 +189,7 @@ public sealed class AnalyticsService(IAppDbContext db, ICurrentUser user, TimePr
         // Active research: the newest queued or running job of the workspace's campaigns (not windowed: it is "now").
         var active = await (from j in db.ResearchJobs
                 join c in db.Campaigns on j.CampaignId equals c.Id
-                where j.OwnerId == owner && c.OwnerId == owner && c.Mode == mode &&
+                where j.OwnerId == owner && c.OwnerId == owner && modes.Contains(c.Mode) &&
                       (j.State == ResearchJobState.Queued || j.State == ResearchJobState.Running)
                 orderby j.CreatedAt descending, j.Id
                 select new { j.Id, j.CampaignId, c.Name, j.State, j.Stage, j.CountsJson })
@@ -204,15 +211,37 @@ public sealed class AnalyticsService(IAppDbContext db, ICurrentUser user, TimePr
             signals = Signals(found.Select(o => Deserialize<List<FactRow>>(o.FactsJson) ?? []));
         }
 
+        SalesOutreachDto? outreach = null;
+        if (!candidate)
+        {
+            var drafts = await (from d in db.OutreachDrafts
+                    join o in db.Opportunities on d.OpportunityId equals o.Id
+                    where d.OwnerId == owner && o.OwnerId == owner && modes.Contains(o.Mode)
+                    select d.State).ToListAsync(ct);
+            var bids = await db.SalesBids.Where(b => b.OwnerId == owner).Select(b => b.State).ToListAsync(ct);
+            var openFollowUps = await (from n in db.NextActions
+                    join o in db.Opportunities on n.OpportunityId equals o.Id
+                    where n.OwnerId == owner && o.OwnerId == owner && modes.Contains(o.Mode) && n.State == Domain.Outreach.NextActionState.Open
+                    select n.DueAt).ToListAsync(ct);
+            outreach = new SalesOutreachDto(
+                drafts.Count(s => s == Domain.Drafts.DraftState.Draft), drafts.Count(s => s == Domain.Drafts.DraftState.Approved),
+                bids.Count(s => s == Domain.Sales.SalesBidState.Placed), bids.Count(s => s == Domain.Sales.SalesBidState.Failed),
+                openFollowUps.Count(d => d >= now && d <= now.AddDays(7)), openFollowUps.Count(d => d < now),
+                Rate(responded, contacted));
+            if (outreach.FollowUpsOverdue > 0)
+                attention.Add(new(AttentionKind.FollowUpsOverdue, outreach.FollowUpsOverdue,
+                    $"{outreach.FollowUpsOverdue} follow-up{Plural(outreach.FollowUpsOverdue)} overdue."));
+        }
+
         return new AnalyticsOverviewDto(ws, days, now, campaigns.Count, kpis, funnel, histogram, unknown, sources, perDay, attention,
-            activeResearch, byIndustry, signals);
+            activeResearch, byIndustry, signals, outreach);
     }
 
     /// <summary>Shortlisted now and never applied: no activity shows the opportunity at Applied or later.</summary>
-    private async Task<int> ShortlistedNotAppliedAsync(Guid owner, OpportunityMode mode, CancellationToken ct)
+    private async Task<int> ShortlistedNotAppliedAsync(Guid owner, OpportunityMode[] modes, CancellationToken ct)
     {
         var ids = await db.Opportunities
-            .Where(o => o.OwnerId == owner && o.Mode == mode && o.Status == OpportunityStatus.Shortlisted)
+            .Where(o => o.OwnerId == owner && modes.Contains(o.Mode) && o.Status == OpportunityStatus.Shortlisted)
             .Select(o => o.Id)
             .ToListAsync(ct);
         if (ids.Count == 0) return 0;
@@ -226,11 +255,11 @@ public sealed class AnalyticsService(IAppDbContext db, ICurrentUser user, TimePr
     }
 
     /// <summary>Sum of counts.candidates over the window's completed jobs, latest job per campaign only (re-runs would double count).</summary>
-    private async Task<int> ReadAsync(Guid owner, OpportunityMode mode, DateTime since, CancellationToken ct)
+    private async Task<int> ReadAsync(Guid owner, OpportunityMode[] modes, DateTime since, CancellationToken ct)
     {
         var jobs = await (from j in db.ResearchJobs
                 join c in db.Campaigns on j.CampaignId equals c.Id
-                where j.OwnerId == owner && c.OwnerId == owner && c.Mode == mode && j.CreatedAt >= since &&
+                where j.OwnerId == owner && c.OwnerId == owner && modes.Contains(c.Mode) && j.CreatedAt >= since &&
                       (j.State == ResearchJobState.Completed || j.State == ResearchJobState.CompletedWithGaps)
                 select new { j.Id, j.CampaignId, j.CreatedAt, j.CountsJson })
             .ToListAsync(ct);
@@ -239,11 +268,11 @@ public sealed class AnalyticsService(IAppDbContext db, ICurrentUser user, TimePr
             .Sum(j => ResearchCounts.FromJson(j.CountsJson).Candidates);
     }
 
-    private async Task<(IReadOnlyList<SourceYieldDto> Top, int Failing)> SourcesAsync(Guid owner, OpportunityMode mode, CancellationToken ct)
+    private async Task<(IReadOnlyList<SourceYieldDto> Top, int Failing)> SourcesAsync(Guid owner, OpportunityMode[] modes, CancellationToken ct)
     {
         var sources = await (from s in db.Sources
                 join c in db.Campaigns on s.CampaignId equals c.Id
-                where s.OwnerId == owner && c.OwnerId == owner && c.Mode == mode
+                where s.OwnerId == owner && c.OwnerId == owner && modes.Contains(c.Mode)
                 select new { s.Id, s.CampaignId, s.Label, s.Kind, s.Platform, s.ItemCount, s.LastFetchedAt, s.Status })
             .ToListAsync(ct);
         if (sources.Count == 0) return ([], 0);
@@ -252,7 +281,7 @@ public sealed class AnalyticsService(IAppDbContext db, ICurrentUser user, TimePr
         var qualifiedBySource = await (from l in db.OpportunityEvidence
                 join e in db.Evidence on l.EvidenceId equals e.Id
                 join o in db.Opportunities on l.OpportunityId equals o.Id
-                where e.OwnerId == owner && o.OwnerId == owner && o.Mode == mode && o.Outcome == FilterOutcome.Qualified
+                where e.OwnerId == owner && o.OwnerId == owner && modes.Contains(o.Mode) && o.Outcome == FilterOutcome.Qualified
                 select new { e.SourceId, l.OpportunityId })
             .Distinct()
             .GroupBy(x => x.SourceId)

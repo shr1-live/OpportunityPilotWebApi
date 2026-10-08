@@ -139,7 +139,7 @@ facts from an assisted or approved API/MCP import. It does not scrape Upwork and
 | POST | `/api/v1/sales/bids/batch-approve` | user | `{ items: [{ id, version }] }` | exact-version per-item results |
 | POST | `/api/v1/sales/bids/{id}/handoff` | user | — | requires this exact bid's valid approval; marks manual provider handoff |
 | POST | `/api/v1/sales/bids/{id}/confirm-placement` | user | `{ version, confirmed: true }` | records the user's explicit post-provider confirmation; idempotent once Placed |
-| POST | `/api/v1/sales/projects/{id}/bid` | user | `CreateSalesBidRequest` | 200 project with the new Draft bid; 400; 404 |
+| POST | `/api/v1/sales/projects/{id}/bid` | user | `CreateSalesBidRequest` | 200 project with the new Draft bid; 400; 404. Approval later requires stored provider/tender evidence, or a user-provided brief for Manual projects. |
 | PUT | `/api/v1/sales/bids/{id}` | user | `UpdateSalesBidRequest` with `expectedVersion` | 200 project; 400; 404; 409 stale version |
 | POST | `/api/v1/sales/bids/{id}/approve` | user | `{ version }` | 200 project; 400 while `[placeholders]` remain; 404; 409 stale version |
 | GET | `/api/v1/sales/upwork-opportunities` | user | query `state?`, `take` (1–200) | 200 `UpworkOpportunityDto[]`, newest observed first |
@@ -161,6 +161,17 @@ create a calendar event or claim that an external action occurred.
 | GET | `/api/v1/staffing/deals/{id}` | user | — | 200 `StaffingDealDto` with newest activities; 404 |
 | POST | `/api/v1/staffing/accounts/{accountId}/deals` | user | `CreateStaffingDealRequest` | 201 `StaffingDealDto`; 400; 404 |
 | PUT | `/api/v1/staffing/deals/{id}` | user | `UpdateStaffingDealRequest` with `expectedVersion` | 200; 400; 404; 409 stale version |
+
+### Replayable Sales demo (P8)
+
+All records are owner-scoped, use fictional `.example` identities, and carry the `Demo — ` prefix. Reset removes only those records for the current owner.
+
+| Method | Path | Auth | Input | Response |
+|---|---|---|---|---|
+| GET | `/api/v1/demo/sales` | user | — | 200 `SalesDemoStatus` |
+| POST | `/api/v1/demo/sales` | user | — | 200 status after creating a Product profile, four Sales-mode campaigns and queued research; 409 if already present |
+| POST | `/api/v1/demo/sales/finish` | user | — | 200 after research is terminal: shortlists, channel-specific drafts, follow-ups, approved proposal and staffing interview; 409 if missing/still running |
+| DELETE | `/api/v1/demo/sales` | user | — | 204 after removing only the caller's demo records |
 | POST | `/api/v1/staffing/deals/{id}/stage` | user | `{ stage, expectedVersion }` | 200; 400 unknown stage; 404; 409 stale/invalid transition |
 | POST | `/api/v1/staffing/deals/{id}/notes` | user | `{ detail }` | 200 deal with immutable note activity; 400; 404 |
 

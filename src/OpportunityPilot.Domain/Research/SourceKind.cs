@@ -29,6 +29,13 @@ public enum SourceKind
     /// <summary>A company's public Workable widget; <see cref="Source.Url"/> holds the account slug.</summary>
     Workable,
 
+    /// <summary>
+    /// Live postings from one job board (Indeed, LinkedIn or SEEK) found through JSearch (server key) with the campaign's
+    /// keywords and first location; <see cref="Source.Url"/> holds the board name. Job campaigns get jobs; other modes get
+    /// the hiring companies as leads.
+    /// </summary>
+    JobSearch,
+
     /// <summary>The public, board-wide Remotive remote-jobs feed.</summary>
     Remotive,
 

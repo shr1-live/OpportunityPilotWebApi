@@ -1,6 +1,7 @@
 # OpportunityPilot product execution flow
 
-Status: implementation map and operator contract. The editable FigJam overview is generated from this document.
+Status: implementation map and operator contract. The repository copy is authoritative; an editable FigJam publication
+still requires access to the destination Figma workspace.
 
 ## Product boundary
 

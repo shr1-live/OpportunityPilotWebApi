@@ -43,6 +43,23 @@ public sealed class AdzunaOptions
     public bool Configured => !string.IsNullOrWhiteSpace(AppId) && !string.IsNullOrWhiteSpace(AppKey);
 }
 
+/// <summary>
+/// JSearch (OpenWeb Ninja on RapidAPI): a licensed Google-for-Jobs aggregator used to show live Indeed postings, because
+/// Indeed has no public API (its RSS returns 404 and its search pages block bots). The key is a server-side secret:
+/// never logged, returned or stored. Without it the Indeed tab keeps the official-search handoff.
+/// </summary>
+public sealed class JsearchOptions
+{
+    public const string Section = "Jsearch";
+    public string? Key { get; set; }
+    public string Host { get; set; } = "jsearch.p.rapidapi.com";
+
+    /// <summary>The free plan allows 200 requests a month, so identical searches are served from memory for this long.</summary>
+    public int CacheMinutes { get; set; } = 360;
+
+    public bool Configured => !string.IsNullOrWhiteSpace(Key);
+}
+
 public sealed class AuthOptions
 {
     public const string Section = "Auth";

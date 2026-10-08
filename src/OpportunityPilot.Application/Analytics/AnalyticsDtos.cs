@@ -15,7 +15,8 @@ public enum AttentionKind
     Approvals,
     ShortlistedNotApplied,
     AgentNeedsYou,
-    SourceFailing
+    SourceFailing,
+    FollowUpsOverdue
 }
 
 /// <summary>
@@ -39,7 +40,14 @@ public sealed record AnalyticsOverviewDto(
     IReadOnlyList<AttentionItemDto> Attention,
     ActiveResearchDto? ActiveResearch,
     IReadOnlyList<IndustryCountDto>? QualifiedByIndustry,
-    IReadOnlyList<SignalCountDto>? SignalsFound);
+    IReadOnlyList<SignalCountDto>? SignalsFound,
+    SalesOutreachDto? Outreach = null);
+
+/// <summary>Sales only. Counted now (not windowed) from stored drafts, bids and follow-ups; nothing is estimated.</summary>
+/// <param name="FollowUpsDue">Open follow-ups due in the next 7 days.</param>
+/// <param name="ReplyRate">Responded / contacted in the window; null when nothing was contacted.</param>
+public sealed record SalesOutreachDto(int DraftsAwaitingReview, int DraftsApproved, int BidsPlaced, int BidsFailed,
+    int FollowUpsDue, int FollowUpsOverdue, double? ReplyRate);
 
 /// <param name="QualifyRate">Qualified / found, 0–1 (4 decimals); null when nothing was found.</param>
 /// <param name="Applied">Candidate: opportunities whose first move to Applied (or beyond) happened in the window. Null for Sales.</param>

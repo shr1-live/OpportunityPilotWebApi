@@ -20,6 +20,7 @@ builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(Dat
 builder.Services.Configure<FeatureOptions>(builder.Configuration.GetSection(FeatureOptions.Section));
 builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
 builder.Services.Configure<AdzunaOptions>(builder.Configuration.GetSection(AdzunaOptions.Section));
+builder.Services.Configure<JsearchOptions>(builder.Configuration.GetSection(JsearchOptions.Section));
 
 // Missing configuration does not stop the process. Without a connection string data is kept in memory;
 // without a Supabase URL visitors continue as random guests. /api/v1/capabilities reports both (demo mode).
@@ -46,6 +47,7 @@ builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
 // One bounded in-process research worker (Research:ProcessorEnabled=false turns it off, e.g. in tests).
 builder.Services.AddHostedService<ResearchProcessor>();
 builder.Services.AddHostedService<ScheduleProcessor>();
+builder.Services.AddHostedService<RetentionProcessor>();
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 var allowedOriginPatterns = builder.Configuration.GetSection("Cors:AllowedOriginPatterns").Get<string[]>() ?? [];
@@ -63,6 +65,7 @@ builder.Services.AddRateLimiter(o =>
         RateLimitPartition.GetFixedWindowLimiter(
             ctx.User.FindFirst("sub")?.Value ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
             _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1) }));
+    RateLimits.Add(o);
 });
 
 builder.Services.Configure<ForwardedHeadersOptions>(o =>

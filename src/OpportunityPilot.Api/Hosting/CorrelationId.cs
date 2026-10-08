@@ -13,7 +13,9 @@ public static partial class CorrelationId
         var id = SafeId().IsMatch(inbound) ? inbound : Guid.NewGuid().ToString("N");
         context.TraceIdentifier = id;
         context.Response.Headers[Header] = id;
-        await next();
+        var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Request");
+        using (logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = id }))
+            await next();
     });
 
     [GeneratedRegex("^[A-Za-z0-9-]{8,64}$")]

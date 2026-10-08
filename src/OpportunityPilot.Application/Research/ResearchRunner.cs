@@ -27,7 +27,8 @@ public sealed class ResearchRunner(
     JobBoardGatherer boards,
     IOptions<ResearchOptions> options,
     TimeProvider clock,
-    ILogger<ResearchRunner> logger) : IResearchRunner
+    ILogger<ResearchRunner> logger,
+    Common.OperationalMetrics metrics) : IResearchRunner
 {
     public static readonly TimeSpan Lease = TimeSpan.FromMinutes(2);
     private const int ClaimTries = 5;
@@ -143,7 +144,7 @@ public sealed class ResearchRunner(
         // Each fetching source gets an equal share of what is left of the budget, so one large board cannot starve the
         // rest; whatever a source leaves unused flows on to the next one.
         static bool Fetches(SourceKind k) => k is SourceKind.Url or SourceKind.Feed or SourceKind.Greenhouse or SourceKind.Lever or SourceKind.Adzuna or
-            SourceKind.Ashby or SourceKind.SmartRecruiters or SourceKind.Recruitee or SourceKind.Workable or SourceKind.Remotive or SourceKind.RemoteOk;
+            SourceKind.Ashby or SourceKind.SmartRecruiters or SourceKind.Recruitee or SourceKind.Workable or SourceKind.JobSearch or SourceKind.Remotive or SourceKind.RemoteOk;
         var fetchingLeft = sources.Count(s => Fetches(s.Kind));
         var sourcesLeft = sources.Count;
         foreach (var source in sources)
@@ -243,6 +244,7 @@ public sealed class ResearchRunner(
             : ResearchJobState.Completed;
         var gap = counts.SourcesFailed > 0 ? $"{counts.SourcesFailed} source{Plural(counts.SourcesFailed)} could not be read; see the events for reasons." : null;
         job.Finish(state, gap, Now());
+        metrics.Record("research.run", Now() - (job.StartedAt ?? job.CreatedAt), state == ResearchJobState.Completed ? null : state.ToString());
         AddEvent(job, ResearchStage.Complete, state == ResearchJobState.Completed ? EventLevel.Info : EventLevel.Warning, state switch
         {
             ResearchJobState.Cancelled => "Cancelled. Opportunities found before cancelling were kept.",
@@ -285,6 +287,11 @@ public sealed class ResearchRunner(
                     return new(SourceStatus.Failed, result.FailureReason, [], result.Requests,
                         $"{source.Label}: could not be read safely — {result.FailureReason}", EventLevel.Warning);
                 return source.Kind == SourceKind.Url ? FromPage(source, mode, result) : FromFeed(source, mode, result);
+            }
+            case SourceKind.JobSearch:
+            {
+                var search = await boards.JobSearchAsync(source, criteria, mode, room, fetchesLeft, ct);
+                return new(search.Status, search.SafeError, search.Items.ToList(), search.Requests, search.Message, search.Level);
             }
             case SourceKind.Greenhouse or SourceKind.Lever or SourceKind.Adzuna or SourceKind.Ashby or SourceKind.SmartRecruiters or
                 SourceKind.Recruitee or SourceKind.Workable or SourceKind.Remotive or SourceKind.RemoteOk:

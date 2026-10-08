@@ -17,7 +17,7 @@ public sealed class ScheduleService(IAppDbContext db, ICurrentUser user, TimePro
                orderby schedule.NextRunAt, schedule.Id
                select new CampaignScheduleDto(schedule.Id, schedule.CampaignId, campaign.Name, schedule.TimeZone,
                    schedule.CadenceMinutes, schedule.NextRunAt, schedule.Paused, schedule.LastQueuedAt,
-                   schedule.LastSafeError, schedule.Version, schedule.UpdatedAt)).ToListAsync(ct);
+                   schedule.LastSafeError, schedule.Version, schedule.UpdatedAt, schedule.LastMissedRuns, schedule.TotalMissedRuns)).ToListAsync(ct);
 
     public async Task<CampaignScheduleDto> UpsertAsync(Guid campaignId, UpsertCampaignScheduleRequest request, CancellationToken ct)
     {
@@ -100,7 +100,7 @@ public sealed class ScheduleService(IAppDbContext db, ICurrentUser user, TimePro
 
     private static CampaignScheduleDto ToDto(CampaignSchedule row, string campaignName) =>
         new(row.Id, row.CampaignId, campaignName, row.TimeZone, row.CadenceMinutes, row.NextRunAt, row.Paused,
-            row.LastQueuedAt, row.LastSafeError, row.Version, row.UpdatedAt);
+            row.LastQueuedAt, row.LastSafeError, row.Version, row.UpdatedAt, row.LastMissedRuns, row.TotalMissedRuns);
 
     private static RequestValidationException Invalid(string field, string message) =>
         new(new Dictionary<string, string[]> { [field] = [message] });

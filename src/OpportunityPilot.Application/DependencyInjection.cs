@@ -48,6 +48,13 @@ public static class DependencyInjection
         services.AddScoped<UpworkOpportunityService>();
         services.AddScoped<ScheduleService>();
         services.AddScoped<StaffingService>();
+        services.AddScoped<StaffingPipelineService>();
+        services.AddScoped<Auth.SecurityAudit>();
+        services.AddSingleton<Common.OperationalMetrics>();
+        services.AddScoped<Common.RetentionService>();
+        services.AddScoped<Outreach.ProviderGateway>();
+        services.AddScoped<Demo.SalesDemoService>();
+        services.AddScoped<Capabilities.ProviderReadinessService>();
         services.AddScoped<WellfoundService>();
         services.AddScoped<JobBoardGatherer>();
         services.AddScoped<IResearchRunner, ResearchRunner>();

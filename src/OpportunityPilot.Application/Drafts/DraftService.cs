@@ -38,6 +38,8 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         var generated = request.Channel == DraftChannel.CoverNote
             ? GenerateCoverNote(opportunity, campaign.CriteriaJson, profile.StructuredDataJson)
             : GenerateOutreach(opportunity, profile.StructuredDataJson, request.Channel);
+        // Every claim taken from the profile names the exact version it came from (P2).
+        generated = (generated.Body, generated.Claims.Select(c => c.Basis == "Profile" ? c with { Basis = $"Profile v{profile.Version}" } : c).ToList());
         var now = clock.GetUtcNow().UtcDateTime;
         var recipientEvidence = RecipientEvidence(request.Recipient, opportunity.FactsJson);
         var draft = new OutreachDraft(ownerId, opportunity.Id, request.Channel, request.Recipient, recipientEvidence is not null, null,
@@ -189,7 +191,7 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
     public static DraftDto ToDto(OutreachDraft draft, string? factsJson = null)
     {
         var validApproval = draft.HasValidApproval();
-        var state = validApproval ? DraftState.Approved : DraftState.Draft;
+        var state = draft.State == DraftState.Sent ? DraftState.Sent : validApproval ? DraftState.Approved : DraftState.Draft;
         var blockers = new List<string> { "Sending requires a configured provider or manual copy." };
         if (draft.Channel == DraftChannel.Email && string.IsNullOrWhiteSpace(draft.Recipient)) blockers.Add("Email drafts require a recipient.");
         if (!string.IsNullOrWhiteSpace(draft.Recipient) && !draft.RecipientVerified)
@@ -210,7 +212,8 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         var profile = Object(profileJson);
         var offer = String(profile, "offer", "summary", "professionalSummary") ?? "[Add your confirmed offer here.]";
         var organization = string.IsNullOrWhiteSpace(opportunity.Organization) ? "[organization]" : opportunity.Organization;
-        var name = String(profile, "fullName", "candidateName", "name") ?? "[Your name]";
+        // Sales profiles carry an outreach identity (name, role, company, signature); candidates their name.
+        var name = String(profile, "outreachIdentity", "fullName", "candidateName", "name") ?? "[Your name]";
         var claims = offer.StartsWith('[') ? new List<DraftClaimDto>() : [new DraftClaimDto(offer, "Profile", null)];
         var full = $"Hello {organization},\n\nI noticed {opportunity.Title}. {offer}\n\nWould a short conversation be useful?\n\nRegards,\n{name}";
         var body = channel == DraftChannel.LinkedInMessage && full.Length > 300 ? full[..297] + "..." : full;

@@ -9,6 +9,7 @@ public sealed class ResearchJobsController(ResearchService research) : Controlle
 {
     /// <summary>Queues a run and returns at once; an already queued or running job for the campaign is returned instead.</summary>
     [HttpPost("/api/v1/campaigns/{campaignId:guid}/research")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(Hosting.RateLimits.ResearchQueue)]
     public async Task<ActionResult<QueuedResearchDto>> Queue(Guid campaignId, CancellationToken ct) =>
         Accepted(await research.QueueAsync(campaignId, ct));
 

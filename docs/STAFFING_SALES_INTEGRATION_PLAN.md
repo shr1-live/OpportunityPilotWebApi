@@ -1,6 +1,6 @@
 # Staffing-sales integration plan
 
-Status: X1/X2 in progress. This plan is the implementation contract for turning the Sales workspace into a
+Status: X1 complete; X2–X12 and X14 implemented. This plan is the implementation contract for turning the Sales workspace into a
 staffing/recruitment CRM from first lead through signed contract and candidate interview.
 
 ## What "local agent" means

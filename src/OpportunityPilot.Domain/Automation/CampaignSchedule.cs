@@ -34,6 +34,9 @@ public sealed class CampaignSchedule : IOwned
     public DateTime? LeaseUntil { get; private set; }
     public DateTime? LastQueuedAt { get; private set; }
     public string? LastSafeError { get; private set; }
+    /// <summary>Runs skipped at the last claim because the worker was down past them (they are not run late).</summary>
+    public int LastMissedRuns { get; private set; }
+    public int TotalMissedRuns { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
     public int Version { get; private set; }
@@ -57,9 +60,13 @@ public sealed class CampaignSchedule : IOwned
         LastQueuedAt = safeError is null ? utcNow : LastQueuedAt;
         LastSafeError = Guard.TruncateOptional(safeError, MaxSafeErrorLength);
         LeaseUntil = null;
+        // One run is queued now; any other slot that passed while nobody was running is counted, not run late.
         var next = NextRunAt;
-        do next = next.AddMinutes(CadenceMinutes); while (next <= utcNow);
+        var skipped = -1;
+        do { next = next.AddMinutes(CadenceMinutes); skipped++; } while (next <= utcNow);
         NextRunAt = next;
+        LastMissedRuns = skipped;
+        TotalMissedRuns += skipped;
         UpdatedAt = utcNow;
         Version++;
     }
