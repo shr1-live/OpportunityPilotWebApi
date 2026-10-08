@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using OpportunityPilot.Application.Campaigns;
 using OpportunityPilot.Application.Configuration;
+using OpportunityPilot.Application.JobBoards;
 using OpportunityPilot.Domain.Research;
 
 namespace OpportunityPilot.Application.Research.Boards;
@@ -15,7 +16,8 @@ public sealed record BoardGathered(SourceStatus Status, string? SafeError, IRead
 /// No login, no scraping: these endpoints exist to publish job listings. Messages never contain a request URL (the
 /// Adzuna one carries the server's key).
 /// </summary>
-public sealed class JobBoardGatherer(IWebFetcher fetcher, IContentParser parser, IOptions<ResearchOptions> research, IOptions<AdzunaOptions> adzuna)
+public sealed class JobBoardGatherer(IWebFetcher fetcher, IContentParser parser, IOptions<ResearchOptions> research, IOptions<AdzunaOptions> adzuna,
+    IJobBoardSearch jobBoards)
 {
     public const int AdzunaMaxKeywords = 3;
     public const int AdzunaResultsPerPage = 50;
@@ -46,6 +48,7 @@ public sealed class JobBoardGatherer(IWebFetcher fetcher, IContentParser parser,
         SourceKind.Workable => SimpleBoardAsync(source, room, fetchesLeft, BoardIdentifiers.Workable,
             $"{Base(_limits.WorkableApiBase, ResearchOptions.DefaultWorkableApiBase)}/api/v1/widget/accounts/{{0}}?details=true",
             (json, slug) => BoardMapping.WorkableCandidates(json, source, slug, parser), ct),
+        SourceKind.Indeed => IndeedAsync(source, criteria, room, fetchesLeft, ct),
         SourceKind.Remotive => AggregateAsync(source, room, fetchesLeft,
             $"{Base(_limits.RemotiveApiBase, ResearchOptions.DefaultRemotiveApiBase)}/api/remote-jobs",
             json => BoardMapping.RemotiveCandidates(json, source, parser), ct),
@@ -208,6 +211,57 @@ public sealed class JobBoardGatherer(IWebFetcher fetcher, IContentParser parser,
         if (stoppedBy is not null) message += $" Stopped at {stoppedBy}.";
         if (failure is not null) message += $" Some searches failed: {failure}";
         var level = items.Count < found.Count || stoppedBy is not null || failure is not null ? EventLevel.Warning : EventLevel.Info;
+        return new(SourceStatus.Ok, null, items, requests, message, level);
+    }
+
+    public const int IndeedMaxKeywords = 3;
+
+    /// <summary>
+    /// Indeed has no public API, so postings come from JSearch (a licensed Google-for-Jobs service, server key) and only
+    /// those with an https indeed.com link are kept. One search per keyword in the first non-remote location, past month.
+    /// Each search not served from the API's cache is charged one fetch.
+    /// </summary>
+    private async Task<BoardGathered> IndeedAsync(Source source, CampaignCriteria criteria, int room, int fetchesLeft, CancellationToken ct)
+    {
+        if (!jobBoards.Configured)
+            return Failed(source, "Indeed needs the server's JSearch key (Jsearch:Key), which is not set.", 0);
+        var keywords = criteria.Keywords.Select(k => k.Trim()).Where(k => k.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(IndeedMaxKeywords).ToList();
+        if (keywords.Count == 0)
+            return new(SourceStatus.Skipped, "Indeed searches by keyword: add keywords to the campaign.", [], 0,
+                $"{source.Label}: skipped, the campaign has no keywords to search for.", EventLevel.Warning);
+        if (fetchesLeft <= 0) return FetchLimitReached(source);
+
+        var where = criteria.Locations.FirstOrDefault(l => !l.Trim().Equals("Remote", StringComparison.OrdinalIgnoreCase))?.Trim();
+        var remoteOnly = where is null && criteria.Locations.Count > 0;
+        var found = new Dictionary<string, Candidate>(StringComparer.Ordinal);
+        var requests = 0;
+        var searched = 0;
+        var cached = 0;
+        var published = 0;
+        string? failure = null;
+        string? stoppedBy = null;
+        foreach (var keyword in keywords)
+        {
+            if (fetchesLeft - requests <= 0) { stoppedBy = $"the run's limit of {_limits.EffectiveFetches} fetches"; break; }
+            var result = await jobBoards.SearchAsync(new JobBoardSearchRequest(JobBoard.Indeed, keyword, where, remoteOnly, "month", null, 1), ct);
+            if (result.FromCache) cached++; else requests++;
+            if (result.Status != "Ready") { failure ??= result.Message ?? "JSearch could not be read."; continue; }
+            searched++;
+            published += result.Jobs.Count;
+            foreach (var job in result.Jobs) found.TryAdd(job.ProviderJobId, BoardMapping.IndeedCandidate(source, job));
+        }
+
+        if (searched == 0) return Failed(source, failure ?? "JSearch could not be read.", requests);
+        var items = found.Values.Take(room).ToList();
+        var place = where is null ? (remoteOnly ? " (remote only)" : "") : $" in {where}";
+        var message = $"{source.Label}: searched {Count(searched, "keyword")}{place} through JSearch, {Count(found.Count, "Indeed posting")} found, {items.Count} read.";
+        if (cached > 0) message += $" {Count(cached, "search")} reused from the last few hours to save the JSearch quota.";
+        if (found.Count == 0) message += " No matching posting was published on Indeed; try broader keywords.";
+        if (items.Count < found.Count) message += $" Stopped at the run's limit of {_limits.EffectiveCandidates} candidates.";
+        if (stoppedBy is not null) message += $" Stopped at {stoppedBy}.";
+        if (failure is not null) message += $" Some searches failed: {failure}";
+        var level = found.Count == 0 || items.Count < found.Count || stoppedBy is not null || failure is not null ? EventLevel.Warning : EventLevel.Info;
         return new(SourceStatus.Ok, null, items, requests, message, level);
     }
 

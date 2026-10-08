@@ -97,6 +97,18 @@ licensed aggregator. The 2026-10-07 rule against copying results into a database
 **Open:** whether showing aggregator-sourced Indeed/LinkedIn/SEEK postings is acceptable for this product's terms is the
 user's call; JSearch's own terms govern the data. Not verified live until the key is set (TASKS U5).
 
+## 2026-10-08 — Indeed is also a campaign source (W17)
+
+**Decision:** a Job campaign can add an `Indeed` source. Each run searches JSearch (same server key and 6 h cache as the
+Job discovery tabs) with the campaign's first 3 keywords in its first non-"Remote" location (only "Remote" → remote-only),
+posted in the last month, keeps only postings with an https indeed.com link, and turns them into candidates that are
+filtered, scored and suggested exactly like Greenhouse jobs (`JobPlatform.Indeed`; the user applies on Indeed). Each
+search that is not served from the cache costs one fetch of the run budget. Without `Jsearch__Key` the source fails with
+"Indeed needs the server's JSearch key". This supersedes "results are shown, not stored" for campaign runs only; the
+Job discovery tabs still do not store.
+
+**Why:** the user chose "Indeed as campaign source" (2026-10-08) so Indeed jobs reach Approvals and Applications.
+
 ## 2026-10-08 — Sites that cannot be integrated
 
 | Site | Why not | What the app does instead |

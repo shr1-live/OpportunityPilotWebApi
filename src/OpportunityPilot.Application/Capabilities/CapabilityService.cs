@@ -108,8 +108,8 @@ public sealed class CapabilityService(
             jsearch.Value.Configured
                 ? new("job-boards", "Indeed, LinkedIn and SEEK postings", "Sources", CapabilityStatus.Ready,
                     "Shows current postings published on Indeed, LinkedIn or SEEK through JSearch, a licensed Google-for-Jobs data service. The key is set on the server and never shown.",
-                    ["Search one board with your filters (Job discovery)", "Link every posting to the board itself", "Reuse a search for a few hours to save the free quota"],
-                    ["Store or score these postings", "Apply for you", "Read your Indeed profile or LinkedIn feed"])
+                    ["Search one board with your filters (Job discovery)", "Add Indeed as a source in a Job campaign: postings are scored and go to Approvals", "Link every posting to the board itself", "Reuse a search for a few hours to save the free quota"],
+                    ["Apply for you", "Read your Indeed profile or LinkedIn feed"])
                 : new("job-boards", "Indeed, LinkedIn and SEEK postings", "Sources", CapabilityStatus.NotConfigured,
                     "Server key missing (Jsearch__Key, free RapidAPI plan). Until it is set, Job discovery opens the same search on each board instead.",
                     ["Open the search on Indeed, LinkedIn or SEEK"], ["Show live postings in the app"]),

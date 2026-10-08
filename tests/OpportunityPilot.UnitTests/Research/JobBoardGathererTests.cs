@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using OpportunityPilot.Application.Campaigns;
 using OpportunityPilot.Application.Configuration;
+using OpportunityPilot.Application.JobBoards;
 using OpportunityPilot.Application.Research;
 using OpportunityPilot.Application.Research.Boards;
 using OpportunityPilot.Domain.Research;
@@ -29,8 +30,85 @@ public class JobBoardGathererTests
 
     private static FetchResult Json(string body) => new(true, body, "application/json", null, null, 1);
 
-    private static JobBoardGatherer Gatherer(IWebFetcher fetcher, AdzunaOptions? adzuna = null, ResearchOptions? research = null) =>
-        new(fetcher, new ContentParser(), Options.Create(research ?? new ResearchOptions()), Options.Create(adzuna ?? new AdzunaOptions()));
+    /// <summary>Answers JSearch searches from a script and records every request; "configured" mirrors Jsearch:Key.</summary>
+    private sealed class ScriptedBoards(bool configured, Func<JobBoardSearchRequest, JobBoardSearchResult>? respond = null) : IJobBoardSearch
+    {
+        public List<JobBoardSearchRequest> Requests { get; } = [];
+        public bool Configured => configured;
+        public Task<JobBoardSearchResult> SearchAsync(JobBoardSearchRequest request, CancellationToken ct)
+        {
+            Requests.Add(request);
+            return Task.FromResult(respond?.Invoke(request) ?? new(request.Board, "Ready", [], 0, null, T0, false, "test"));
+        }
+    }
+
+    private static JobBoardGatherer Gatherer(IWebFetcher fetcher, AdzunaOptions? adzuna = null, ResearchOptions? research = null,
+        IJobBoardSearch? boards = null) =>
+        new(fetcher, new ContentParser(), Options.Create(research ?? new ResearchOptions()), Options.Create(adzuna ?? new AdzunaOptions()),
+            boards ?? new ScriptedBoards(false));
+
+    private static JobBoardJobDto IndeedJob(string id, string title) =>
+        new(id, title, "Acme", null, $"https://www.indeed.com/viewjob?jk={id}", "Pune, MH, IN", false, "FULLTIME",
+            null, null, null, null, T0, "C# services", "We build C# services on Azure.");
+
+    private static readonly IWebFetcher NoFetch = new ScriptedFetcher(_ => throw new InvalidOperationException("Indeed must not use the fetcher."));
+
+    [Fact]
+    public async Task Indeed_without_a_jsearch_key_fails_with_a_plain_reason_and_calls_nothing()
+    {
+        var boards = new ScriptedBoards(false);
+        var result = await Gather(Gatherer(NoFetch, boards: boards), SourceOf(SourceKind.Indeed, null, "Indeed search"), DotNet);
+        Assert.Equal(SourceStatus.Failed, result.Status);
+        Assert.Contains("Jsearch:Key", result.SafeError);
+        Assert.Empty(boards.Requests);
+    }
+
+    [Fact]
+    public async Task Indeed_searches_each_keyword_in_the_first_place_dedupes_and_keeps_the_indeed_link()
+    {
+        var boards = new ScriptedBoards(true, r => new(r.Board, "Ready",
+            r.Query == ".NET" ? [IndeedJob("a", ".NET Developer"), IndeedJob("b", "C# Engineer")] : [IndeedJob("b", "C# Engineer")],
+            10, null, T0, false, "test"));
+        var criteria = new CampaignCriteria { Keywords = [".NET", "C#"], Locations = ["Remote", "Pune"] };
+        var result = await Gather(Gatherer(NoFetch, boards: boards), SourceOf(SourceKind.Indeed, null, "Indeed search"), criteria);
+
+        Assert.Equal(SourceStatus.Ok, result.Status);
+        Assert.Equal([".NET", "C#"], boards.Requests.Select(r => r.Query));
+        Assert.All(boards.Requests, r => { Assert.Equal(JobBoard.Indeed, r.Board); Assert.Equal("Pune", r.Location); Assert.False(r.RemoteOnly); });
+        Assert.Equal(["a", "b"], result.Items.Select(i => i.ExternalId));
+        Assert.Equal(2, result.Requests);
+        Assert.Contains("2 Indeed postings found, 2 read", result.Message);
+    }
+
+    [Fact]
+    public async Task Indeed_with_only_remote_locations_searches_remote_only_and_cached_searches_cost_no_fetch()
+    {
+        var boards = new ScriptedBoards(true, r => new(r.Board, "Ready", [IndeedJob("a", ".NET Developer")], 1, null, T0, true, "test"));
+        var criteria = new CampaignCriteria { Keywords = [".NET"], Locations = ["Remote"] };
+        var result = await Gather(Gatherer(NoFetch, boards: boards), SourceOf(SourceKind.Indeed, null, "Indeed search"), criteria);
+        Assert.True(Assert.Single(boards.Requests).RemoteOnly);
+        Assert.Null(boards.Requests[0].Location);
+        Assert.Equal(0, result.Requests);
+        Assert.Contains("reused", result.Message);
+    }
+
+    [Fact]
+    public async Task Indeed_without_keywords_is_skipped()
+    {
+        var boards = new ScriptedBoards(true);
+        var result = await Gather(Gatherer(NoFetch, boards: boards), SourceOf(SourceKind.Indeed, null, "Indeed search"), new CampaignCriteria());
+        Assert.Equal(SourceStatus.Skipped, result.Status);
+        Assert.Empty(boards.Requests);
+    }
+
+    [Fact]
+    public async Task Indeed_provider_failure_is_reported()
+    {
+        var boards = new ScriptedBoards(true, r => new(r.Board, "Failed", [], 0, "The JSearch monthly or hourly quota is used up.", T0, false, "test"));
+        var result = await Gather(Gatherer(NoFetch, boards: boards), SourceOf(SourceKind.Indeed, null, "Indeed search"), DotNet);
+        Assert.Equal(SourceStatus.Failed, result.Status);
+        Assert.Contains("quota", result.SafeError);
+    }
 
     private static Source SourceOf(SourceKind kind, string? url, string label) =>
         new(Guid.NewGuid(), Guid.NewGuid(), kind, label, url, null, null, null, T0);

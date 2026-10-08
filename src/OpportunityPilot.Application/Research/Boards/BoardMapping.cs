@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using OpportunityPilot.Application.Campaigns;
+using OpportunityPilot.Application.JobBoards;
 using OpportunityPilot.Application.Research.Rules;
 using OpportunityPilot.Domain.Opportunities;
 using OpportunityPilot.Domain.Research;
@@ -293,6 +294,11 @@ public static class BoardMapping
             .ToList();
 
     // ---------- helpers ----------
+
+    /// <summary>A live Indeed posting (JSearch) as a research candidate; the posting's Indeed link is the evidence and apply URL.</summary>
+    public static Candidate IndeedCandidate(Source source, JobBoardJobDto job) =>
+        Build(source, JobPlatform.Indeed, job.ProviderJobId, job.Title, job.CompanyName, job.Location, job.IsRemote ? "remote" : null,
+            job.BoardUrl, job.BoardUrl, null, job.Description, job.PostedAt);
 
     private static Candidate Build(Source source, JobPlatform platform, string externalId, string title, string organization,
         string? location, string? workplaceType, string? url, string? applyUrl, string? country, string? description,

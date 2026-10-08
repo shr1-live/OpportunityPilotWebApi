@@ -25,7 +25,8 @@ public sealed record JobBoardJobDto(
     string? SalaryCurrency,
     string? SalaryPeriod,
     DateTime? PostedAt,
-    string? Snippet);
+    string? Snippet,
+    string? Description = null);
 
 /// <summary>Status is Ready, NotConfigured or Failed; Jobs is empty unless Ready. ObservedAt is when the provider answered.</summary>
 public sealed record JobBoardSearchResult(
@@ -50,6 +51,8 @@ public interface IJobBoardSearch
 /// </summary>
 public static class JsearchBoardParser
 {
+    public const int MaxDescription = 8_000;
+
     public static readonly string[] DatePostedValues = ["all", "today", "3days", "week", "month"];
 
     /// <summary>SEEK only runs in Australia and New Zealand; the search defaults to Australia when no country is given.</summary>
@@ -79,15 +82,16 @@ public static class JsearchBoardParser
             if (url is null || id is null || title is null || company is null || !seen.Add(id)) continue;
             var location = string.Join(", ", new[] { Str(job, "job_city"), Str(job, "job_state"), Str(job, "job_country") }
                 .Where(x => !string.IsNullOrWhiteSpace(x)));
-            var snippet = Str(job, "job_description");
-            if (snippet is { Length: > 400 }) snippet = snippet[..400].TrimEnd() + "…";
+            var description = Str(job, "job_description");
+            if (description is { Length: > MaxDescription }) description = description[..MaxDescription];
+            var snippet = description is { Length: > 400 } ? description[..400].TrimEnd() + "…" : description;
             jobs.Add(new(id, title, company, Str(job, "employer_logo"), url,
                 location.Length == 0 ? Str(job, "job_location") : location,
                 job.TryGetProperty("job_is_remote", out var r) && r.ValueKind == JsonValueKind.True,
                 Str(job, "job_employment_type"),
                 Dec(job, "job_min_salary"), Dec(job, "job_max_salary"),
                 Str(job, "job_salary_currency"), Str(job, "job_salary_period"),
-                Date(job, "job_posted_at_datetime_utc"), snippet));
+                Date(job, "job_posted_at_datetime_utc"), snippet, description));
         }
         return (jobs, data.GetArrayLength());
     }
