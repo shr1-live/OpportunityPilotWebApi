@@ -143,6 +143,9 @@ public class StaffingPipelineApiTests(PostgresApiFactory factory) : IClassFixtur
             name = "Priya S.", availability = "Immediate", rateAmount = 50, rateCurrency = "USD", rateUnit = "Hour", notifyByEmail = false,
             expectedVersion = current.Int("version")
         })).Json(HttpStatusCode.OK);
+        var edited = await client.GetJson($"/api/v1/staffing/candidates/{candidate.Id()}");
+        Assert.True(edited.GetProperty("hasResume").GetBoolean()); // an edit without resume text keeps the stored resume
+        Assert.Equal(1, edited.Int("resumeVersion"));
         var stale = await client.PostAsJsonAsync($"{api}/submissions/{submission.Id()}/approve", new { expectedVersion = submission.Int("version") });
         Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
         var refreshed = await (await client.PutAsJsonAsync($"{api}/submissions/{submission.Id()}",

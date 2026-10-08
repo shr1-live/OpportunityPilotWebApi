@@ -40,7 +40,9 @@ public sealed class StaffingPipelineService(IAppDbContext db, ICurrentUser user,
         try
         {
             candidate.Update(r.Name, r.Headline, r.Email, r.Phone, r.Location, r.Skills, r.YearsExperience, r.Availability,
-                r.NoticePeriodDays, r.RateAmount, r.RateCurrency, r.RateUnit, r.ResumeText, r.NotifyByEmail, Now);
+                r.NoticePeriodDays, r.RateAmount, r.RateCurrency, r.RateUnit,
+                // Omitted (null) keeps the stored resume; an empty string clears it.
+                r.ResumeText is null ? candidate.ResumeText : r.ResumeText, r.NotifyByEmail, Now);
         }
         catch (ArgumentException ex) { throw Invalid("candidate", ex.Message); }
         await SaveAsync(ct);
