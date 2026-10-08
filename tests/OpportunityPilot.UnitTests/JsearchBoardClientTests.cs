@@ -22,7 +22,7 @@ public class JsearchBoardClientTests
     private static (JsearchBoardClient Client, Handler Handler) Create(string? key, HttpStatusCode status = HttpStatusCode.OK, string body = """{"data":[]}""")
     {
         var handler = new Handler(status, body);
-        var client = new JsearchBoardClient(new HttpClient(handler), Options.Create(new JsearchOptions { ApiKey = key }),
+        var client = new JsearchBoardClient(new HttpClient(handler), Options.Create(new JsearchOptions { Key = key }),
             TimeProvider.System, NullLogger<JsearchBoardClient>.Instance);
         return (client, handler);
     }

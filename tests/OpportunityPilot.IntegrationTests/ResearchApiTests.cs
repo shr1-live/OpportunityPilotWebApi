@@ -355,9 +355,9 @@ public class ResearchApiTests(PostgresApiFactory factory) : IClassFixture<Postgr
         Assert.Contains("correlationId", await stale.Content.ReadAsStringAsync());
 
         var profileId = campaign.GetProperty("profileId").GetGuid();
-        var partner = await user.PostAsJsonAsync("/api/v1/campaigns", new { profileId, mode = "Partner", name = "P", goal = "", criteria = new { } });
-        Assert.Equal(HttpStatusCode.BadRequest, partner.StatusCode);
-        Assert.Contains("not supported yet", await partner.Content.ReadAsStringAsync());
+        // Every OpportunityMode is supported since API #16; a mode outside the enum is still rejected.
+        var unknownMode = await user.PostAsJsonAsync("/api/v1/campaigns", new { profileId, mode = "Lottery", name = "P", goal = "", criteria = new { } });
+        Assert.Equal(HttpStatusCode.BadRequest, unknownMode.StatusCode);
 
         var badWeights = await user.PostAsJsonAsync("/api/v1/campaigns",
             new { profileId, mode = "Job", name = "W", goal = "", criteria = new { }, weights = new { industry = 50 } });

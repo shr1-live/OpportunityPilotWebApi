@@ -58,7 +58,7 @@ Environment variables use `__` for nesting (`ConnectionStrings__Main`).
 | `Features__GeminiEnabled` | no | `false`. Capability shows *Configured · unverified* when true and a key is present; live calls arrive in M4 |
 | `Ai__GeminiApiKey` | no | server-side secret; never returned to the browser |
 | `Ai__GeminiModel`, `Ai__MaxCallsPerRun`, `Ai__MaxOutputTokens`, `Ai__AllowPaidUsage` | no | budgets for M4 |
-| `Jsearch__ApiKey` | no | server-side secret (RapidAPI, free plan 200 requests/month). Turns on live Indeed, LinkedIn and SEEK postings in Job discovery (`GET /api/v1/jobboards/jobs?board=`). `Jsearch__CacheMinutes` (default 360) reuses identical searches to save the quota. Without it the boards show a search link only |
+| `Jsearch__Key` | no | server-side secret (RapidAPI, free plan 200 requests/month). Turns on live Indeed, LinkedIn and SEEK postings in Job discovery (`GET /api/v1/jobboards/jobs?board=`). `Jsearch__CacheMinutes` (default 360) reuses identical searches to save the quota. Without it the boards show a search link only |
 | `Features__GmailEnabled`, `Features__MongoArchiveEnabled` | no | flip capability status from *Disabled* to *Not built yet* |
 | `Research__ProcessorEnabled`, `Research__PollSeconds`, `Research__MaxCandidates`, `Research__MaxFetches`, `Research__TimeoutSeconds`, `Research__MaxBytes`, `Research__Concurrency` | no | research worker switch and run limits; defaults and server ceilings in [business-rules.md → Research runs](business-rules.md#research-runs). Integration tests set `Research__ProcessorEnabled=false` and run jobs themselves |
 | `MIGRATE_ON_START` | no | container only, default `true`: runs `--migrate` as a separate process before the server starts; skipped while no connection string is set |

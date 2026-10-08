@@ -97,7 +97,16 @@ public class AgentResearchApiTests(PostgresApiFactory factory) : IClassFixture<P
         Assert.Equal("https://www.linkedin.com/jobs/view/4012345678/", entry.Str("url"));
         Assert.Equal(JsonValueKind.Null, entry.GetProperty("coverNote").ValueKind);
 
-        var approved = await (await user.PostAsJsonAsync($"/api/v1/drafts/{draft.Id()}/approve", new { version = draft.Int("version") }))
+        var withPlaceholders = await user.PostAsJsonAsync($"/api/v1/drafts/{draft.Id()}/approve", new { version = draft.Int("version") });
+        Assert.Equal(HttpStatusCode.BadRequest, withPlaceholders.StatusCode);
+        var filled = await (await user.PutAsJsonAsync($"/api/v1/drafts/{draft.Id()}", new
+        {
+            recipient = (string?)null,
+            subject = (string?)null,
+            body = System.Text.RegularExpressions.Regex.Replace(draft.Str("body")!, @"\[[^\]]+\]", "filled in"),
+            expectedVersion = draft.Int("version")
+        })).Json(HttpStatusCode.OK);
+        var approved = await (await user.PostAsJsonAsync($"/api/v1/drafts/{draft.Id()}/approve", new { version = filled.Int("version") }))
             .Json(HttpStatusCode.OK);
         Assert.Equal("Approved", approved.Str("state"));
         Assert.False(approved.GetProperty("sendReady").GetBoolean());

@@ -51,13 +51,13 @@ public sealed class AdzunaOptions
 public sealed class JsearchOptions
 {
     public const string Section = "Jsearch";
-    public string? ApiKey { get; set; }
+    public string? Key { get; set; }
     public string Host { get; set; } = "jsearch.p.rapidapi.com";
 
     /// <summary>The free plan allows 200 requests a month, so identical searches are served from memory for this long.</summary>
     public int CacheMinutes { get; set; } = 360;
 
-    public bool Configured => !string.IsNullOrWhiteSpace(ApiKey);
+    public bool Configured => !string.IsNullOrWhiteSpace(Key);
 }
 
 public sealed class AuthOptions

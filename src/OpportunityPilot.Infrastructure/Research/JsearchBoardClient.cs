@@ -24,7 +24,7 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
         var name = JsearchBoardParser.Name(request.Board);
         var source = $"JSearch (Google for Jobs), {name} postings only";
         if (!o.Configured)
-            return new(request.Board, "NotConfigured", [], 0, $"Live {name} listings need a JSearch key on the server (Jsearch__ApiKey).", null, false, source);
+            return new(request.Board, "NotConfigured", [], 0, $"Live {name} listings need a JSearch key on the server (Jsearch__Key).", null, false, source);
 
         var query = string.IsNullOrWhiteSpace(request.Location) ? request.Query : $"{request.Query} in {request.Location}";
         // Adding the board name steers Google for Jobs towards that board's copy of each posting.
@@ -43,7 +43,7 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
             return cached with { FromCache = true };
 
         using var message = new HttpRequestMessage(HttpMethod.Get, $"https://{o.Host}/search?{qs}");
-        message.Headers.Add("X-RapidAPI-Key", o.ApiKey);
+        message.Headers.Add("X-RapidAPI-Key", o.Key);
         message.Headers.Add("X-RapidAPI-Host", o.Host);
         try
         {
@@ -54,7 +54,7 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
                 logger.LogWarning("JSearch returned {Status}", code);
                 var why = code switch
                 {
-                    401 or 403 => "The JSearch key was refused. Check Jsearch__ApiKey and that the RapidAPI plan is subscribed.",
+                    401 or 403 => "The JSearch key was refused. Check Jsearch__Key and that the RapidAPI plan is subscribed.",
                     429 => "The JSearch monthly or hourly quota is used up. Try again later.",
                     _ => $"JSearch answered {code}. Try again later.",
                 };

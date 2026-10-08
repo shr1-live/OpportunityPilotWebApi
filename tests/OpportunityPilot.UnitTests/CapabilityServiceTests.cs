@@ -115,6 +115,6 @@ public class CapabilityServiceTests
     {
         var item = Get(new FeatureOptions(), new AiOptions()).Items.Single(i => i.Key == "job-boards");
         Assert.Equal(CapabilityStatus.NotConfigured, item.Status);
-        Assert.Contains("Jsearch__ApiKey", item.Detail);
+        Assert.Contains("Jsearch__Key", item.Detail);
     }
 }

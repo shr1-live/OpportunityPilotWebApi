@@ -87,7 +87,7 @@ copies. A truthful handoff gives Candidate and Sales users useful filters today 
 Ninja on RapidAPI, a Google-for-Jobs data service) from the server. A posting is shown only when it carries an https
 link on that board's own domain; each row links there. Results are shown, not stored in the database; identical
 searches are reused from memory for `Jsearch:CacheMinutes` (default 6 h). Nothing is applied to or sent. Without
-`Jsearch__ApiKey` the tabs say live listings are not set up and keep the official search link.
+`Jsearch__Key` the tabs say live listings are not set up and keep the official search link.
 
 **Why:** the user asked for Indeed "with live data, like Wellfound". Checked 2026-10-08: Indeed's RSS returns 404 and
 its search pages return 403 to non-browser clients; its Publisher API is closed. LinkedIn job/feed APIs and SEEK APIs

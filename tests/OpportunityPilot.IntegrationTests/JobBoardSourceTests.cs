@@ -159,7 +159,7 @@ public class JobBoardSourceTests(PostgresApiFactory factory) : IClassFixture<Pos
     }
 
     [Fact]
-    public async Task The_runs_fetch_limit_bounds_a_board_and_skips_the_sources_after_it()
+    public async Task The_runs_fetch_limit_is_shared_across_boards()
     {
         await using var server = new TinyHttpServer(Board);
         await using var app = App(server, ("Research:MaxFetches", "2"));
@@ -173,11 +173,12 @@ public class JobBoardSourceTests(PostgresApiFactory factory) : IClassFixture<Pos
 
         var job = await ResearchApi.JobAsync(user, jobId);
         Assert.Equal("Completed", job.Str("state"));
-        Assert.Contains("Greenhouse board acme: 3 jobs listed, 2 matched your keywords, 1 read. Stopped at the run's limit of 2 fetches.", Events(job));
-        Assert.Equal(2, server.Paths.Count);
+        // Each board gets a fair share of the 2 fetches: Greenhouse spends its one on the list, Lever on its postings.
+        Assert.Contains("Greenhouse board acme: 3 jobs listed, 2 matched your keywords, 0 read. Stopped at the run's limit of 2 fetches.", Events(job));
+        Assert.Contains("Lever company leverdemo: 2 postings listed, 2 read.", Events(job));
+        Assert.Equal(["/v1/boards/acme/jobs", "/v0/postings/leverdemo?mode=json&limit=100"], server.Paths);
         var sources = (await user.GetJson($"/api/v1/campaigns/{campaign.Id()}/sources")).EnumerateArray().ToList();
-        Assert.Equal(["Ok", "Skipped"], sources.Select(s => s.Str("status")));
-        Assert.StartsWith("Skipped: this run already used its 2 page fetches.", sources[1].Str("safeError"));
+        Assert.Equal(["Ok", "Ok"], sources.Select(s => s.Str("status")));
     }
 
     [Fact]
