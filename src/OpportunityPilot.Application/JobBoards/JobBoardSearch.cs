@@ -9,7 +9,7 @@ namespace OpportunityPilot.Application.JobBoards;
 /// </summary>
 public enum JobBoard { Indeed, LinkedIn, Seek }
 
-public sealed record JobBoardSearchRequest(JobBoard Board, string Query, string? Location, bool RemoteOnly, string DatePosted, string? Country, int Page);
+public sealed record JobBoardSearchRequest(JobBoard Board, string Query, string? Location, bool RemoteOnly, string DatePosted, string? Country, int Page, string? Cursor = null);
 
 public sealed record JobBoardJobDto(
     string ProviderJobId,
@@ -39,7 +39,9 @@ public sealed record JobBoardSearchResult(
     bool FromCache,
     string Source,
     /// <summary>Requests left on the provider plan this period, from RapidAPI's X-RateLimit-Requests-Remaining header.</summary>
-    int? QuotaRemaining = null);
+    int? QuotaRemaining = null,
+    /// <summary>Cursor for the next page of provider results (JSearch v5), or null when there are no more.</summary>
+    string? NextCursor = null);
 
 public interface IJobBoardSearch
 {
@@ -68,6 +70,15 @@ public static class JsearchBoardParser
     };
 
     public static string Name(JobBoard board) => board switch { JobBoard.LinkedIn => "LinkedIn", JobBoard.Seek => "SEEK", _ => "Indeed" };
+
+    /// <summary>The v5 pagination cursor (<c>data.cursor</c>), or null when the provider sent none.</summary>
+    public static string? NextCursor(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.TryGetProperty("data", out var d) && d.ValueKind == JsonValueKind.Object
+            && d.TryGetProperty("cursor", out var c) && c.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(c.GetString())
+            ? c.GetString() : null;
+    }
 
     public static (IReadOnlyList<JobBoardJobDto> Jobs, int ProviderResults) Parse(string json, JobBoard board)
     {

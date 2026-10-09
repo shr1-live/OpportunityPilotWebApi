@@ -49,6 +49,14 @@ public class JsearchBoardParserTests
     """;
 
     [Fact]
+    public void Reads_the_next_page_cursor_only_when_present()
+    {
+        Assert.Equal("abc", JsearchBoardParser.NextCursor(V5Json));
+        Assert.Null(JsearchBoardParser.NextCursor(Json));
+        Assert.Null(JsearchBoardParser.NextCursor("{\"data\":{\"jobs\":[],\"cursor\":\"\"}}"));
+    }
+
+    [Fact]
     public void Reads_the_v5_wrapped_jobs_list()
     {
         var (indeed, total) = JsearchBoardParser.Parse(V5Json, JobBoard.Indeed);
