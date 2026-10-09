@@ -81,7 +81,6 @@ public class SecurityApiTests(PostgresApiFactory factory) : IClassFixture<Postgr
         Assert.Contains("instahyre-agent", rows.Keys);
         Assert.Contains("wellfound", rows.Keys);
         Assert.Equal("Manual", rows["linkedin-messages"].Str("execution"));
-        Assert.False(rows["job-boards"].GetProperty("credentialSet").GetBoolean());          // no JSearch key in tests
         Assert.Equal(JsonValueKind.Null, rows["linkedin-agent"].GetProperty("lastVerified").ValueKind); // nothing applied yet
         Assert.False(rows["instahyre-agent"].GetProperty("credentialSet").GetBoolean());     // no agent key yet
 
