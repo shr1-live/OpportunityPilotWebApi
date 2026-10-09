@@ -53,7 +53,6 @@ public static class DependencyInjection
         services.AddSingleton<Common.OperationalMetrics>();
         services.AddScoped<Common.RetentionService>();
         services.AddScoped<Outreach.ProviderGateway>();
-        services.AddScoped<Demo.SalesDemoService>();
         services.AddScoped<Capabilities.ProviderReadinessService>();
         services.AddScoped<WellfoundService>();
         services.AddScoped<JobBoardGatherer>();
