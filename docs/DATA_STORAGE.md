@@ -26,10 +26,12 @@ Everything the app creates is stored in the **production Postgres database on Su
 
 ```sql
 select count(*) from app.opportunities;
-select title, organization, score, status, "UpdatedAt" from app.opportunities order by "UpdatedAt" desc limit 20;
-select state, count(*) from app.outreach_drafts group by state;          -- drafts waiting / approved / sent
-select name, "NextRunAt", "Paused", "LastQueuedAt" from app.campaign_schedules;  -- scheduled campaigns
-select operation, state, "CompletedAt" from app.provider_executions order by "CompletedAt" desc limit 20;
+select * from app.opportunities order by 1 desc limit 20;      -- newest results (columns include title, organization, score, status)
+select * from app.outreach_drafts limit 20;                    -- drafts and their state
+select * from app.campaign_schedules;                          -- scheduled campaigns and their next run
+select * from app.provider_executions limit 20;                -- every send / bid confirmation with its receipt
+select table_name from information_schema.tables where table_schema = 'app' order by 1;   -- every table
 ```
 
-(Column names are the EF property names in quotes where Postgres kept their capitals; `\d app.opportunities` shows them.)
+Use `select * ... limit 20` first: Postgres keeps the EF column names, which may be quoted PascalCase (`"OwnerId"`).
+
