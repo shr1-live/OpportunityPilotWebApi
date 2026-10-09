@@ -216,7 +216,7 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
         var name = String(profile, "outreachIdentity", "fullName", "candidateName", "name") ?? "[Your name]";
         var claims = offer.StartsWith('[') ? new List<DraftClaimDto>() : [new DraftClaimDto(offer, "Profile", null)];
         var full = $"Hello {organization},\n\nI noticed {opportunity.Title}. {offer}\n\nWould a short conversation be useful?\n\nRegards,\n{name}";
-        var body = channel == DraftChannel.LinkedInMessage && full.Length > 300 ? full[..297] + "..." : full;
+        var body = channel == DraftChannel.LinkedInMessage ? LinkedInNote.Build(organization, opportunity.Title, offer, name) : full;
         return (body, claims);
     }
 
