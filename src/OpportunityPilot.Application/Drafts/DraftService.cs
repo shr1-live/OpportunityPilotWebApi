@@ -86,7 +86,7 @@ public sealed class DraftService(IAppDbContext db, ICurrentUser user, TimeProvid
             x.draft.Id, x.draft.OpportunityId, x.CampaignId, x.CampaignName, x.Title, x.Organization,
             x.draft.Channel, x.draft.Recipient, x.draft.RecipientVerified,
             x.draft.RecipientVerified ? "Evidence" : "UserEntered", RecipientEvidence(x.draft.Recipient, x.FactsJson),
-            x.draft.HasValidApproval() ? DraftState.Approved : DraftState.Draft, x.draft.Version, x.draft.UpdatedAt)).ToList());
+            x.draft.State == DraftState.Sent ? DraftState.Sent : x.draft.HasValidApproval() ? DraftState.Approved : DraftState.Draft, x.draft.Version, x.draft.UpdatedAt)).ToList());
     }
 
     public async Task<DraftDto> GetAsync(Guid id, CancellationToken ct)
