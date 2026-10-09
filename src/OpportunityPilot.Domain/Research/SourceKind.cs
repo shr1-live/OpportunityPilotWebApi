@@ -36,6 +36,9 @@ public enum SourceKind
     /// </summary>
     JobSearch,
 
+    /// <summary>A company's public Workday careers site; <see cref="Source.Url"/> holds <c>tenant.wdN/site</c>.</summary>
+    Workday,
+
     /// <summary>The public, board-wide Remotive remote-jobs feed.</summary>
     Remotive,
 

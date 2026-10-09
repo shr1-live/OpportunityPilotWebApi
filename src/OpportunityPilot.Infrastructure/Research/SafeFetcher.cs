@@ -78,7 +78,9 @@ public sealed class SafeFetcher(
 
     public Task<FetchResult> FetchJsonAsync(string url, CancellationToken ct) => FetchAsync(url, Json, ct);
 
-    private async Task<FetchResult> FetchAsync(string url, Reading reading, CancellationToken ct)
+    public Task<FetchResult> PostJsonAsync(string url, string jsonBody, CancellationToken ct) => FetchAsync(url, Json, ct, jsonBody);
+
+    private async Task<FetchResult> FetchAsync(string url, Reading reading, CancellationToken ct, string? body = null)
     {
         if (!Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var uri)) return FetchResult.Fail("The URL is not a valid absolute URL.");
 
@@ -93,7 +95,7 @@ public sealed class SafeFetcher(
                 Attempt attempt = default!;
                 for (var retry = 0; ; retry++)
                 {
-                    attempt = await AttemptAsync(uri, reading, ct);
+                    attempt = await AttemptAsync(uri, reading, ct, body);
                     requests++;
                     if (!attempt.Transient || retry >= MaxRetries) break;
                     // Exponential backoff with jitter: 0.5 s, 1 s, 2 s (+ up to 250 ms).
@@ -102,6 +104,8 @@ public sealed class SafeFetcher(
 
                 switch (attempt)
                 {
+                    case { Redirect: not null } when body is not null:
+                        return FetchResult.Fail("The search answered with a redirect, which is not followed for a search request.", requests);
                     case { Redirect: { } next }:
                         uri = next;
                         continue;
@@ -121,13 +125,14 @@ public sealed class SafeFetcher(
 
     private sealed record Attempt(string? Content, string? ContentType, Uri? Redirect, string? Failure, bool Transient, int? Status = null);
 
-    private async Task<Attempt> AttemptAsync(Uri uri, Reading reading, CancellationToken ct)
+    private async Task<Attempt> AttemptAsync(Uri uri, Reading reading, CancellationToken ct, string? body = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(_limits.EffectiveTimeout);
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            using var request = new HttpRequestMessage(body is null ? HttpMethod.Get : HttpMethod.Post, uri);
+            if (body is not null) request.Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
             request.Headers.UserAgent.ParseAdd(UserAgent);
             request.Headers.Accept.ParseAdd(reading.Accept);
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);

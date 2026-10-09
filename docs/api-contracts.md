@@ -58,7 +58,7 @@ Query enums that fail to bind return 400 from model binding.
 | POST | `/api/v1/campaigns` | user | `CreateCampaignRequest` | 201 `CampaignDto` + `Location`; 400 (also for Partner/Investor/Freelance: "not supported yet", and for a profile that is not the caller's) |
 | PUT | `/api/v1/campaigns/{id}` | user | `UpdateCampaignRequest` | 200 `CampaignDto`; 400 (validated before the version check); 404; 409 |
 | GET | `/api/v1/campaigns/{campaignId}/sources` | user | — | 200 `SourceDto[]`, oldest first; 404 |
-| POST | `/api/v1/campaigns/{campaignId}/sources` | user | `CreateSourceRequest` (Paste, Url, Feed, Greenhouse, Lever, Adzuna, Ashby, SmartRecruiters, Recruitee, Workable, Remotive or RemoteOk); body ≤256 KB | 201 `SourceDto`; 400; 404; 413 |
+| POST | `/api/v1/campaigns/{campaignId}/sources` | user | `CreateSourceRequest` (Paste, Url, Feed, Greenhouse, Lever, Adzuna, Ashby, SmartRecruiters, Recruitee, Workable, Workday, JobSearch, Remotive or RemoteOk); Workday accepts only a public `myworkdayjobs.com` careers URL; body ≤256 KB | 201 `SourceDto`; 400; 404; 413 |
 | DELETE | `/api/v1/campaigns/{campaignId}/sources/{sourceId}` | user | — | 204; 404 |
 | POST | `/api/v1/imports/preview` | user | `{ campaignId, csv }`; body ≤3 MB | 200 `ImportPreviewDto`; 400; 404; 413 |
 | POST | `/api/v1/imports/{importId}/commit` | user | optional `{ label }` | 201 `SourceDto` (Kind Csv); 400 (no valid rows, label too long, 20-source limit); 404 (unknown or expired); 409 (already committed) |

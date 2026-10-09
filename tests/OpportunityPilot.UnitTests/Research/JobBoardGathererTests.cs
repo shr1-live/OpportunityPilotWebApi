@@ -19,12 +19,19 @@ public class JobBoardGathererTests
     private sealed class ScriptedFetcher(Func<string, FetchResult> respond) : IWebFetcher
     {
         public List<string> Urls { get; } = [];
+        public List<(string Url, string Body)> Posts { get; } = [];
         public string? CheckUrl(string url) => null;
         public Task<FetchResult> FetchAsync(string url, CancellationToken ct) => throw new InvalidOperationException("Job boards must use FetchJsonAsync.");
 
         public Task<FetchResult> FetchJsonAsync(string url, CancellationToken ct)
         {
             Urls.Add(url);
+            return Task.FromResult(respond(url));
+        }
+
+        public Task<FetchResult> PostJsonAsync(string url, string jsonBody, CancellationToken ct)
+        {
+            Posts.Add((url, jsonBody));
             return Task.FromResult(respond(url));
         }
     }
@@ -282,6 +289,27 @@ public class JobBoardGathererTests
         Assert.Equal(SourceStatus.Skipped, greenhouse.Status);
         Assert.Equal(SourceStatus.Skipped, lever.Status);
         Assert.Empty(fetcher.Urls);
+    }
+
+    [Fact]
+    public async Task Workday_searches_public_site_then_maps_job_details()
+    {
+        var fetcher = new ScriptedFetcher(url => url.EndsWith("/jobs", StringComparison.Ordinal)
+            ? Json("""{"total":1,"jobPostings":[{"title":"Platform Engineer","externalPath":"/job/India/Platform-Engineer_R123","locationsText":"Bengaluru","bulletFields":["R123"]}]}""")
+            : Json("""{"jobPostingInfo":{"jobDescription":"<p>Build C# services.</p>","location":"Bengaluru, India","startDate":"2026-10-01","timeType":"Full time","jobReqId":"R123"}}"""));
+        var source = SourceOf(SourceKind.Workday, "acme.wd5/External", "Workday careers");
+
+        var result = await Gather(Gatherer(fetcher), source, DotNet);
+
+        Assert.Equal(SourceStatus.Ok, result.Status);
+        Assert.Single(fetcher.Posts);
+        Assert.Contains("/wday/cxs/acme/External/jobs", fetcher.Posts[0].Url);
+        Assert.Contains(".NET", fetcher.Posts[0].Body);
+        var item = Assert.Single(result.Items);
+        Assert.Equal(OpportunityPilot.Domain.Opportunities.JobPlatform.Workday, item.Platform);
+        Assert.Equal("R123", item.ExternalId);
+        Assert.Equal("Build C# services.", item.Text);
+        Assert.Equal("https://acme.wd5.myworkdayjobs.com/External/job/India/Platform-Engineer_R123", item.ApplyUrl);
     }
 
     [Fact]

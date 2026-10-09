@@ -23,7 +23,7 @@ JSON is camelCase, enums are strings, errors are ProblemDetails with
 | Enum | Values |
 |---|---|
 | OpportunityMode (exists) | Customer, Partner, Investor, Job, Freelance — only **Job** and **Customer** accepted for now |
-| SourceKind | Paste, Csv, Url, Feed, Agent |
+| SourceKind | Paste, Csv, Url, Feed, Agent, Greenhouse, Lever, Adzuna, Ashby, SmartRecruiters, Recruitee, Workable, Workday, JobSearch, Remotive, RemoteOk |
 | SourceStatus | Pending, Ok, Failed, Skipped |
 | ResearchJobState | Queued, Running, Completed, CompletedWithGaps, Failed, Cancelled |
 | ResearchStage | Prepare, Gather, Extract, Filter, Score, Complete |
@@ -114,7 +114,7 @@ Dedupe key: Job → `job:{platform}:{externalId}` when both known, else normalis
 | GET | /api/v1/campaigns/{id} | — | `Campaign` |
 | PUT | /api/v1/campaigns/{id} | `{ name, goal, criteria, weights, resultLimit, expectedVersion }` | `Campaign`; 409 stale |
 | GET | /api/v1/campaigns/{id}/sources | — | `Source[]` |
-| POST | /api/v1/campaigns/{id}/sources | `{ kind: "Paste"\|"Url"\|"Feed", label?, url?, text?, permissionNote? }` | 201 `Source` |
+| POST | /api/v1/campaigns/{id}/sources | `{ kind, label?, url?, text?, permissionNote? }`; Workday uses a public `myworkdayjobs.com` careers URL normalized to `tenant.wdN/site` | 201 `Source`; 400 invalid/private/provider URL |
 | DELETE | /api/v1/campaigns/{id}/sources/{sourceId} | — | 204 |
 | POST | /api/v1/imports/preview | `{ campaignId, csv }` (≤1 MB, ≤1000 rows) | `ImportPreview` |
 | POST | /api/v1/imports/{importId}/commit | `{ label? }` | 201 `Source` (Kind Csv) |

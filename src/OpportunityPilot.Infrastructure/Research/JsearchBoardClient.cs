@@ -44,13 +44,29 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
         if (Cache.TryGetValue(cacheKey, out var cached) && cached.ObservedAt > now.AddMinutes(-o.CacheMinutes))
             return cached with { FromCache = true, QuotaRemaining = LastRemaining ?? cached.QuotaRemaining };
 
-        using var message = new HttpRequestMessage(HttpMethod.Get, $"https://{o.Host}/{o.SearchPath.Trim('/')}?{qs}");
-        message.Headers.Add("X-RapidAPI-Key", o.Key);
-        message.Headers.Add("X-RapidAPI-Host", o.Host);
         var started = clock.GetTimestamp();
         try
         {
-            using var response = await http.SendAsync(message, ct);
+            HttpRequestMessage Request(string path)
+            {
+                var message = new HttpRequestMessage(HttpMethod.Get, $"https://{o.Host}/{path.Trim('/')}?{qs}");
+                message.Headers.Add("X-RapidAPI-Key", o.Key);
+                message.Headers.Add("X-RapidAPI-Host", o.Host);
+                return message;
+            }
+            using var configuredRequest = Request(o.SearchPath);
+            var response = await http.SendAsync(configuredRequest, ct);
+            // RapidAPI's current JSearch endpoint is /search. A stale deployment override must not take all boards down.
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound &&
+                !o.SearchPath.Trim('/').Equals("search", StringComparison.OrdinalIgnoreCase))
+            {
+                response.Dispose();
+                logger.LogWarning("Configured JSearch path returned 404; retrying the canonical /search endpoint");
+                using var canonicalRequest = Request("search");
+                response = await http.SendAsync(canonicalRequest, ct);
+            }
+            using (response)
+            {
             metrics.Record("jsearch.search", clock.GetElapsedTime(started), response.IsSuccessStatusCode ? null : $"HTTP {(int)response.StatusCode}");
             int? remaining = response.Headers.TryGetValues("X-RateLimit-Requests-Remaining", out var values)
                 && int.TryParse(values.FirstOrDefault(), out var left) ? left : null;
@@ -63,6 +79,7 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
                 {
                     401 or 403 => "The JSearch key was refused. Check Jsearch__Key and that the RapidAPI plan is subscribed.",
                     429 => "The JSearch monthly or hourly quota is used up. Try again later.",
+                    404 => "The configured JSearch endpoint was not found. Remove Jsearch__SearchPath or set it to /search.",
                     _ => $"JSearch answered {code}. Try again later.",
                 };
                 return new(request.Board, "Failed", [], 0, why, now, false, source, remaining);
@@ -73,6 +90,7 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
                 now, false, source, remaining);
             Cache[cacheKey] = result;
             return result;
+            }
         }
         catch (Exception e) when ((e is HttpRequestException or TaskCanceledException or JsonException) && !ct.IsCancellationRequested)
         {

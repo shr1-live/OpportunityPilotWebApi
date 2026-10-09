@@ -28,6 +28,12 @@ public interface IWebFetcher
     /// documented public job-board APIs (Greenhouse, Lever, Adzuna); user-supplied Url and Feed sources never get JSON.
     /// </summary>
     Task<FetchResult> FetchJsonAsync(string url, CancellationToken ct);
+
+    /// <summary>
+    /// POSTs a JSON body and reads <c>application/json</c> only, with the same address, size, timeout and retry rules.
+    /// Redirects are refused (a search body is never replayed elsewhere). Used solely for Workday's public job search.
+    /// </summary>
+    Task<FetchResult> PostJsonAsync(string url, string jsonBody, CancellationToken ct);
 }
 
 /// <param name="Text">Visible text with scripts, styles and page chrome removed; whitespace collapsed.</param>

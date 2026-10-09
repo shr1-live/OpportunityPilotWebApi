@@ -19,6 +19,18 @@ public class JsearchBoardClientTests
         }
     }
 
+    private sealed class SequenceHandler(params HttpStatusCode[] statuses) : HttpMessageHandler
+    {
+        public List<Uri> Requests { get; } = [];
+        private int index;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Requests.Add(request.RequestUri!);
+            var status = statuses[Math.Min(index++, statuses.Length - 1)];
+            return Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent("{\"data\":[]}") });
+        }
+    }
+
     private static (JsearchBoardClient Client, Handler Handler) Create(string? key, HttpStatusCode status = HttpStatusCode.OK, string body = """{"data":[]}""")
     {
         var handler = new Handler(status, body);
@@ -60,6 +72,22 @@ public class JsearchBoardClientTests
         var second = await client.SearchAsync(request, default);
         Assert.True(second.FromCache);
         Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task Stale_configured_path_falls_back_once_to_canonical_search()
+    {
+        var handler = new SequenceHandler(HttpStatusCode.NotFound, HttpStatusCode.OK);
+        var client = new JsearchBoardClient(new HttpClient(handler),
+            Options.Create(new JsearchOptions { Key = "k", SearchPath = "/v3/search" }), TimeProvider.System,
+            NullLogger<JsearchBoardClient>.Instance, new OpportunityPilot.Application.Common.OperationalMetrics(TimeProvider.System));
+
+        var result = await client.SearchAsync(Request(JobBoard.Indeed), default);
+
+        Assert.Equal("Ready", result.Status);
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Equal("/v3/search", handler.Requests[0].AbsolutePath);
+        Assert.Equal("/search", handler.Requests[1].AbsolutePath);
     }
 
     [Theory]

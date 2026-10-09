@@ -339,6 +339,12 @@ public static class BoardMapping
         return q is { Length: >= 6 } && q.All(char.IsAsciiDigit) ? q : null;
     }
 
+    /// <summary>The shared candidate builder, for boards mapped outside this class (Workday).</summary>
+    public static Candidate BuildCandidate(Source source, JobPlatform platform, string externalId, string title, string organization,
+        string? location, string? workplaceType, string? url, string? applyUrl, string? country, string? description,
+        DateTime? postedAt = null) =>
+        Build(source, platform, externalId, title, organization, location, workplaceType, url, applyUrl, country, description, postedAt);
+
     private static Candidate Build(Source source, JobPlatform platform, string externalId, string title, string organization,
         string? location, string? workplaceType, string? url, string? applyUrl, string? country, string? description,
         DateTime? postedAt = null)

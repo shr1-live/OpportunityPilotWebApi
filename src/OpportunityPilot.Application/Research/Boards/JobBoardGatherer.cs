@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using OpportunityPilot.Application.Campaigns;
 using OpportunityPilot.Application.Configuration;
 using OpportunityPilot.Application.JobBoards;
+using OpportunityPilot.Application.Research.Rules;
 using OpportunityPilot.Domain.Common;
 using OpportunityPilot.Domain.Research;
 
@@ -49,6 +50,7 @@ public sealed class JobBoardGatherer(IWebFetcher fetcher, IContentParser parser,
         SourceKind.Workable => SimpleBoardAsync(source, room, fetchesLeft, BoardIdentifiers.Workable,
             $"{Base(_limits.WorkableApiBase, ResearchOptions.DefaultWorkableApiBase)}/api/v1/widget/accounts/{{0}}?details=true",
             (json, slug) => BoardMapping.WorkableCandidates(json, source, slug, parser), ct),
+        SourceKind.Workday => WorkdayAsync(source, criteria, room, fetchesLeft, keepGoing, ct),
         SourceKind.Remotive => AggregateAsync(source, room, fetchesLeft,
             $"{Base(_limits.RemotiveApiBase, ResearchOptions.DefaultRemotiveApiBase)}/api/remote-jobs",
             json => BoardMapping.RemotiveCandidates(json, source, parser), ct),
@@ -272,6 +274,80 @@ public sealed class JobBoardGatherer(IWebFetcher fetcher, IContentParser parser,
         if (stoppedBy is not null) message += $" Stopped at {stoppedBy}.";
         if (failure is not null) message += $" Some searches failed: {failure}";
         var level = postings.Count == 0 || items.Count < all.Count || stoppedBy is not null || failure is not null ? EventLevel.Warning : EventLevel.Info;
+        return new(SourceStatus.Ok, null, items, requests, message, level);
+    }
+
+    /// <summary>Searches per keyword (at most this many searches), then reads each matching job's detail.</summary>
+    public const int WorkdayMaxSearches = 3;
+
+    private async Task<BoardGathered> WorkdayAsync(Source source, CampaignCriteria criteria, int room, int fetchesLeft,
+        Func<CancellationToken, Task<bool>> keepGoing, CancellationToken ct)
+    {
+        if (WorkdayBoard.Parse(source.Url) is not { } board)
+            return Failed(source, "The Workday careers URL is not valid. Delete the source and add it again.", 0);
+        if (fetchesLeft <= 0) return FetchLimitReached(source);
+
+        var root = string.IsNullOrWhiteSpace(_limits.WorkdayApiBase) ? $"https://{board.Host}" : Base(_limits.WorkdayApiBase, "");
+        var api = $"{root}/wday/cxs/{Uri.EscapeDataString(board.Tenant)}/{Uri.EscapeDataString(board.Site)}";
+        var terms = BoardMapping.TitleTerms(criteria);
+        // Workday sites can list thousands of jobs, so the site's own search narrows them first: one search per
+        // keyword (an empty search when the campaign has none), each giving at most one page of 20.
+        var searches = criteria.Keywords.Select(k => k.Trim()).Where(k => k.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(WorkdayMaxSearches).DefaultIfEmpty("").ToList();
+
+        var requests = 0;
+        var listed = 0;
+        var found = new List<WorkdayPosting>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        string? failure = null;
+        foreach (var search in searches)
+        {
+            if (fetchesLeft - requests <= 0) break;
+            var page = await fetcher.PostJsonAsync($"{api}/jobs", WorkdayMapping.SearchBody(search), ct);
+            requests += page.Requests;
+            if (!page.Ok)
+            {
+                failure = page.StatusCode is 404 or 422
+                    ? $"No public Workday careers site was found at {board.SiteUrl}. Check the URL."
+                    : page.FailureReason ?? "The careers site could not be read.";
+                continue;
+            }
+            if (WorkdayMapping.Postings(page.Content) is not { } result) { failure = "Workday sent a response that could not be read."; continue; }
+            listed += result.Total;
+            foreach (var posting in result.Postings)
+                if (seen.Add(posting.ExternalPath)) found.Add(posting);
+        }
+        if (found.Count == 0)
+            return failure is not null
+                ? Failed(source, failure, requests)
+                : new(SourceStatus.Skipped, "The Workday search found no open jobs.", [], requests,
+                    $"{source.Label}: no open jobs matched {(searches is [""] ? "the site" : "your keywords")}.", EventLevel.Warning);
+
+        var matched = found
+            .Select((p, i) => (p, i, hits: terms.Count == 0 ? 0 : terms.Count(t => TextMatch.Contains(p.Title, t))))
+            .OrderByDescending(x => x.hits).ThenBy(x => x.i).Select(x => x.p).ToList();
+        var items = new List<Candidate>();
+        int unreadable = 0;
+        string? stoppedBy = null;
+        foreach (var posting in matched)
+        {
+            if (items.Count >= room) { stoppedBy = $"the run's limit of {_limits.EffectiveCandidates} candidates"; break; }
+            if (fetchesLeft - requests <= 0) { stoppedBy = $"the run's limit of {_limits.EffectiveFetches} fetches"; break; }
+            if (items.Count > 0 && items.Count % KeepAliveEvery == 0 && !await keepGoing(ct)) { stoppedBy = "a cancel request"; break; }
+
+            var detail = await fetcher.FetchJsonAsync($"{api}{posting.ExternalPath}", ct);
+            requests += detail.Requests;
+            var parsed = detail.Ok ? WorkdayMapping.Detail(detail.Content, parser) : null;
+            if (parsed?.Description is null) unreadable++;
+            items.Add(WorkdayMapping.Candidate(source, board, posting, parsed));
+        }
+
+        var searched = searches is [""] ? "the whole site" : $"{Count(searches.Count, "search", "searches")} ({string.Join(", ", searches)})";
+        var message = $"{source.Label}: {searched} found {Count(found.Count, "job")}, {items.Count} read.";
+        if (stoppedBy is not null) message += $" Stopped at {stoppedBy}.";
+        if (unreadable > 0) message += $" {Count(unreadable, "description")} could not be loaded, so those jobs are scored on the title only.";
+        if (failure is not null) message += $" One search failed: {failure}";
+        var level = stoppedBy is null && unreadable == 0 && failure is null ? EventLevel.Info : EventLevel.Warning;
         return new(SourceStatus.Ok, null, items, requests, message, level);
     }
 
