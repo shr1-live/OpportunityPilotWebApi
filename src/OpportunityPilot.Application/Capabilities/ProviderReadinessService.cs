@@ -21,7 +21,7 @@ public sealed record ProviderReadinessDto(
 /// <summary>P7: the provider readiness and compliance matrix. Every claim is either configuration or a stored record.</summary>
 public sealed class ProviderReadinessService(
     IAppDbContext db, ICurrentUser user, OperationalMetrics metrics,
-    IOptions<FeatureOptions> features, IOptions<JsearchOptions> jsearch, IOptions<AdzunaOptions> adzuna)
+    IOptions<FeatureOptions> features, IOptions<AdzunaOptions> adzuna)
 {
     public async Task<IReadOnlyList<ProviderReadinessDto>> ListAsync(CancellationToken ct)
     {
@@ -45,11 +45,6 @@ public sealed class ProviderReadinessService(
         string[] both = ["Candidate", "Sales"];
         return
         [
-            new("job-boards", "Indeed, LinkedIn, SEEK postings (JSearch)", both, Support.Automatic, Support.None, Support.None, Support.None,
-                "Jsearch__Key", jsearch.Value.Configured,
-                "Apply or contact on the board itself; OpportunityPilot only finds and scores postings.",
-                "Licensed aggregator; Indeed/LinkedIn/SEEK pages are never scraped.", jsearchOk,
-                jsearchOk is null ? null : "a live search succeeded since the API started", "W10–W13, W18–W20"),
             new("wellfound", "Wellfound", both, Support.Automatic, Support.None, Support.Manual, Support.Manual, null, true,
                 "Save or apply on Wellfound; recruiter data needs Wellfound Recruit OAuth.",
                 "Only the anonymous public jobs page is read.", lastWellfound, lastWellfound is null ? null : "public jobs imported", "W7–W9, W1"),
