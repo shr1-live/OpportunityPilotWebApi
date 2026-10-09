@@ -90,6 +90,22 @@ public class JsearchBoardClientTests
         Assert.Equal("/search-v2", handler.Requests[1].AbsolutePath);
     }
 
+    [Fact]
+    public async Task Optional_filters_are_sent_as_provider_parameters()
+    {
+        var handler = new SequenceHandler(HttpStatusCode.OK);
+        var client = new JsearchBoardClient(new HttpClient(handler), Options.Create(new JsearchOptions { Key = "k" }), TimeProvider.System,
+            NullLogger<JsearchBoardClient>.Instance, new OpportunityPilot.Application.Common.OperationalMetrics(TimeProvider.System));
+
+        await client.SearchAsync(Request(JobBoard.Indeed, "filters probe") with { EmploymentType = "FULLTIME,CONTRACTOR", Experience = "under_3_years_experience", RadiusKm = 25 }, default);
+
+        var query = handler.Requests.Single().Query;
+        Assert.Contains("employment_types=FULLTIME%2CCONTRACTOR", query);
+        Assert.Contains("job_requirements=under_3_years_experience", query);
+        Assert.Contains("radius=25", query);
+        Assert.DoesNotContain("page=", query);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.Forbidden, "refused")]
     [InlineData(HttpStatusCode.TooManyRequests, "quota")]
