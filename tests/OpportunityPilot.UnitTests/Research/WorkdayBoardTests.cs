@@ -38,7 +38,7 @@ public class WorkdayBoardTests
 
         Assert.Equal(JobPlatform.Workday, candidate.Platform);
         Assert.Equal("R1", candidate.ExternalId);
-        Assert.Equal("Workplace: Remote\nC# and Azure", candidate.Text); // the work-mode hint is prepended on purpose
+        Assert.Equal("C# and Azure", candidate.Text);
         Assert.StartsWith("https://acme.wd5.myworkdayjobs.com/External/job/", candidate.ApplyUrl);
     }
 }

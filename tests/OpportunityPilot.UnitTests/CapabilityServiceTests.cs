@@ -8,7 +8,7 @@ public class CapabilityServiceTests
 {
     private static CapabilitiesDto Get(FeatureOptions f, AiOptions a, AdzunaOptions? adzuna = null) =>
         new CapabilityService(Options.Create(f), Options.Create(a), Options.Create(new DatabaseOptions { Provider = "Postgres" }),
-                Options.Create(adzuna ?? new AdzunaOptions()), new SetupState())
+                Options.Create(adzuna ?? new AdzunaOptions()), Options.Create(new JsearchOptions()), new SetupState())
             .Get("Test");
 
     [Theory]
@@ -110,4 +110,11 @@ public class CapabilityServiceTests
         Assert.Contains("Unofficial automation", item.Detail);
     }
 
+    [Fact]
+    public void Job_boards_need_a_jsearch_key()
+    {
+        var item = Get(new FeatureOptions(), new AiOptions()).Items.Single(i => i.Key == "job-boards");
+        Assert.Equal(CapabilityStatus.NotConfigured, item.Status);
+        Assert.Contains("Jsearch__Key", item.Detail);
+    }
 }
