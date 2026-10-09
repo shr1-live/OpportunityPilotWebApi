@@ -34,6 +34,7 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
             ["query"] = $"{query} via {name}", ["num_pages"] = "1", ["date_posted"] = request.DatePosted,
         };
         // v5 names the remote filter work_from_home; remote_jobs_only is the earlier name. Unknown parameters are ignored.
+        if (!string.IsNullOrWhiteSpace(request.Cursor)) parameters["cursor"] = request.Cursor;
         if (request.RemoteOnly) { parameters["work_from_home"] = "true"; parameters["remote_jobs_only"] = "true"; }
         var country = request.Board == JobBoard.Seek && string.IsNullOrWhiteSpace(request.Country) ? "au" : request.Country;
         if (!string.IsNullOrWhiteSpace(country)) parameters["country"] = country.ToLowerInvariant();
@@ -85,10 +86,12 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
                 };
                 return new(request.Board, "Failed", [], 0, why, now, false, source, remaining);
             }
-            var (jobs, total) = JsearchBoardParser.Parse(await response.Content.ReadAsStringAsync(ct), request.Board);
+            var body = await response.Content.ReadAsStringAsync(ct);
+            var (jobs, total) = JsearchBoardParser.Parse(body, request.Board);
+            var nextCursor = JsearchBoardParser.NextCursor(body);
             var result = new JobBoardSearchResult(request.Board, "Ready", jobs, total,
                 jobs.Count == 0 ? $"JSearch returned {total} postings; none were published on {name}. Try a broader search." : null,
-                now, false, source, remaining);
+                now, false, source, remaining, nextCursor);
             Cache[cacheKey] = result;
             return result;
             }
