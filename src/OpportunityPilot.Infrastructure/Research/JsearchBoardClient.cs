@@ -31,7 +31,7 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
         // Adding the board name steers Google for Jobs towards that board's copy of each posting.
         var parameters = new Dictionary<string, string>
         {
-            ["query"] = $"{query} via {name}", ["page"] = request.Page.ToString(), ["num_pages"] = "1", ["date_posted"] = request.DatePosted,
+            ["query"] = $"{query} via {name}", ["num_pages"] = "1", ["date_posted"] = request.DatePosted,
         };
         // v5 names the remote filter work_from_home; remote_jobs_only is the earlier name. Unknown parameters are ignored.
         if (request.RemoteOnly) { parameters["work_from_home"] = "true"; parameters["remote_jobs_only"] = "true"; }
@@ -56,14 +56,15 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
             }
             using var configuredRequest = Request(o.SearchPath);
             var response = await http.SendAsync(configuredRequest, ct);
-            // RapidAPI's current JSearch endpoint is /search. A stale deployment override must not take all boards down.
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound &&
-                !o.SearchPath.Trim('/').Equals("search", StringComparison.OrdinalIgnoreCase))
+            // JSearch v5 (2026) searches at /search-v2 (seen in the RapidAPI playground); older plans used /search.
+            // A stale override must not take all boards down, so a 404 retries the other known path.
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
+                var other = o.SearchPath.Trim('/').Equals("search-v2", StringComparison.OrdinalIgnoreCase) ? "search" : "search-v2";
                 response.Dispose();
-                logger.LogWarning("Configured JSearch path returned 404; retrying the canonical /search endpoint");
-                using var canonicalRequest = Request("search");
-                response = await http.SendAsync(canonicalRequest, ct);
+                logger.LogWarning("Configured JSearch path returned 404; retrying /{Other}", other);
+                using var fallbackRequest = Request(other);
+                response = await http.SendAsync(fallbackRequest, ct);
             }
             using (response)
             {
@@ -79,7 +80,7 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
                 {
                     401 or 403 => "The JSearch key was refused. Check Jsearch__Key and that the RapidAPI plan is subscribed.",
                     429 => "The JSearch monthly or hourly quota is used up. Try again later.",
-                    404 => "The configured JSearch endpoint was not found. Remove Jsearch__SearchPath or set it to /search.",
+                    404 => "The configured JSearch endpoint was not found. Check Jsearch__SearchPath (v5 uses /search-v2).",
                     _ => $"JSearch answered {code}. Try again later.",
                 };
                 return new(request.Board, "Failed", [], 0, why, now, false, source, remaining);
