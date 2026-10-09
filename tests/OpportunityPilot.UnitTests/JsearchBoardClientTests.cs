@@ -75,7 +75,7 @@ public class JsearchBoardClientTests
     }
 
     [Fact]
-    public async Task Stale_configured_path_falls_back_once_to_canonical_search()
+    public async Task Stale_configured_path_falls_back_once_to_search_v2()
     {
         var handler = new SequenceHandler(HttpStatusCode.NotFound, HttpStatusCode.OK);
         var client = new JsearchBoardClient(new HttpClient(handler),
@@ -87,7 +87,7 @@ public class JsearchBoardClientTests
         Assert.Equal("Ready", result.Status);
         Assert.Equal(2, handler.Requests.Count);
         Assert.Equal("/v3/search", handler.Requests[0].AbsolutePath);
-        Assert.Equal("/search", handler.Requests[1].AbsolutePath);
+        Assert.Equal("/search-v2", handler.Requests[1].AbsolutePath);
     }
 
     [Theory]
