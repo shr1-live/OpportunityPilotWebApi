@@ -35,6 +35,9 @@ public sealed class JsearchBoardClient(HttpClient http, IOptions<JsearchOptions>
         };
         // v5 names the remote filter work_from_home; remote_jobs_only is the earlier name. Unknown parameters are ignored.
         if (!string.IsNullOrWhiteSpace(request.Cursor)) parameters["cursor"] = request.Cursor;
+        if (!string.IsNullOrWhiteSpace(request.EmploymentType)) parameters["employment_types"] = request.EmploymentType;
+        if (!string.IsNullOrWhiteSpace(request.Experience)) parameters["job_requirements"] = request.Experience;
+        if (request.RadiusKm is > 0) parameters["radius"] = request.RadiusKm.Value.ToString();
         if (request.RemoteOnly) { parameters["work_from_home"] = "true"; parameters["remote_jobs_only"] = "true"; }
         var country = request.Board == JobBoard.Seek && string.IsNullOrWhiteSpace(request.Country) ? "au" : request.Country;
         if (!string.IsNullOrWhiteSpace(country)) parameters["country"] = country.ToLowerInvariant();

@@ -9,7 +9,8 @@ namespace OpportunityPilot.Application.JobBoards;
 /// </summary>
 public enum JobBoard { Indeed, LinkedIn, Seek }
 
-public sealed record JobBoardSearchRequest(JobBoard Board, string Query, string? Location, bool RemoteOnly, string DatePosted, string? Country, int Page, string? Cursor = null);
+public sealed record JobBoardSearchRequest(JobBoard Board, string Query, string? Location, bool RemoteOnly, string DatePosted, string? Country, int Page, string? Cursor = null,
+    string? EmploymentType = null, string? Experience = null, int? RadiusKm = null);
 
 public sealed record JobBoardJobDto(
     string ProviderJobId,
@@ -56,6 +57,12 @@ public interface IJobBoardSearch
 public static class JsearchBoardParser
 {
     public const int MaxDescription = 8_000;
+
+    /// <summary>JSearch <c>employment_types</c> values; one or several joined by commas.</summary>
+    public static readonly string[] EmploymentTypeValues = ["FULLTIME", "PARTTIME", "CONTRACTOR", "INTERN"];
+
+    /// <summary>JSearch <c>job_requirements</c> values.</summary>
+    public static readonly string[] ExperienceValues = ["no_experience", "under_3_years_experience", "more_than_3_years_experience", "no_degree"];
 
     public static readonly string[] DatePostedValues = ["all", "today", "3days", "week", "month"];
 

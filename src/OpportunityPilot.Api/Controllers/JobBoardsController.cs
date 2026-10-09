@@ -17,7 +17,8 @@ public sealed class JobBoardsController(IJobBoardSearch search) : ControllerBase
     public async Task<ActionResult<JobBoardSearchResult>> Jobs(
         [FromQuery] string query, [FromQuery] JobBoard board = JobBoard.Indeed, [FromQuery] string? location = null,
         [FromQuery] bool remoteOnly = false, [FromQuery] string datePosted = "week", [FromQuery] string? country = null,
-        [FromQuery] int page = 1, [FromQuery] string? cursor = null, CancellationToken ct = default)
+        [FromQuery] int page = 1, [FromQuery] string? cursor = null,
+        [FromQuery] string? employmentType = null, [FromQuery] string? experience = null, [FromQuery] int? radiusKm = null, CancellationToken ct = default)
     {
         var errors = new Dictionary<string, string[]>();
         if (string.IsNullOrWhiteSpace(query) || query.Length > 200) errors["query"] = ["Enter a search of 1–200 characters."];
@@ -27,9 +28,13 @@ public sealed class JobBoardsController(IJobBoardSearch search) : ControllerBase
         else if (board == JobBoard.Seek && country is not null && !JsearchBoardParser.SeekCountries.Contains(country.ToLowerInvariant()))
             errors["country"] = ["SEEK runs only in Australia (au) and New Zealand (nz)."];
         if (page is < 1 or > 10) errors["page"] = ["Page is 1–10."];
+        if (employmentType is not null && (employmentType.Split(',').Length > 4 || employmentType.Split(',').Any(t => !JsearchBoardParser.EmploymentTypeValues.Contains(t))))
+            errors["employmentType"] = ["Use FULLTIME, PARTTIME, CONTRACTOR or INTERN (comma-separated)."];
+        if (experience is not null && !JsearchBoardParser.ExperienceValues.Contains(experience)) errors["experience"] = ["Use no_experience, under_3_years_experience, more_than_3_years_experience or no_degree."];
+        if (radiusKm is < 1 or > 500) errors["radiusKm"] = ["Radius is 1–500 km."];
         if (cursor is { Length: > 4000 }) errors["cursor"] = ["Cursor is too long."];
         if (errors.Count > 0) throw new RequestValidationException(errors);
-        return Ok(await search.SearchAsync(new(board, query.Trim(), location?.Trim(), remoteOnly, datePosted, country, page, string.IsNullOrWhiteSpace(cursor) ? null : cursor), ct));
+        return Ok(await search.SearchAsync(new(board, query.Trim(), location?.Trim(), remoteOnly, datePosted, country, page, string.IsNullOrWhiteSpace(cursor) ? null : cursor, employmentType, experience, radiusKm), ct));
     }
 }
 
@@ -45,5 +50,5 @@ public sealed class IndeedController(IJobBoardSearch search) : ControllerBase
         [FromQuery] string datePosted = "week", [FromQuery] string? country = null, [FromQuery] int page = 1,
         CancellationToken ct = default) =>
         new JobBoardsController(search) { ControllerContext = ControllerContext }
-            .Jobs(query, JobBoard.Indeed, location, remoteOnly, datePosted, country, page, null, ct);
+            .Jobs(query, JobBoard.Indeed, location, remoteOnly, datePosted, country, page, null, null, null, null, ct);
 }
