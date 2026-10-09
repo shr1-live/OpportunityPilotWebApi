@@ -56,6 +56,7 @@ public class ProviderGatewayApiTests(PostgresApiFactory factory) : IClassFixture
         var done = await (await user.PostAsJsonAsync($"/api/v1/executions/{first.Id()}/confirm", new { receipt = "Gmail sent item 'Dynamics 365 delivery' 9 Oct" })).Json(HttpStatusCode.OK);
         Assert.Equal("Succeeded", done.Str("state"));
         Assert.Equal("Sent", (await user.GetJson($"/api/v1/opportunities/{opportunityId}/drafts")).EnumerateArray().Single().Str("state"));
+        Assert.Equal("Sent", (await user.GetJson("/api/v1/drafts?take=50")).GetProperty("items").EnumerateArray().Single().Str("state"));  // the inbox list agrees
         Assert.Equal("Contacted", (await user.GetJson($"/api/v1/opportunities/{opportunityId}")).Str("status"));
 
         Assert.Equal(HttpStatusCode.Conflict, (await user.PostAsJsonAsync($"/api/v1/executions/{first.Id()}/confirm", new { receipt = "twice" })).StatusCode);
