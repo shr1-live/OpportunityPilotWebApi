@@ -37,6 +37,8 @@ public sealed class ResearchOptions
     public string RecruiteeHostSuffix { get; set; } = DefaultRecruiteeHostSuffix;
     public string WorkableApiBase { get; set; } = DefaultWorkableApiBase;
     public string RemotiveApiBase { get; set; } = DefaultRemotiveApiBase;
+    /// <summary>Empty in real use (each source names its own <c>*.myworkdayjobs.com</c> host); tests point it at a loopback server.</summary>
+    public string WorkdayApiBase { get; set; } = "";
     public string RemoteOkApiBase { get; set; } = DefaultRemoteOkApiBase;
 
     public const string DefaultGreenhouseApiBase = "https://boards-api.greenhouse.io";

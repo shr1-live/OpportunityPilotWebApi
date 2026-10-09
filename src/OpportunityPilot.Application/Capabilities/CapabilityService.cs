@@ -118,6 +118,7 @@ public sealed class CapabilityService(
             PublicBoard("smartrecruiters", "SmartRecruiters postings", "a company's public SmartRecruiters postings"),
             PublicBoard("recruitee", "Recruitee offers", "a company's public Recruitee offers"),
             PublicBoard("workable", "Workable jobs", "a company's public Workable careers widget"),
+            PublicBoard("workday", "Workday careers sites", "a company's public Workday careers site (myworkdayjobs.com), searched with your keywords"),
             PublicBoard("remotive", "Remotive remote jobs", "the public Remotive remote-jobs feed", company: false),
             PublicBoard("remoteok", "Remote OK jobs", "the public Remote OK jobs feed", company: false),
 

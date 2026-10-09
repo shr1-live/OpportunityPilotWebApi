@@ -70,6 +70,7 @@ Code: `Application/Research/Boards/*`, `Application/Sources/SourceService.cs`.
 | Source | Input and behavior |
 |---|---|
 | Greenhouse, Lever, Ashby, SmartRecruiters, Recruitee, Workable | One company slug or trusted careers URL; normalized to `[a-z0-9-]{1,100}` so callers cannot redirect the fetcher to another host |
+| Workday | One public `https://<tenant>.wd<N>.myworkdayjobs.com/<site>` careers URL (locale and job-detail suffix allowed); normalized to `<tenant>.wd<N>/<site>`. Login, account, foreign-host, credential and non-default-port URLs are rejected. At most 3 campaign keywords are searched; each search reads one bounded page and matching detail records |
 | Adzuna | Up to 3 campaign keywords and first non-Remote location; needs server-side keys and fails safely when absent |
 | Remotive, Remote OK | Board-wide public feed; no key or company slug |
 | All fetched sources | Job campaigns only; safe-fetch address/redirect/size/time limits apply; share the run fetch and candidate budgets fairly |
@@ -203,6 +204,7 @@ Not configurable: the address policy has one production implementation and no co
 | DNS | resolved inside the connect callback; any refused address in the answer refuses the host; the socket connects to the checked address and the peer is checked again (no rebinding) |
 | Proxy, cookies | never used |
 | Redirects | followed by hand, max 5, every hop re-checked (an http hop outside Development is refused) |
+| JSON POST | Workday public search uses the same address, timeout, retry and size rules; redirects are refused so a request body is never replayed to another address |
 | Retries | 408, 429, 5xx, timeouts and network errors: 3 retries with 0.5 s / 1 s / 2 s backoff + up to 250 ms jitter |
 | Content types | text/html, application/xhtml+xml, text/plain, application/rss+xml, application/atom+xml, application/xml, text/xml |
 | Failures | returned as a safe reason (never thrown, never an exception message); 401/403 add "The page may need a login." |
